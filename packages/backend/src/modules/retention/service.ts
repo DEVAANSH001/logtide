@@ -1,7 +1,8 @@
 import { db } from '../../database/connection.js';
 import { sql } from 'kysely';
 import { reservoir } from '../../database/reservoir.js';
-import { getInternalLogger } from '../../utils/internal-logger.js';
+import { isInternalLoggingEnabled } from '../../utils/internal-logger.js';
+import { hub } from '@logtide/core';
 
 // ============================================================================
 // Types
@@ -68,8 +69,6 @@ export class RetentionService {
       throw new Error(validation.error);
     }
 
-    const logger = getInternalLogger();
-
     // Get current value for audit logging
     const currentOrg = await db
       .selectFrom('organizations')
@@ -94,8 +93,8 @@ export class RetentionService {
       .execute();
 
     // Audit log
-    if (logger && oldValue !== retentionDays) {
-      logger.info('retention-policy-changed', `Retention policy changed for ${currentOrg.name}`, {
+    if (isInternalLoggingEnabled() && oldValue !== retentionDays) {
+      hub.captureLog('info', `Retention policy changed for ${currentOrg.name}`, {
         organizationId,
         organizationName: currentOrg.name,
         oldRetentionDays: oldValue,
@@ -217,7 +216,6 @@ export class RetentionService {
     organizationName: string
   ): Promise<RetentionExecutionResult> {
     const startTime = Date.now();
-    const logger = getInternalLogger();
 
     try {
       const projects = await db
@@ -255,8 +253,8 @@ export class RetentionService {
       }
       const executionTimeMs = Date.now() - startTime;
 
-      if (totalDeleted > 0 && logger) {
-        logger.info('retention-cleanup-org', `Deleted ${totalDeleted} logs for ${organizationName}`, {
+      if (totalDeleted > 0 && isInternalLoggingEnabled()) {
+        hub.captureLog('info', `Deleted ${totalDeleted} logs for ${organizationName}`, {
           organizationId,
           organizationName,
           retentionDays,
@@ -276,12 +274,12 @@ export class RetentionService {
       const executionTimeMs = Date.now() - startTime;
       const errorMessage = error instanceof Error ? error.message : String(error);
 
-      if (logger) {
-        logger.error('retention-cleanup-org-error', `Failed to cleanup logs for ${organizationName}: ${errorMessage}`, {
+      if (isInternalLoggingEnabled()) {
+        hub.captureLog('error', `Failed to cleanup logs for ${organizationName}: ${errorMessage}`, {
           organizationId,
           organizationName,
           retentionDays,
-          error: error instanceof Error ? error : new Error(String(error)),
+          error: error instanceof Error ? { name: error.name, message: error.message, stack: error.stack } : { message: String(error) },
         });
       }
 
@@ -306,7 +304,7 @@ export class RetentionService {
    */
   async executeRetentionForAllOrganizations(): Promise<RetentionExecutionSummary> {
     const startTime = Date.now();
-    const logger = getInternalLogger();
+    const logging = isInternalLoggingEnabled();
 
     // Get all organizations with their retention + projects
     const organizations = await db
@@ -341,8 +339,8 @@ export class RetentionService {
         `.execute(db);
         chunksDropped = dropResult.rows.length;
 
-        if (chunksDropped > 0 && logger) {
-          logger.info('retention-drop-chunks', `Dropped ${chunksDropped} chunks older than ${maxRetention} days`, {
+        if (chunksDropped > 0 && logging) {
+          hub.captureLog('info', `Dropped ${chunksDropped} chunks older than ${maxRetention} days`, {
             maxRetentionDays: maxRetention,
             cutoffDate: maxCutoff.toISOString(),
             chunksDropped,
@@ -350,9 +348,9 @@ export class RetentionService {
         }
       } catch (err) {
         // drop_chunks may fail if no chunks to drop — that's fine
-        if (logger) {
+        if (logging) {
           const msg = err instanceof Error ? err.message : String(err);
-          logger.debug('retention-drop-chunks-skip', `drop_chunks: ${msg}`);
+          hub.captureLog('debug', `drop_chunks: ${msg}`);
         }
       }
     }
@@ -420,8 +418,8 @@ export class RetentionService {
         const groupTime = Date.now() - groupStart;
         totalDeleted += deleted;
 
-        if (deleted > 0 && logger) {
-          logger.info('retention-group-cleanup', `Deleted ${deleted} logs for ${group.orgs.length} orgs (${retentionDays}d retention) in ${groupTime}ms`, {
+        if (deleted > 0 && logging) {
+          hub.captureLog('info', `Deleted ${deleted} logs for ${group.orgs.length} orgs (${retentionDays}d retention) in ${groupTime}ms`, {
             retentionDays,
             orgCount: group.orgs.length,
             logsDeleted: deleted,
@@ -444,11 +442,11 @@ export class RetentionService {
         const errorMessage = error instanceof Error ? error.message : String(error);
         failedCount += group.orgs.length;
 
-        if (logger) {
-          logger.error('retention-group-error', `Failed retention for ${retentionDays}d group: ${errorMessage}`, {
+        if (logging) {
+          hub.captureLog('error', `Failed retention for ${retentionDays}d group: ${errorMessage}`, {
             retentionDays,
             orgCount: group.orgs.length,
-            error: error instanceof Error ? error : new Error(String(error)),
+            error: error instanceof Error ? { name: error.name, message: error.message, stack: error.stack } : { message: String(error) },
           });
         }
 
@@ -481,8 +479,8 @@ export class RetentionService {
     const successCount = organizations.length - failedCount;
     const totalExecutionTimeMs = Date.now() - startTime;
 
-    if (logger) {
-      logger.info('retention-cleanup-complete', 'Retention cleanup completed', {
+    if (logging) {
+      hub.captureLog('info', 'Retention cleanup completed', {
         totalOrganizations: organizations.length,
         successfulOrganizations: successCount,
         failedOrganizations: failedCount,

@@ -5,6 +5,27 @@ All notable changes to LogTide will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.2] - 2026-02-18
+
+### Changed
+
+- **Dogfooding SDK Migration**: Replaced `@logtide/sdk-node` with the official framework SDKs for self-monitoring
+  - **Backend**: Now uses `@logtide/fastify` plugin for automatic HTTP request/response/error logging, per-request scoping, and W3C Trace Context propagation
+  - **Worker**: Now uses `hub` from `@logtide/core` directly (`hub.captureLog()` / `hub.captureError()`) for job event logging
+  - **Frontend (new)**: Added `@logtide/sveltekit` for both server-side and client-side self-monitoring
+    - `hooks.server.ts`: `logtideHandle()` for SSR request tracing, `logtideHandleError()` for server errors, `logtideHandleFetch()` for distributed trace propagation on outgoing fetches
+    - `hooks.client.ts`: `initLogtide()` for client-side hub initialization, `logtideHandleError()` for browser error capture
+  - DSN configuration: `INTERNAL_DSN` env var takes priority, falls back to constructed DSN from `INTERNAL_API_KEY` + `INTERNAL_LOGGING_API_URL` via bootstrap
+  - Frontend DSN: `LOGTIDE_DSN` (server-side) and `PUBLIC_LOGTIDE_DSN` (client-side browser)
+  - Removed custom `internal-logging-plugin.ts` request/response hooks — replaced entirely by `@logtide/fastify` lifecycle hooks
+  - Removed `getInternalLogger()` / `LogTideClient` pattern — replaced by `hub.captureLog()` singleton from `@logtide/core`
+
+### Security
+
+- **fast-xml-parser DoS vulnerability**: Bumped override to `>=5.3.6` to fix entity expansion DoS in DOCTYPE (CVE in versions >= 4.1.3, < 5.3.6)
+
+---
+
 ## [0.6.1] - 2026-02-14
 
 ### Added

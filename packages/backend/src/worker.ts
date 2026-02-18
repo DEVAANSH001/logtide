@@ -9,11 +9,12 @@ import { processErrorNotification, type ErrorNotificationJobData } from './queue
 import { alertsService } from './modules/alerts/index.js';
 import { enrichmentService } from './modules/siem/enrichment-service.js';
 import { retentionService } from './modules/retention/index.js';
-import { initializeInternalLogging, shutdownInternalLogging, getInternalLogger } from './utils/internal-logger.js';
+import { initializeWorkerLogging, shutdownInternalLogging, isInternalLoggingEnabled } from './utils/internal-logger.js';
+import { hub } from '@logtide/core';
 import { reservoirReady } from './database/reservoir.js';
 
-// Initialize internal logging
-await initializeInternalLogging();
+// Initialize internal logging via @logtide/core hub
+await initializeWorkerLogging();
 
 // Wait for reservoir to be ready before processing jobs that need it
 await reservoirReady;
@@ -62,9 +63,8 @@ await startQueueWorkers();
 console.log('[Worker] All workers started');
 
 alertWorker.on('completed', (job) => {
-  const logger = getInternalLogger();
-  if (logger) {
-    logger.info('worker-job-completed', `Alert notification job completed`, {
+  if (isInternalLoggingEnabled()) {
+    hub.captureLog('info', `Alert notification job completed`, {
       jobId: job.id,
       alertRuleId: job.data?.rule_id,
       logCount: job.data?.log_count,
@@ -75,10 +75,9 @@ alertWorker.on('completed', (job) => {
 alertWorker.on('failed', (job, err) => {
   console.error(`Job ${job?.id} failed:`, err);
 
-  const logger = getInternalLogger();
-  if (logger) {
-    logger.error('worker-job-failed', `Alert notification job failed: ${err.message}`, {
-      error: err,
+  if (isInternalLoggingEnabled()) {
+    hub.captureLog('error', `Alert notification job failed: ${err.message}`, {
+      error: { name: err.name, message: err.message, stack: err.stack },
       jobId: job?.id,
       alertRuleId: job?.data?.rule_id,
     });
@@ -86,10 +85,8 @@ alertWorker.on('failed', (job, err) => {
 });
 
 sigmaWorker.on('completed', (job) => {
-
-  const logger = getInternalLogger();
-  if (logger) {
-    logger.info('worker-sigma-completed', `Sigma detection job completed`, {
+  if (isInternalLoggingEnabled()) {
+    hub.captureLog('info', `Sigma detection job completed`, {
       jobId: job.id,
       logCount: job.data?.logs?.length,
     });
@@ -99,10 +96,9 @@ sigmaWorker.on('completed', (job) => {
 sigmaWorker.on('failed', (job, err) => {
   console.error(`Sigma detection job ${job?.id} failed:`, err);
 
-  const logger = getInternalLogger();
-  if (logger) {
-    logger.error('worker-sigma-failed', `Sigma detection job failed: ${err.message}`, {
-      error: err,
+  if (isInternalLoggingEnabled()) {
+    hub.captureLog('error', `Sigma detection job failed: ${err.message}`, {
+      error: { name: err.name, message: err.message, stack: err.stack },
       jobId: job?.id,
       logCount: job?.data?.logs?.length,
     });
@@ -110,9 +106,8 @@ sigmaWorker.on('failed', (job, err) => {
 });
 
 autoGroupWorker.on('completed', (job) => {
-  const logger = getInternalLogger();
-  if (logger) {
-    logger.info('worker-autogrouping-completed', `Incident auto-grouping job completed`, {
+  if (isInternalLoggingEnabled()) {
+    hub.captureLog('info', `Incident auto-grouping job completed`, {
       jobId: job.id,
     });
   }
@@ -121,19 +116,17 @@ autoGroupWorker.on('completed', (job) => {
 autoGroupWorker.on('failed', (job, err) => {
   console.error(`Incident auto-grouping job ${job?.id} failed:`, err);
 
-  const logger = getInternalLogger();
-  if (logger) {
-    logger.error('worker-autogrouping-failed', `Incident auto-grouping job failed: ${err.message}`, {
-      error: err,
+  if (isInternalLoggingEnabled()) {
+    hub.captureLog('error', `Incident auto-grouping job failed: ${err.message}`, {
+      error: { name: err.name, message: err.message, stack: err.stack },
       jobId: job?.id,
     });
   }
 });
 
 invitationWorker.on('completed', (job) => {
-  const logger = getInternalLogger();
-  if (logger) {
-    logger.info('worker-invitation-completed', `Invitation email job completed`, {
+  if (isInternalLoggingEnabled()) {
+    hub.captureLog('info', `Invitation email job completed`, {
       jobId: job.id,
       email: job.data?.email,
     });
@@ -143,10 +136,9 @@ invitationWorker.on('completed', (job) => {
 invitationWorker.on('failed', (job, err) => {
   console.error(`Invitation email job ${job?.id} failed:`, err);
 
-  const logger = getInternalLogger();
-  if (logger) {
-    logger.error('worker-invitation-failed', `Invitation email job failed: ${err.message}`, {
-      error: err,
+  if (isInternalLoggingEnabled()) {
+    hub.captureLog('error', `Invitation email job failed: ${err.message}`, {
+      error: { name: err.name, message: err.message, stack: err.stack },
       jobId: job?.id,
       email: job?.data?.email,
     });
@@ -154,9 +146,8 @@ invitationWorker.on('failed', (job, err) => {
 });
 
 incidentNotificationWorker.on('completed', (job) => {
-  const logger = getInternalLogger();
-  if (logger) {
-    logger.info('worker-incident-notification-completed', `Incident notification job completed`, {
+  if (isInternalLoggingEnabled()) {
+    hub.captureLog('info', `Incident notification job completed`, {
       jobId: job.id,
       incidentId: job.data?.incidentId,
     });
@@ -166,10 +157,9 @@ incidentNotificationWorker.on('completed', (job) => {
 incidentNotificationWorker.on('failed', (job, err) => {
   console.error(`Incident notification job ${job?.id} failed:`, err);
 
-  const logger = getInternalLogger();
-  if (logger) {
-    logger.error('worker-incident-notification-failed', `Incident notification job failed: ${err.message}`, {
-      error: err,
+  if (isInternalLoggingEnabled()) {
+    hub.captureLog('error', `Incident notification job failed: ${err.message}`, {
+      error: { name: err.name, message: err.message, stack: err.stack },
       jobId: job?.id,
       incidentId: job?.data?.incidentId,
     });
@@ -177,9 +167,8 @@ incidentNotificationWorker.on('failed', (job, err) => {
 });
 
 exceptionWorker.on('completed', (job) => {
-  const logger = getInternalLogger();
-  if (logger) {
-    logger.info('worker-exception-parsing-completed', `Exception parsing job completed`, {
+  if (isInternalLoggingEnabled()) {
+    hub.captureLog('info', `Exception parsing job completed`, {
       jobId: job.id,
       logCount: job.data?.logs?.length,
     });
@@ -189,10 +178,9 @@ exceptionWorker.on('completed', (job) => {
 exceptionWorker.on('failed', (job, err) => {
   console.error(`Exception parsing job ${job?.id} failed:`, err);
 
-  const logger = getInternalLogger();
-  if (logger) {
-    logger.error('worker-exception-parsing-failed', `Exception parsing job failed: ${err.message}`, {
-      error: err,
+  if (isInternalLoggingEnabled()) {
+    hub.captureLog('error', `Exception parsing job failed: ${err.message}`, {
+      error: { name: err.name, message: err.message, stack: err.stack },
       jobId: job?.id,
       logCount: job?.data?.logs?.length,
     });
@@ -200,9 +188,8 @@ exceptionWorker.on('failed', (job, err) => {
 });
 
 errorNotificationWorker.on('completed', (job) => {
-  const logger = getInternalLogger();
-  if (logger) {
-    logger.info('worker-error-notification-completed', `Error notification job completed`, {
+  if (isInternalLoggingEnabled()) {
+    hub.captureLog('info', `Error notification job completed`, {
       jobId: job.id,
       exceptionId: job.data?.exceptionId,
       exceptionType: job.data?.exceptionType,
@@ -213,10 +200,9 @@ errorNotificationWorker.on('completed', (job) => {
 errorNotificationWorker.on('failed', (job, err) => {
   console.error(`Error notification job ${job?.id} failed:`, err);
 
-  const logger = getInternalLogger();
-  if (logger) {
-    logger.error('worker-error-notification-failed', `Error notification job failed: ${err.message}`, {
-      error: err,
+  if (isInternalLoggingEnabled()) {
+    hub.captureLog('error', `Error notification job failed: ${err.message}`, {
+      error: { name: err.name, message: err.message, stack: err.stack },
       jobId: job?.id,
       exceptionId: job?.data?.exceptionId,
     });
@@ -235,7 +221,6 @@ async function checkAlerts() {
   }
 
   isCheckingAlerts = true;
-  const logger = getInternalLogger();
   const checkStartTime = Date.now();
 
   try {
@@ -245,9 +230,8 @@ async function checkAlerts() {
 
     if (triggeredAlerts.length > 0) {
 
-      // Log triggered alerts
-      if (logger) {
-        logger.warn('worker-alerts-triggered', `${triggeredAlerts.length} alert(s) triggered`, {
+      if (isInternalLoggingEnabled()) {
+        hub.captureLog('warn', `${triggeredAlerts.length} alert(s) triggered`, {
           alertCount: triggeredAlerts.length,
           alertRuleIds: triggeredAlerts.map((a) => a.rule_id),
           checkDuration_ms: checkDuration,
@@ -261,9 +245,8 @@ async function checkAlerts() {
       for (const alert of triggeredAlerts) {
         await notificationQueue.add('send-notification', alert);
 
-        // Log each alert queued
-        if (logger) {
-          logger.info('worker-alert-queued', `Alert notification queued`, {
+        if (isInternalLoggingEnabled()) {
+          hub.captureLog('info', `Alert notification queued`, {
             alertRuleId: alert.rule_id,
             ruleName: alert.rule_name,
             logCount: alert.log_count,
@@ -271,9 +254,8 @@ async function checkAlerts() {
         }
       }
     } else {
-      // Log no alerts triggered
-      if (logger) {
-        logger.debug('worker-alert-check-complete', `Alert check completed, no alerts triggered`, {
+      if (isInternalLoggingEnabled()) {
+        hub.captureLog('debug', `Alert check completed, no alerts triggered`, {
           checkDuration_ms: checkDuration,
         });
       }
@@ -281,10 +263,9 @@ async function checkAlerts() {
   } catch (error) {
     console.error('Error checking alerts:', error);
 
-    // Log error
-    if (logger) {
-      logger.error('worker-alert-check-error', `Failed to check alert rules: ${(error as Error).message}`, {
-        error: error instanceof Error ? error : new Error(String(error)),
+    if (isInternalLoggingEnabled()) {
+      hub.captureLog('error', `Failed to check alert rules: ${(error as Error).message}`, {
+        error: error instanceof Error ? { name: error.name, message: error.message, stack: error.stack } : { message: String(error) },
       });
     }
   } finally {
@@ -311,7 +292,6 @@ async function runAutoGrouping() {
   }
 
   isAutoGrouping = true;
-  const logger = getInternalLogger();
 
   try {
     const { createQueue } = await import('./queue/connection.js');
@@ -319,15 +299,15 @@ async function runAutoGrouping() {
 
     await autoGroupQueue.add('group-incidents', {});
 
-    if (logger) {
-      logger.info('worker-autogrouping-scheduled', `Incident auto-grouping job scheduled`);
+    if (isInternalLoggingEnabled()) {
+      hub.captureLog('info', `Incident auto-grouping job scheduled`);
     }
   } catch (error) {
     console.error('Error scheduling auto-grouping:', error);
 
-    if (logger) {
-      logger.error('worker-autogrouping-schedule-error', `Failed to schedule auto-grouping: ${(error as Error).message}`, {
-        error: error instanceof Error ? error : new Error(String(error)),
+    if (isInternalLoggingEnabled()) {
+      hub.captureLog('error', `Failed to schedule auto-grouping: ${(error as Error).message}`, {
+        error: error instanceof Error ? { name: error.name, message: error.message, stack: error.stack } : { message: String(error) },
       });
     }
   } finally {
@@ -346,29 +326,27 @@ setTimeout(runAutoGrouping, 10000);
 // ============================================================================
 
 async function updateEnrichmentDatabases() {
-  const logger = getInternalLogger();
-
   try {
     const results = await enrichmentService.updateDatabasesIfNeeded();
 
     if (results.geoLite2) {
       console.log('[Worker] GeoLite2 database updated');
-      if (logger) {
-        logger.info('worker-geolite2-updated', 'GeoLite2 database updated successfully');
+      if (isInternalLoggingEnabled()) {
+        hub.captureLog('info', 'GeoLite2 database updated successfully');
       }
     }
 
     if (results.ipsum) {
       console.log('[Worker] IPsum database updated');
-      if (logger) {
-        logger.info('worker-ipsum-updated', 'IPsum database updated successfully');
+      if (isInternalLoggingEnabled()) {
+        hub.captureLog('info', 'IPsum database updated successfully');
       }
     }
   } catch (error) {
     console.error('Error updating enrichment databases:', error);
-    if (logger) {
-      logger.error('worker-enrichment-update-error', `Failed to update databases: ${(error as Error).message}`, {
-        error: error instanceof Error ? error : new Error(String(error)),
+    if (isInternalLoggingEnabled()) {
+      hub.captureLog('error', `Failed to update databases: ${(error as Error).message}`, {
+        error: error instanceof Error ? { name: error.name, message: error.message, stack: error.stack } : { message: String(error) },
       });
     }
   }
@@ -394,7 +372,6 @@ async function runRetentionCleanup() {
   }
 
   isRunningRetentionCleanup = true;
-  const logger = getInternalLogger();
   const startTime = Date.now();
 
   try {
@@ -404,8 +381,8 @@ async function runRetentionCleanup() {
 
     console.log(`[Worker] Retention cleanup completed: ${summary.totalLogsDeleted} logs deleted from ${summary.successfulOrganizations}/${summary.totalOrganizations} orgs in ${duration}ms`);
 
-    if (logger) {
-      logger.info('worker-retention-completed', 'Retention cleanup completed', {
+    if (isInternalLoggingEnabled()) {
+      hub.captureLog('info', 'Retention cleanup completed', {
         totalOrganizations: summary.totalOrganizations,
         successfulOrganizations: summary.successfulOrganizations,
         failedOrganizations: summary.failedOrganizations,
@@ -417,8 +394,8 @@ async function runRetentionCleanup() {
     // Log any failures
     for (const result of summary.results.filter(r => r.error)) {
       console.error(`Retention failed for org ${result.organizationName}: ${result.error}`);
-      if (logger) {
-        logger.error('worker-retention-org-failed', `Retention failed for org ${result.organizationName}`, {
+      if (isInternalLoggingEnabled()) {
+        hub.captureLog('error', `Retention failed for org ${result.organizationName}`, {
           organizationId: result.organizationId,
           organizationName: result.organizationName,
           error: result.error,
@@ -428,9 +405,9 @@ async function runRetentionCleanup() {
   } catch (error) {
     console.error('Retention cleanup failed:', error);
 
-    if (logger) {
-      logger.error('worker-retention-failed', `Retention cleanup failed: ${(error as Error).message}`, {
-        error: error instanceof Error ? error : new Error(String(error)),
+    if (isInternalLoggingEnabled()) {
+      hub.captureLog('error', `Retention cleanup failed: ${(error as Error).message}`, {
+        error: error instanceof Error ? { name: error.name, message: error.message, stack: error.stack } : { message: String(error) },
       });
     }
   } finally {

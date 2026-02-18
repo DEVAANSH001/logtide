@@ -8,9 +8,9 @@ overrides:
   esbuild: '>=0.25.0'
   cookie: '>=0.7.0'
   express: '>=5.2.0'
-  qs: '>=6.14.1'
+  qs: '>=6.14.2'
   devalue: '>=5.6.2'
-  fast-xml-parser: '>=5.3.4'
+  fast-xml-parser: '>=5.3.6'
 
 importers:
 
@@ -37,12 +37,15 @@ importers:
       '@fastify/websocket':
         specifier: ^11.0.2
         version: 11.2.0
+      '@logtide/core':
+        specifier: ^0.5.6
+        version: 0.5.6
+      '@logtide/fastify':
+        specifier: ^0.5.6
+        version: 0.5.6(fastify@5.7.4)
       '@logtide/reservoir':
         specifier: workspace:*
         version: link:../reservoir
-      '@logtide/sdk-node':
-        specifier: ^0.1.0
-        version: 0.1.1(fastify@5.7.4)
       '@logtide/shared':
         specifier: workspace:*
         version: link:../shared
@@ -143,6 +146,9 @@ importers:
       '@logtide/shared':
         specifier: workspace:*
         version: link:../shared
+      '@logtide/sveltekit':
+        specifier: ^0.5.6
+        version: 0.5.6(@sveltejs/kit@2.49.5(@opentelemetry/api@1.9.0)(@sveltejs/vite-plugin-svelte@5.1.1(svelte@5.45.3)(vite@6.4.1(@types/node@22.19.7)(jiti@1.21.7)(tsx@4.21.0)))(svelte@5.45.3)(typescript@5.9.3)(vite@6.4.1(@types/node@22.19.7)(jiti@1.21.7)(tsx@4.21.0)))
       '@tanstack/svelte-table':
         specifier: ^8.21.3
         version: 8.21.3(svelte@5.45.3)
@@ -815,17 +821,21 @@ packages:
   '@jridgewell/trace-mapping@0.3.31':
     resolution: {integrity: sha512-zzNR+SdQSDJzc8joaeP8QQoCQr8NuYx2dIIytl1QeBEZHJ9uW6hebsrYgbz8hJwUQao3TWCMtmfV8Nu1twOLAw==}
 
-  '@logtide/sdk-node@0.1.1':
-    resolution: {integrity: sha512-PTAx1YQd2yqO19RmhcqouZhAXGghZg2NZKfAcO16mQnYQKpQmsbLJ6FPMAyLmM1uENpWeMwtjS89MHIy2QFMZg==}
-    engines: {node: '>=20.0.0'}
+  '@logtide/core@0.5.6':
+    resolution: {integrity: sha512-pETB8V6WcYrpqmx7YckxKNquSB9iBIW7TPJQwI0+IQydJ/9pivH8uM5JKt/twIRqSOzvBH9S0HgFBds6AL5S9g==}
+
+  '@logtide/fastify@0.5.6':
+    resolution: {integrity: sha512-UsoX9ewx2P2/tvao7WrmFtbd377o5ZYSO812GmmxRm1Oah1aS4qr+lW5QI14eQAEwzBcY+poTeLrCRvsag+7jw==}
     peerDependencies:
-      express: '>=5.2.0'
-      fastify: ^4.0.0
-    peerDependenciesMeta:
-      express:
-        optional: true
-      fastify:
-        optional: true
+      fastify: ^4.0.0 || ^5.0.0
+
+  '@logtide/sveltekit@0.5.6':
+    resolution: {integrity: sha512-KsFpduUKO1DYGkv7KmxGCyUVRYGr55n6SUMkY/ARwtnq+xEXq2SGYWQW/aFbzccPzmLPsncgBm++hFUSRyrHIQ==}
+    peerDependencies:
+      '@sveltejs/kit': '>=2.0.0'
+
+  '@logtide/types@0.5.6':
+    resolution: {integrity: sha512-FzebdDihQHzKab7ZJUxNgspQevqe30/SO+kPTRGbgo2JlhRkMv+mfeM7aDVOqq67sBFO1P57YdYzwOHVmt/qiQ==}
 
   '@lucide/svelte@0.482.0':
     resolution: {integrity: sha512-n2ycHU9cNcleRDwwpEHBJ6pYzVhHIaL3a+9dQa8kns9hB2g05bY+v2p2KP8v0pZwtNhYTHk/F2o2uZ1bVtQGhw==}
@@ -1926,8 +1936,8 @@ packages:
   fast-uri@3.1.0:
     resolution: {integrity: sha512-iPeeDKJSWf4IEOasVVrknXpaBV0IApz/gp7S2bb7Z4Lljbl2MGJRqInZiUrQwV16cpzw/D3S5j5Julj/gT52AA==}
 
-  fast-xml-parser@5.3.4:
-    resolution: {integrity: sha512-EFd6afGmXlCx8H8WTZHhAoDaWaGyuIBoZJ2mknrNxug+aZKjkp0a0dlars9Izl+jF+7Gu1/5f/2h68cQpe0IiA==}
+  fast-xml-parser@5.3.6:
+    resolution: {integrity: sha512-QNI3sAvSvaOiaMl8FYU4trnEzCwiRr8XMWgAHzlrWpTSj+QaCSvOf1h82OEP1s4hiAXhnbXSyFWCf4ldZzZRVA==}
     hasBin: true
 
   fastify-plugin@5.1.0:
@@ -2577,8 +2587,8 @@ packages:
     resolution: {integrity: sha512-vYt7UD1U9Wg6138shLtLOvdAu+8DsC/ilFtEVHcH+wydcSpNE20AfSOduf6MkRFahL5FY7X1oU7nKVZFtfq8Fg==}
     engines: {node: '>=6'}
 
-  qs@6.14.1:
-    resolution: {integrity: sha512-4EK3+xJl8Ts67nLYNwqw/dsFVnCf+qR7RgXSK9jEEm9unao3njwMDdmsdvoKBKHzxd7tCYz5e5M+SnMjdtXGQQ==}
+  qs@6.15.0:
+    resolution: {integrity: sha512-mAZTtNCeetKMH+pSjrb76NAM8V9a05I9aBZOHztWy/UqcJdQYNsf59vrRKWnojAT9Y+GbIvoTBC++CPHqpDBhQ==}
     engines: {node: '>=0.6'}
 
   queue-microtask@1.2.3:
@@ -2796,8 +2806,8 @@ packages:
     resolution: {integrity: sha512-gmBGslpoQJtgnMAvOVqGZpEz9dyoKTCzy2nfz/n8aIFhN/jCE/rCmcxabB6jOOHV+0WNnylOxaxBQPSvcWklhA==}
     engines: {node: '>=12'}
 
-  strnum@2.1.1:
-    resolution: {integrity: sha512-7ZvoFTiCnGxBtDqJ//Cu6fWtZtc7Y3x+QOirG15wztbdngGSkht27o2pyGWrVy0b4WAy3jbKmnoK6g5VlVNUUw==}
+  strnum@2.1.2:
+    resolution: {integrity: sha512-l63NF9y/cLROq/yqKXSLtcMeeyOfnSQlfMSlzFt/K73oIaD8DGaQWd7Z34X9GPiKqP5rbSh84Hl4bOlLcjiSrQ==}
 
   style-to-object@1.0.14:
     resolution: {integrity: sha512-LIN7rULI0jBscWQYaSswptyderlarFkjQ+t79nzty8tcIAceVomEVlLzH5VP4Cmsv6MtKhs7qaAiwlcp+Mgaxw==}
@@ -3532,7 +3542,7 @@ snapshots:
   '@aws-sdk/xml-builder@3.930.0':
     dependencies:
       '@smithy/types': 4.9.0
-      fast-xml-parser: 5.3.4
+      fast-xml-parser: 5.3.6
       tslib: 2.8.1
 
   '@aws/lambda-invoke-store@0.2.1': {}
@@ -3824,9 +3834,24 @@ snapshots:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.5.5
 
-  '@logtide/sdk-node@0.1.1(fastify@5.7.4)':
-    optionalDependencies:
+  '@logtide/core@0.5.6':
+    dependencies:
+      '@logtide/types': 0.5.6
+
+  '@logtide/fastify@0.5.6(fastify@5.7.4)':
+    dependencies:
+      '@logtide/core': 0.5.6
+      '@logtide/types': 0.5.6
       fastify: 5.7.4
+      fastify-plugin: 5.1.0
+
+  '@logtide/sveltekit@0.5.6(@sveltejs/kit@2.49.5(@opentelemetry/api@1.9.0)(@sveltejs/vite-plugin-svelte@5.1.1(svelte@5.45.3)(vite@6.4.1(@types/node@22.19.7)(jiti@1.21.7)(tsx@4.21.0)))(svelte@5.45.3)(typescript@5.9.3)(vite@6.4.1(@types/node@22.19.7)(jiti@1.21.7)(tsx@4.21.0)))':
+    dependencies:
+      '@logtide/core': 0.5.6
+      '@logtide/types': 0.5.6
+      '@sveltejs/kit': 2.49.5(@opentelemetry/api@1.9.0)(@sveltejs/vite-plugin-svelte@5.1.1(svelte@5.45.3)(vite@6.4.1(@types/node@22.19.7)(jiti@1.21.7)(tsx@4.21.0)))(svelte@5.45.3)(typescript@5.9.3)(vite@6.4.1(@types/node@22.19.7)(jiti@1.21.7)(tsx@4.21.0))
+
+  '@logtide/types@0.5.6': {}
 
   '@lucide/svelte@0.482.0(svelte@5.45.3)':
     dependencies:
@@ -5036,9 +5061,9 @@ snapshots:
 
   fast-uri@3.1.0: {}
 
-  fast-xml-parser@5.3.4:
+  fast-xml-parser@5.3.6:
     dependencies:
-      strnum: 2.1.1
+      strnum: 2.1.2
 
   fastify-plugin@5.1.0: {}
 
@@ -5704,7 +5729,7 @@ snapshots:
 
   punycode@2.3.1: {}
 
-  qs@6.14.1:
+  qs@6.15.0:
     dependencies:
       side-channel: 1.1.0
 
@@ -5942,7 +5967,7 @@ snapshots:
     dependencies:
       ansi-regex: 6.2.2
 
-  strnum@2.1.1: {}
+  strnum@2.1.2: {}
 
   style-to-object@1.0.14:
     dependencies:
@@ -5968,7 +5993,7 @@ snapshots:
       formidable: 3.5.4
       methods: 1.1.2
       mime: 2.6.0
-      qs: 6.14.1
+      qs: 6.15.0
     transitivePeerDependencies:
       - supports-color
 
