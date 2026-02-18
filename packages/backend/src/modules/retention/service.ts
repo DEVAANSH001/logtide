@@ -93,6 +93,7 @@ export class RetentionService {
       .execute();
 
     // Audit log
+    /* v8 ignore next 7 -- telemetry, disabled in tests */
     if (isInternalLoggingEnabled() && oldValue !== retentionDays) {
       hub.captureLog('info', `Retention policy changed for ${currentOrg.name}`, {
         organizationId,
@@ -253,6 +254,7 @@ export class RetentionService {
       }
       const executionTimeMs = Date.now() - startTime;
 
+      /* v8 ignore next 8 -- telemetry, disabled in tests */
       if (totalDeleted > 0 && isInternalLoggingEnabled()) {
         hub.captureLog('info', `Deleted ${totalDeleted} logs for ${organizationName}`, {
           organizationId,
@@ -274,6 +276,7 @@ export class RetentionService {
       const executionTimeMs = Date.now() - startTime;
       const errorMessage = error instanceof Error ? error.message : String(error);
 
+      /* v8 ignore next 7 -- telemetry, disabled in tests */
       if (isInternalLoggingEnabled()) {
         hub.captureLog('error', `Failed to cleanup logs for ${organizationName}: ${errorMessage}`, {
           organizationId,
@@ -339,6 +342,7 @@ export class RetentionService {
         `.execute(db);
         chunksDropped = dropResult.rows.length;
 
+        /* v8 ignore next 6 -- telemetry, disabled in tests */
         if (chunksDropped > 0 && logging) {
           hub.captureLog('info', `Dropped ${chunksDropped} chunks older than ${maxRetention} days`, {
             maxRetentionDays: maxRetention,
@@ -348,6 +352,7 @@ export class RetentionService {
         }
       } catch (err) {
         // drop_chunks may fail if no chunks to drop — that's fine
+        /* v8 ignore next 4 -- telemetry, disabled in tests */
         if (logging) {
           const msg = err instanceof Error ? err.message : String(err);
           hub.captureLog('debug', `drop_chunks: ${msg}`);
@@ -418,6 +423,7 @@ export class RetentionService {
         const groupTime = Date.now() - groupStart;
         totalDeleted += deleted;
 
+        /* v8 ignore next 7 -- telemetry, disabled in tests */
         if (deleted > 0 && logging) {
           hub.captureLog('info', `Deleted ${deleted} logs for ${group.orgs.length} orgs (${retentionDays}d retention) in ${groupTime}ms`, {
             retentionDays,
@@ -442,6 +448,7 @@ export class RetentionService {
         const errorMessage = error instanceof Error ? error.message : String(error);
         failedCount += group.orgs.length;
 
+        /* v8 ignore next 6 -- telemetry, disabled in tests */
         if (logging) {
           hub.captureLog('error', `Failed retention for ${retentionDays}d group: ${errorMessage}`, {
             retentionDays,
@@ -479,6 +486,7 @@ export class RetentionService {
     const successCount = organizations.length - failedCount;
     const totalExecutionTimeMs = Date.now() - startTime;
 
+    /* v8 ignore next 11 -- telemetry, disabled in tests */
     if (logging) {
       hub.captureLog('info', 'Retention cleanup completed', {
         totalOrganizations: organizations.length,

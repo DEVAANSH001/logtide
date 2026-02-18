@@ -10,6 +10,7 @@ import { getInternalDsn, isInternalLoggingEnabled } from '../utils/internal-logg
 const internalLoggingPlugin: FastifyPluginAsync = async (fastify) => {
   if (!isInternalLoggingEnabled()) return;
 
+  /* v8 ignore start -- telemetry-only path, disabled in tests */
   const dsn = getInternalDsn();
   if (!dsn) return;
 
@@ -36,6 +37,7 @@ const internalLoggingPlugin: FastifyPluginAsync = async (fastify) => {
   } catch (error) {
     console.error('[Internal Logging] Failed to register @logtide/fastify plugin:', error);
   }
+  /* v8 ignore end */
 };
 
 export default fp(internalLoggingPlugin, {
