@@ -239,6 +239,8 @@
                         <Table.Header>
                             <Table.Row>
                                 <Table.Head>Key Name</Table.Head>
+                                <Table.Head>Type</Table.Head>
+                                <Table.Head>Origins</Table.Head>
                                 <Table.Head>Created</Table.Head>
                                 <Table.Head>Last Used</Table.Head>
                                 <Table.Head>Status</Table.Head>
@@ -249,6 +251,22 @@
                                 <Table.Row>
                                     <Table.Cell class="font-medium">
                                         {apiKey.name}
+                                    </Table.Cell>
+                                    <Table.Cell>
+                                        {#if apiKey.type === 'full'}
+                                            <Badge variant="default">Full Access</Badge>
+                                        {:else}
+                                            <Badge variant="secondary">Write-Only</Badge>
+                                        {/if}
+                                    </Table.Cell>
+                                    <Table.Cell class="text-sm text-muted-foreground">
+                                        {#if apiKey.allowed_origins?.length}
+                                            <span title={apiKey.allowed_origins.join(', ')}>
+                                                {apiKey.allowed_origins.length} restricted
+                                            </span>
+                                        {:else}
+                                            Any
+                                        {/if}
                                     </Table.Cell>
                                     <Table.Cell
                                         class="text-sm text-muted-foreground"

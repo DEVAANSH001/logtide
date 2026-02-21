@@ -14,6 +14,7 @@ import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { correlationService } from './service.js';
 import { db } from '../../database/index.js';
 import { reservoir } from '../../database/reservoir.js';
+import { requireFullAccess } from '../auth/guards.js';
 
 /**
  * Verify that the request is authenticated.
@@ -141,6 +142,7 @@ export default async function correlationRoutes(fastify: FastifyInstance) {
     async (request, reply) => {
       // Explicit auth check (authPlugin handles auth, this ensures static analysis sees it)
       if (!requireAuth(request, reply)) return;
+      if (!await requireFullAccess(request, reply)) return;
 
       const { identifierValue } = request.params;
       const { projectId, referenceTime, timeWindowMinutes, limit } = request.query;
@@ -209,6 +211,7 @@ export default async function correlationRoutes(fastify: FastifyInstance) {
     async (request, reply) => {
       // Explicit auth check (authPlugin handles auth, this ensures static analysis sees it)
       if (!requireAuth(request, reply)) return;
+      if (!await requireFullAccess(request, reply)) return;
 
       const { logId } = request.params;
       const { projectId } = request.query;

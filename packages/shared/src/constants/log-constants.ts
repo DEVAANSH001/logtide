@@ -33,3 +33,7 @@ export const NOTIFICATION_TYPES = [
   'project_update',
 ] as const;
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number];
+
+// API key access types
+export const API_KEY_TYPES = ['write', 'full'] as const;
+export type ApiKeyType = (typeof API_KEY_TYPES)[number];

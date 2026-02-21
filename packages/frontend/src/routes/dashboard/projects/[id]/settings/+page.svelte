@@ -146,7 +146,7 @@
 		}
 	}
 
-	async function handleCreateApiKey(data: { name: string }) {
+	async function handleCreateApiKey(data: { name: string; type: import('$lib/api/api-keys').ApiKeyType; allowedOrigins: string[] | null }) {
 		if (!projectId) throw new Error('No project ID');
 
 		const response = await apiKeysAPI.create(projectId, data);
@@ -299,6 +299,8 @@
 							<thead>
 								<tr class="border-b">
 									<th class="text-left py-3 px-4 font-medium">Name</th>
+									<th class="text-left py-3 px-4 font-medium">Type</th>
+									<th class="text-left py-3 px-4 font-medium">Origins</th>
 									<th class="text-left py-3 px-4 font-medium">Created</th>
 									<th class="text-left py-3 px-4 font-medium">Last Used</th>
 									<th class="text-right py-3 px-4 font-medium">Actions</th>
@@ -308,6 +310,26 @@
 								{#each apiKeys as apiKey (apiKey.id)}
 									<tr class="border-b hover:bg-muted/50">
 										<td class="py-3 px-4 font-medium">{apiKey.name}</td>
+										<td class="py-3 px-4">
+											{#if apiKey.type === 'full'}
+												<span class="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold border-transparent bg-primary text-primary-foreground">
+													Full Access
+												</span>
+											{:else}
+												<span class="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold border-transparent bg-secondary text-secondary-foreground">
+													Write-Only
+												</span>
+											{/if}
+										</td>
+										<td class="py-3 px-4 text-sm text-muted-foreground">
+											{#if apiKey.allowedOrigins?.length}
+												<span class="cursor-help" title={apiKey.allowedOrigins.join(', ')}>
+													{apiKey.allowedOrigins.length} restricted
+												</span>
+											{:else}
+												Any
+											{/if}
+										</td>
 										<td class="py-3 px-4 text-sm text-muted-foreground">
 											{formatDate(apiKey.createdAt)}
 										</td>

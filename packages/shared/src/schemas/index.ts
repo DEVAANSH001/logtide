@@ -8,6 +8,7 @@ import {
   INCIDENT_STATUSES,
   ERROR_GROUP_STATUSES,
   EXCEPTION_LANGUAGES,
+  API_KEY_TYPES,
 } from '../constants/index.js';
 
 // Schema using constant arrays
@@ -19,6 +20,7 @@ export const severitySchema = z.enum(SEVERITIES);
 export const incidentStatusSchema = z.enum(INCIDENT_STATUSES);
 export const errorGroupStatusSchema = z.enum(ERROR_GROUP_STATUSES);
 export const exceptionLanguageSchema = z.enum(EXCEPTION_LANGUAGES);
+export const apiKeyTypeSchema = z.enum(API_KEY_TYPES);
 
 export const logSchema = z.object({
   time: z.string().datetime().or(z.date()),
@@ -53,6 +55,7 @@ export type { LogLevel, OrgRole } from '../constants/log-constants.js';
 export type { SigmaLevel, SigmaStatus } from '../constants/sigma-constants.js';
 export type { Severity, IncidentStatus } from '../constants/siem-constants.js';
 export type { ExceptionLanguage, ErrorGroupStatus } from '../constants/exception-constants.js';
+export type { ApiKeyType } from '../constants/log-constants.js';
 
 // Schema-inferred types
 export type LogInput = z.infer<typeof logSchema>;

@@ -3,6 +3,7 @@
   import Button from '$lib/components/ui/button/button.svelte';
   import Input from '$lib/components/ui/input/input.svelte';
   import Label from '$lib/components/ui/label/label.svelte';
+  import Textarea from '$lib/components/ui/textarea/textarea.svelte';
   import Spinner from './Spinner.svelte';
   import * as Alert from '$lib/components/ui/alert';
   import Plus from '@lucide/svelte/icons/plus';
@@ -10,18 +11,30 @@
   import Check from '@lucide/svelte/icons/check';
   import { checklistStore } from '$lib/stores/checklist';
   import { copyToClipboard } from '$lib/utils/clipboard';
+  import type { ApiKeyType } from '$lib/api/api-keys';
 
   interface Props {
-    onSubmit: (data: { name: string }) => Promise<{ apiKey: string; message: string }>;
+    onSubmit: (data: { name: string; type: ApiKeyType; allowedOrigins: string[] | null }) => Promise<{ apiKey: string; type: ApiKeyType; message: string }>;
     open?: boolean;
   }
 
   let { onSubmit, open = $bindable(false) }: Props = $props();
   let name = $state('');
+  let keyType = $state<ApiKeyType>('write');
+  let originsRaw = $state('');
   let submitting = $state(false);
   let error = $state('');
   let generatedApiKey = $state<string | null>(null);
+  let generatedKeyType = $state<ApiKeyType>('write');
   let copied = $state(false);
+
+  function parseOrigins(raw: string): string[] | null {
+    const list = raw
+      .split(/[\n,]/)
+      .map((s) => s.trim())
+      .filter(Boolean);
+    return list.length > 0 ? list : null;
+  }
 
   async function handleSubmit(e: Event) {
     e.preventDefault();
@@ -31,9 +44,12 @@
     try {
       const result = await onSubmit({
         name: name.trim(),
+        type: keyType,
+        allowedOrigins: parseOrigins(originsRaw),
       });
 
       generatedApiKey = result.apiKey;
+      generatedKeyType = result.type;
 
       // Mark checklist item as complete
       checklistStore.completeItem('create-api-key');
@@ -61,7 +77,10 @@
 
   function handleClose() {
     name = '';
+    keyType = 'write';
+    originsRaw = '';
     generatedApiKey = null;
+    generatedKeyType = 'write';
     error = '';
     copied = false;
     open = false;
@@ -70,7 +89,10 @@
   $effect(() => {
     if (!open) {
       name = '';
+      keyType = 'write';
+      originsRaw = '';
       generatedApiKey = null;
+      generatedKeyType = 'write';
       error = '';
       copied = false;
     }
@@ -101,6 +123,54 @@
           />
           <p class="text-xs text-muted-foreground">
             Choose a descriptive name to identify this key later.
+          </p>
+        </div>
+
+        <div class="space-y-2">
+          <Label>Key Type</Label>
+          <div class="grid grid-cols-2 gap-3">
+            <button
+              type="button"
+              class="rounded-md border p-3 text-left transition-colors {keyType === 'write'
+                ? 'border-primary bg-primary/5'
+                : 'border-input hover:border-primary/50'}"
+              onclick={() => (keyType = 'write')}
+            >
+              <div class="font-medium text-sm">Write-Only</div>
+              <div class="text-xs text-muted-foreground mt-1">
+                Can only ingest logs. Safe for client-side use.
+              </div>
+            </button>
+            <button
+              type="button"
+              class="rounded-md border p-3 text-left transition-colors {keyType === 'full'
+                ? 'border-primary bg-primary/5'
+                : 'border-input hover:border-primary/50'}"
+              onclick={() => (keyType = 'full')}
+            >
+              <div class="font-medium text-sm">Full Access</div>
+              <div class="text-xs text-muted-foreground mt-1">
+                Can ingest logs and query data. Server-side only.
+              </div>
+            </button>
+          </div>
+        </div>
+
+        <div class="space-y-2">
+          <Label for="allowed-origins">
+            Allowed Origins / IPs
+            <span class="text-muted-foreground font-normal">(optional)</span>
+          </Label>
+          <Textarea
+            id="allowed-origins"
+            placeholder={"https://app.example.com\n192.168.1.0\n*.mycompany.com"}
+            bind:value={originsRaw}
+            disabled={submitting}
+            rows={3}
+          />
+          <p class="text-xs text-muted-foreground">
+            One per line or comma-separated. Leave empty for no restriction.
+            Matches Origin header (browsers) or request IP (servers).
           </p>
         </div>
 
@@ -175,6 +245,12 @@
               {/if}
             </Button>
           </div>
+        </div>
+
+        <div class="text-sm text-muted-foreground">
+          Key type: <span class="font-medium">
+            {generatedKeyType === 'write' ? 'Write-Only' : 'Full Access'}
+          </span>
         </div>
 
         <div class="bg-muted p-3 rounded-md space-y-1">

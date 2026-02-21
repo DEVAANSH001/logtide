@@ -2,6 +2,7 @@ import type { FastifyPluginAsync } from 'fastify';
 import { ingestRequestSchema, logSchema } from '@logtide/shared';
 import { ingestionService } from './service.js';
 import { config } from '../../config/index.js';
+import { requireFullAccess } from '../auth/guards.js';
 
 // Parse NDJSON body into array of log objects
 const parseNdjson = (body: string): object[] => {
@@ -425,6 +426,8 @@ const ingestionRoutes: FastifyPluginAsync = async (fastify) => {
       },
     },
     handler: async (request: any, reply) => {
+      if (!await requireFullAccess(request, reply)) return;
+
       const { from, to } = request.query as { from?: string; to?: string };
 
       // Get projectId from authenticated request (set by auth plugin)

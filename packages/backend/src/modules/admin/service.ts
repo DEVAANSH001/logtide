@@ -1645,6 +1645,8 @@ export class AdminService {
             .select([
                 'id',
                 'name',
+                'type',
+                'allowed_origins',
                 'created_at',
                 'last_used',
                 'revoked',

@@ -1,4 +1,5 @@
 import crypto from 'crypto';
+import type { ApiKeyType } from '@logtide/shared';
 import { db } from '../../database/connection.js';
 import { CacheManager, CACHE_TTL } from '../../utils/cache.js';
 
@@ -6,6 +7,8 @@ export interface ApiKey {
   id: string;
   projectId: string;
   name: string;
+  type: ApiKeyType;
+  allowedOrigins: string[] | null;
   createdAt: Date;
   lastUsed: Date | null;
   revoked: boolean;
@@ -14,6 +17,23 @@ export interface ApiKey {
 export interface CreateApiKeyInput {
   projectId: string;
   name: string;
+  type?: ApiKeyType;
+  allowedOrigins?: string[] | null;
+}
+
+export interface VerifiedApiKey {
+  projectId: string;
+  organizationId: string;
+  type: ApiKeyType;
+  allowedOrigins: string[] | null;
+}
+
+interface CachedApiKey {
+  projectId: string;
+  organizationId: string;
+  keyId: string;
+  type: ApiKeyType;
+  allowedOrigins: string[] | null;
 }
 
 export class ApiKeysService {
@@ -44,6 +64,8 @@ export class ApiKeysService {
         project_id: input.projectId,
         name: input.name,
         key_hash: keyHash,
+        type: input.type ?? 'write',
+        allowed_origins: input.allowedOrigins ?? null,
       })
       .returning(['id'])
       .executeTakeFirstOrThrow();
@@ -55,22 +77,24 @@ export class ApiKeysService {
   }
 
   /**
-   * Verify an API key and return project ID
+   * Verify an API key and return project ID, type, and allowed origins
    * Cached for performance - API key verification happens on every ingestion request
    */
-  async verifyApiKey(apiKey: string): Promise<{ projectId: string; organizationId: string } | null> {
+  async verifyApiKey(apiKey: string): Promise<VerifiedApiKey | null> {
     const keyHash = this.hashApiKey(apiKey);
 
-    // Try cache first
+    // Try cache first (skip stale entries missing 'type' from before migration)
     const cacheKey = CacheManager.apiKeyKey(keyHash);
-    const cached = await CacheManager.get<{ projectId: string; organizationId: string; keyId: string }>(cacheKey);
+    const cached = await CacheManager.get<CachedApiKey>(cacheKey);
 
-    if (cached) {
+    if (cached && cached.type) {
       // Update last_used timestamp asynchronously (don't block the response)
       this.updateLastUsedAsync(cached.keyId).catch(() => {});
       return {
         projectId: cached.projectId,
         organizationId: cached.organizationId,
+        type: cached.type,
+        allowedOrigins: cached.allowedOrigins ?? null,
       };
     }
 
@@ -78,7 +102,13 @@ export class ApiKeysService {
     const result = await db
       .selectFrom('api_keys')
       .innerJoin('projects', 'api_keys.project_id', 'projects.id')
-      .select(['api_keys.id', 'api_keys.project_id', 'projects.organization_id'])
+      .select([
+        'api_keys.id',
+        'api_keys.project_id',
+        'api_keys.type',
+        'api_keys.allowed_origins',
+        'projects.organization_id',
+      ])
       .where('api_keys.key_hash', '=', keyHash)
       .where('api_keys.revoked', '=', false)
       .executeTakeFirst();
@@ -94,6 +124,8 @@ export class ApiKeysService {
         projectId: result.project_id,
         organizationId: result.organization_id,
         keyId: result.id,
+        type: result.type,
+        allowedOrigins: result.allowed_origins,
       },
       CACHE_TTL.API_KEY
     );
@@ -104,6 +136,8 @@ export class ApiKeysService {
     return {
       projectId: result.project_id,
       organizationId: result.organization_id,
+      type: result.type,
+      allowedOrigins: result.allowed_origins,
     };
   }
 
@@ -125,7 +159,7 @@ export class ApiKeysService {
   async listProjectApiKeys(projectId: string): Promise<ApiKey[]> {
     const keys = await db
       .selectFrom('api_keys')
-      .select(['id', 'project_id', 'name', 'created_at', 'last_used', 'revoked'])
+      .select(['id', 'project_id', 'name', 'type', 'allowed_origins', 'created_at', 'last_used', 'revoked'])
       .where('project_id', '=', projectId)
       .orderBy('created_at', 'desc')
       .execute();
@@ -134,6 +168,8 @@ export class ApiKeysService {
       id: k.id,
       projectId: k.project_id,
       name: k.name,
+      type: k.type,
+      allowedOrigins: k.allowed_origins,
       createdAt: new Date(k.created_at),
       lastUsed: k.last_used ? new Date(k.last_used) : null,
       revoked: k.revoked,

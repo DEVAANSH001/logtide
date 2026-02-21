@@ -1,10 +1,14 @@
 import { getApiBaseUrl } from '$lib/config';
 import { getAuthToken } from '$lib/utils/auth';
 
+export type ApiKeyType = 'write' | 'full';
+
 export interface ApiKey {
   id: string;
   projectId: string;
   name: string;
+  type: ApiKeyType;
+  allowedOrigins: string[] | null;
   createdAt: string;
   lastUsed: string | null;
   revoked: boolean;
@@ -12,11 +16,14 @@ export interface ApiKey {
 
 export interface CreateApiKeyInput {
   name: string;
+  type?: ApiKeyType;
+  allowedOrigins?: string[] | null;
 }
 
 export interface CreateApiKeyResponse {
   id: string;
   apiKey: string;
+  type: ApiKeyType;
   message: string;
 }
 

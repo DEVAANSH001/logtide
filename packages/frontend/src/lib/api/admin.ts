@@ -240,6 +240,8 @@ export interface ProjectDetails {
     apiKeys: Array<{
         id: string;
         name: string;
+        type: 'write' | 'full';
+        allowed_origins: string[] | null;
         created_at: string;
         last_used: string | null;
         revoked: boolean;

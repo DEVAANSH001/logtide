@@ -27,7 +27,7 @@ export interface User {
 }
 
 // Organization types
-import type { OrgRole, LogLevel } from '../constants/index.js';
+import type { OrgRole, LogLevel, ApiKeyType } from '../constants/index.js';
 
 export interface Organization {
   id: string;
@@ -112,6 +112,8 @@ export interface ApiKey {
   id: string;
   name: string;
   key_hash: string;
+  type: ApiKeyType;
+  allowed_origins: string[] | null;
   created_at: Date;
   last_used?: Date;
   revoked: boolean;
