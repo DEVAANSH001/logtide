@@ -127,7 +127,7 @@ export function isTest(): boolean {
 }
 
 export function isSmtpConfigured(): boolean {
-  return !!(config.SMTP_HOST && config.SMTP_USER && config.SMTP_PASS);
+  return !!config.SMTP_HOST;
 }
 
 export function isRedisConfigured(): boolean {

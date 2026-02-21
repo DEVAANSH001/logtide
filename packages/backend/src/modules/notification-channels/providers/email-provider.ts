@@ -13,16 +13,19 @@ export class EmailProvider implements NotificationProvider {
   private transporter: nodemailer.Transporter | null = null;
 
   constructor() {
-    if (config.SMTP_HOST && config.SMTP_USER && config.SMTP_PASS) {
-      this.transporter = nodemailer.createTransport({
+    if (config.SMTP_HOST) {
+      const transportOpts: nodemailer.TransportOptions & { host: string; port: number; secure: boolean; auth?: { user: string; pass: string } } = {
         host: config.SMTP_HOST,
         port: config.SMTP_PORT || 587,
         secure: config.SMTP_SECURE || false,
-        auth: {
+      };
+      if (config.SMTP_USER && config.SMTP_PASS) {
+        transportOpts.auth = {
           user: config.SMTP_USER,
           pass: config.SMTP_PASS,
-        },
-      });
+        };
+      }
+      this.transporter = nodemailer.createTransport(transportOpts);
       console.log(`[EmailProvider] Configured: ${config.SMTP_HOST}:${config.SMTP_PORT}`);
     } else {
       console.warn('[EmailProvider] SMTP not configured - email notifications disabled');
@@ -46,7 +49,7 @@ export class EmailProvider implements NotificationProvider {
       const subject = this.getSubject(context);
 
       await this.transporter.sendMail({
-        from: `"LogTide Notifications" <${config.SMTP_FROM || config.SMTP_USER}>`,
+        from: `"LogTide Notifications" <${config.SMTP_FROM}>`,
         to: emailConfig.recipients.join(', '),
         subject,
         text,

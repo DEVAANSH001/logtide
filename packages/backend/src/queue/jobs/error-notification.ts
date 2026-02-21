@@ -36,15 +36,18 @@ export const errorNotificationQueue = createQueue<ErrorNotificationJobData>('err
  * Create the email transporter
  */
 function createTransporter() {
-  return nodemailer.createTransport({
+  const opts: Record<string, unknown> = {
     host: config.SMTP_HOST,
     port: config.SMTP_PORT,
     secure: config.SMTP_SECURE,
-    auth: {
+  };
+  if (config.SMTP_USER && config.SMTP_PASS) {
+    opts.auth = {
       user: config.SMTP_USER,
       pass: config.SMTP_PASS,
-    },
-  });
+    };
+  }
+  return nodemailer.createTransport(opts as nodemailer.TransportOptions);
 }
 
 

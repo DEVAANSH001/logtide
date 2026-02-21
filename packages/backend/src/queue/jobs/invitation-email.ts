@@ -17,20 +17,24 @@ let emailTransporter: nodemailer.Transporter | null = null;
 function getEmailTransporter() {
   if (!emailTransporter) {
     // Check if SMTP is configured
-    if (!config.SMTP_HOST || !config.SMTP_USER || !config.SMTP_PASS) {
+    if (!config.SMTP_HOST) {
       console.warn('SMTP not configured - invitation emails disabled');
       return null;
     }
 
-    emailTransporter = nodemailer.createTransport({
+    const transportOpts: Record<string, unknown> = {
       host: config.SMTP_HOST,
       port: config.SMTP_PORT || 587,
       secure: config.SMTP_SECURE || false,
-      auth: {
+    };
+    if (config.SMTP_USER && config.SMTP_PASS) {
+      transportOpts.auth = {
         user: config.SMTP_USER,
         pass: config.SMTP_PASS,
-      },
-    });
+      };
+    }
+
+    emailTransporter = nodemailer.createTransport(transportOpts as nodemailer.TransportOptions);
 
     console.log(`Email transporter configured: ${config.SMTP_HOST}:${config.SMTP_PORT}`);
   }
