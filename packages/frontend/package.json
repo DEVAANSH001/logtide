@@ -1,6 +1,6 @@
 {
   "name": "@logtide/frontend",
-  "version": "0.6.2",
+  "version": "0.6.3",
   "private": true,
   "description": "LogTide Frontend Dashboard",
   "type": "module",
@@ -19,6 +19,7 @@
     "clean": "rm -rf .svelte-kit build test-results"
   },
   "dependencies": {
+    "@logtide/core": "^0.5.6",
     "@logtide/shared": "workspace:*",
     "@logtide/sveltekit": "^0.5.6",
     "@tanstack/svelte-table": "^8.21.3",

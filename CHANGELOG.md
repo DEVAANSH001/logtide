@@ -5,6 +5,18 @@ All notable changes to LogTide will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.3] - 2026-02-22
+
+### Fixed
+
+- **Unauthenticated SMTP support**: SMTP email notifications no longer require `SMTP_USER` and `SMTP_PASS` — unauthenticated SMTP servers (e.g. port 25) now work correctly by only setting `SMTP_HOST`
+  - `isSmtpConfigured()` now only checks for `SMTP_HOST`
+  - All email transporters (alerts, incidents, errors, invitations, notification channels) conditionally include `auth` only when credentials are provided
+  - `from` address now always uses `SMTP_FROM` instead of falling back to `SMTP_USER`
+  - Updated `.env.example` docs to clarify that `SMTP_USER` and `SMTP_PASS` are optional
+
+---
+
 ## [0.6.2] - 2026-02-20
 
 ### Added

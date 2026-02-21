@@ -20,7 +20,7 @@ const internalLoggingPlugin: FastifyPluginAsync = async (fastify) => {
         dsn,
         service: process.env.SERVICE_NAME || 'logtide-backend',
         environment: process.env.NODE_ENV || 'development',
-        release: process.env.npm_package_version || '0.6.2',
+        release: process.env.npm_package_version || '0.6.3',
         batchSize: 50,
         flushInterval: 10000,
         maxBufferSize: 5000,
