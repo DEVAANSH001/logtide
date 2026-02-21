@@ -2,6 +2,7 @@ import type { FastifyPluginAsync } from 'fastify';
 import { queryService, type SearchMode } from './service.js';
 import type { LogLevel } from '@logtide/shared';
 import { db } from '../../database/index.js';
+import { requireFullAccess } from '../auth/guards.js';
 
 
 async function verifyProjectAccess(projectId: string, userId: string): Promise<boolean> {
@@ -64,6 +65,8 @@ const queryRoutes: FastifyPluginAsync = async (fastify) => {
       },
     },
     handler: async (request: any, reply) => {
+      if (!await requireFullAccess(request, reply)) return;
+
       const { service, level, hostname, traceId, from, to, q, searchMode, limit, offset, cursor, projectId: queryProjectId } = request.query as {
         service?: string | string[];
         level?: LogLevel | LogLevel[];
@@ -150,6 +153,8 @@ const queryRoutes: FastifyPluginAsync = async (fastify) => {
       },
     },
     handler: async (request: any, reply) => {
+      if (!await requireFullAccess(request, reply)) return;
+
       const { traceId } = request.params as { traceId: string };
       const { projectId: queryProjectId } = request.query as { projectId?: string };
 
@@ -194,6 +199,8 @@ const queryRoutes: FastifyPluginAsync = async (fastify) => {
       },
     },
     handler: async (request: any, reply) => {
+      if (!await requireFullAccess(request, reply)) return;
+
       const { time, before, after, projectId: queryProjectId } = request.query as {
         time: string;
         before?: number;
@@ -251,6 +258,8 @@ const queryRoutes: FastifyPluginAsync = async (fastify) => {
       },
     },
     handler: async (request: any, reply) => {
+      if (!await requireFullAccess(request, reply)) return;
+
       const { logId } = request.params as { logId: string };
       const { projectId: queryProjectId } = request.query as { projectId?: string };
 
@@ -303,6 +312,8 @@ const queryRoutes: FastifyPluginAsync = async (fastify) => {
       },
     },
     handler: async (request: any, reply) => {
+      if (!await requireFullAccess(request, reply)) return;
+
       const { service, from, to, interval, projectId: queryProjectId } = request.query as {
         projectId?: string;
         service?: string;
@@ -356,6 +367,8 @@ const queryRoutes: FastifyPluginAsync = async (fastify) => {
       },
     },
     handler: async (request: any, reply) => {
+      if (!await requireFullAccess(request, reply)) return;
+
       const { limit, from, to, projectId: queryProjectId } = request.query as {
         projectId?: string;
         limit?: number;
@@ -413,6 +426,8 @@ const queryRoutes: FastifyPluginAsync = async (fastify) => {
       },
     },
     handler: async (request: any, reply) => {
+      if (!await requireFullAccess(request, reply)) return;
+
       const { from, to, projectId: queryProjectId } = request.query as {
         projectId?: string | string[];
         from?: string;
@@ -492,6 +507,8 @@ const queryRoutes: FastifyPluginAsync = async (fastify) => {
       },
     },
     handler: async (request: any, reply) => {
+      if (!await requireFullAccess(request, reply)) return;
+
       const { from, to, projectId: queryProjectId } = request.query as {
         projectId?: string | string[];
         from?: string;
@@ -565,6 +582,8 @@ const queryRoutes: FastifyPluginAsync = async (fastify) => {
       },
     },
     handler: async (request: any, reply) => {
+      if (!await requireFullAccess(request, reply)) return;
+
       const { service, level, projectId: queryProjectId } = request.query as {
         service?: string;
         level?: LogLevel;
@@ -661,6 +680,8 @@ const queryRoutes: FastifyPluginAsync = async (fastify) => {
       },
     },
     handler: async (request: any, reply) => {
+      if (!await requireFullAccess(request, reply)) return;
+
       const { limit, from, to, projectId: queryProjectId } = request.query as {
         projectId?: string;
         limit?: number;

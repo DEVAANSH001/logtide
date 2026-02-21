@@ -1,11 +1,18 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
+import { API_KEY_TYPES } from '@logtide/shared';
 import { apiKeysService } from './service.js';
 import { authenticate } from '../auth/middleware.js';
 import { projectsService } from '../projects/service.js';
 
 const createApiKeySchema = z.object({
   name: z.string().min(1, 'Name is required').max(100, 'Name too long'),
+  type: z.enum(API_KEY_TYPES).default('write'),
+  allowedOrigins: z
+    .array(z.string().min(1).max(253))
+    .max(50, 'Maximum 50 allowed origins')
+    .optional()
+    .nullable(),
 });
 
 const projectIdSchema = z.object({
@@ -64,11 +71,14 @@ export async function apiKeysRoutes(fastify: FastifyInstance) {
       const result = await apiKeysService.createApiKey({
         projectId,
         name: body.name,
+        type: body.type,
+        allowedOrigins: body.allowedOrigins ?? null,
       });
 
       return reply.status(201).send({
         id: result.id,
         apiKey: result.apiKey,
+        type: body.type,
         message: 'API key created successfully. Save this key securely - it will not be shown again.',
       });
     } catch (error) {

@@ -5,6 +5,51 @@ All notable changes to LogTide will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.2] - 2026-02-20
+
+### Added
+
+- **Write-Only API Keys**: API keys now have a `type` field (`write` or `full`) to support client-side usage safely
+  - `write` keys can only ingest logs — safe to expose in browsers, mobile apps, and frontend code
+  - `full` keys can ingest and query — intended for server-side use only
+  - New keys default to `write` type
+  - Existing keys migrated to `write` type (breaking change — use `full` type for keys that need read access)
+  - Key type displayed as badge in project settings API keys table
+  - Key type selector in Create API Key dialog
+
+- **Domain/IP Allowlist for API Keys**: Optional restriction on which origins or IPs can use an API key
+  - Configure allowed domains, wildcard subdomains (`*.example.com`), or IP addresses per key
+  - Browser requests validated against `Origin` header hostname
+  - Server requests validated against request IP
+  - Empty allowlist means no restrictions (default)
+  - Up to 50 allowed origins per key
+
+### Changed
+
+- **Dogfooding SDK Migration**: Replaced `@logtide/sdk-node` with the official framework SDKs for self-monitoring
+  - **Backend**: Now uses `@logtide/fastify` plugin for automatic HTTP request/response/error logging, per-request scoping, and W3C Trace Context propagation
+  - **Worker**: Now uses `hub` from `@logtide/core` directly (`hub.captureLog()` / `hub.captureError()`) for job event logging
+  - **Frontend (new)**: Added `@logtide/sveltekit` for both server-side and client-side self-monitoring
+    - `hooks.server.ts`: `logtideHandle()` for SSR request tracing, `logtideHandleError()` for server errors, `logtideHandleFetch()` for distributed trace propagation on outgoing fetches
+    - `hooks.client.ts`: `initLogtide()` for client-side hub initialization, `logtideHandleError()` for browser error capture
+  - DSN configuration: `INTERNAL_DSN` env var takes priority, falls back to constructed DSN from `INTERNAL_API_KEY` + `INTERNAL_LOGGING_API_URL` via bootstrap
+  - Frontend DSN: `LOGTIDE_DSN` (server-side) and `PUBLIC_LOGTIDE_DSN` (client-side browser)
+  - Removed custom `internal-logging-plugin.ts` request/response hooks — replaced entirely by `@logtide/fastify` lifecycle hooks
+  - Removed `getInternalLogger()` / `LogTideClient` pattern — replaced by `hub.captureLog()` singleton from `@logtide/core`
+
+### Security
+
+- **fast-xml-parser DoS vulnerability**: Bumped override to `>=5.3.6` to fix entity expansion DoS in DOCTYPE (CVE in versions >= 4.1.3, < 5.3.6)
+- **Read endpoint protection**: All query, traces, dashboard, correlation, and stats endpoints now reject write-only API keys with 403 Forbidden
+- **Origin allowlist validation**: Wildcard subdomain matching correctly parses URL hostnames from browser Origin headers
+
+### BREAKING CHANGES
+
+- **API key default type changed to `write`**: All existing API keys are migrated to write-only. If you have server-side integrations that query logs via API key, update those keys to `full` type in project settings. Client-side ingestion keys continue to work unchanged.
+- **Database migration required**: Run migration `024_api_key_scopes.sql` which adds `type` and `allowed_origins` columns to `api_keys` table.
+
+---
+
 ## [0.6.1] - 2026-02-14
 
 ### Added

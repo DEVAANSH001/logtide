@@ -1,5 +1,6 @@
 import type { FastifyPluginAsync, FastifyRequest, FastifyReply } from 'fastify';
 import fp from 'fastify-plugin';
+import type { ApiKeyType } from '@logtide/shared';
 import { apiKeysService } from '../api-keys/service.js';
 import { usersService } from '../users/service.js';
 import { settingsService } from '../settings/service.js';
@@ -10,7 +11,53 @@ declare module 'fastify' {
     authenticated: boolean;
     projectId?: string;
     organizationId?: string;
+    apiKeyType?: ApiKeyType;
   }
+}
+
+/**
+ * Check whether the request origin or IP is in the allowlist.
+ * Returns true if the request is allowed, false if it must be rejected.
+ *
+ * - allowedOrigins null/empty → always allowed
+ * - Origin header matched against list (browser requests)
+ * - If no Origin header, request.ip is matched (server-side requests)
+ */
+function checkOriginAllowlist(
+  request: FastifyRequest,
+  allowedOrigins: string[] | null
+): boolean {
+  if (!allowedOrigins || allowedOrigins.length === 0) return true;
+
+  const origin = request.headers['origin'] as string | undefined;
+
+  if (origin) {
+    // Browser request: extract hostname from Origin and match
+    let hostname: string;
+    try {
+      hostname = new URL(origin).hostname;
+    } catch {
+      return false;
+    }
+
+    return allowedOrigins.some((allowed) => {
+      const pattern = allowed.trim();
+      if (pattern.startsWith('*.')) {
+        const domainSuffix = pattern.slice(2); // "example.com"
+        return hostname === domainSuffix || hostname.endsWith('.' + domainSuffix);
+      }
+      // Allow both exact origin match (https://example.com) and hostname-only match (example.com)
+      return origin === pattern || hostname === pattern;
+    });
+  }
+
+  // Server-side request: match IP
+  const ip = request.ip;
+  if (ip) {
+    return allowedOrigins.some((allowed) => allowed.trim() === ip);
+  }
+
+  return false;
 }
 
 /**
@@ -23,6 +70,7 @@ const authPlugin: FastifyPluginAsync = async (fastify) => {
   fastify.decorateRequest('authenticated', false);
   fastify.decorateRequest('projectId', undefined);
   fastify.decorateRequest('organizationId', undefined);
+  fastify.decorateRequest('apiKeyType', undefined);
 
   fastify.addHook('onRequest', async (request: FastifyRequest, reply: FastifyReply) => {
     // Skip auth for public routes and session-based auth routes
@@ -83,10 +131,20 @@ const authPlugin: FastifyPluginAsync = async (fastify) => {
         return;
       }
 
+      // Origin/IP allowlist check
+      if (!checkOriginAllowlist(request, result.allowedOrigins)) {
+        reply.code(403).send({
+          error: 'Forbidden',
+          message: 'Request origin or IP not in API key allowlist',
+        });
+        return;
+      }
+
       // Decorate request with project and organization context
       request.authenticated = true;
       request.projectId = result.projectId;
       request.organizationId = result.organizationId;
+      request.apiKeyType = result.type;
       return;
     }
 

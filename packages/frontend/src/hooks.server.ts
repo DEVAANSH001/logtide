@@ -1,5 +1,8 @@
 import type { Handle } from '@sveltejs/kit';
+import { sequence } from '@sveltejs/kit/hooks';
 import { env } from '$env/dynamic/public';
+import { env as privateEnv } from '$env/dynamic/private';
+import { logtideHandle, logtideHandleError, logtideHandleFetch } from '@logtide/sveltekit';
 
 /**
  * Server hook to inject runtime configuration into the HTML.
@@ -8,7 +11,7 @@ import { env } from '$env/dynamic/public';
  * When PUBLIC_API_URL is empty or not set, the frontend will use relative URLs,
  * which works when frontend and backend are behind the same reverse proxy.
  */
-export const handle: Handle = async ({ event, resolve }) => {
+const configHandle: Handle = async ({ event, resolve }) => {
   const response = await resolve(event, {
     transformPageChunk: ({ html }) => {
       // Get API URL from environment variable at runtime
@@ -25,3 +28,20 @@ export const handle: Handle = async ({ event, resolve }) => {
 
   return response;
 };
+
+// Compose LogTide SDK hooks with existing config injection
+const dsn = privateEnv?.LOGTIDE_DSN || '';
+
+export const handle = dsn
+  ? sequence(
+      logtideHandle({
+        dsn,
+        service: 'logtide-frontend',
+        environment: privateEnv?.NODE_ENV || 'production',
+      }) as unknown as Handle,
+      configHandle
+    )
+  : configHandle;
+
+export const handleError = dsn ? logtideHandleError() : undefined;
+export const handleFetch = dsn ? logtideHandleFetch() : undefined;

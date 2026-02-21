@@ -1,6 +1,7 @@
 import type { FastifyPluginAsync } from 'fastify';
 import { dashboardService } from './service.js';
 import { db } from '../../database/index.js';
+import { requireFullAccess } from '../auth/guards.js';
 
 
 async function verifyOrganizationAccess(organizationId: string, userId: string): Promise<boolean> {
@@ -29,6 +30,8 @@ const dashboardRoutes: FastifyPluginAsync = async (fastify) => {
       },
     },
     handler: async (request: any, reply) => {
+      if (!await requireFullAccess(request, reply)) return;
+
       const { organizationId } = request.query as { organizationId: string };
 
       if (!organizationId) {
@@ -67,6 +70,8 @@ const dashboardRoutes: FastifyPluginAsync = async (fastify) => {
       },
     },
     handler: async (request: any, reply) => {
+      if (!await requireFullAccess(request, reply)) return;
+
       const { organizationId } = request.query as { organizationId: string };
 
       if (!organizationId) {
@@ -106,6 +111,8 @@ const dashboardRoutes: FastifyPluginAsync = async (fastify) => {
       },
     },
     handler: async (request: any, reply) => {
+      if (!await requireFullAccess(request, reply)) return;
+
       const { organizationId, limit } = request.query as { organizationId: string; limit?: number };
 
       if (!organizationId) {
@@ -144,6 +151,8 @@ const dashboardRoutes: FastifyPluginAsync = async (fastify) => {
       },
     },
     handler: async (request: any, reply) => {
+      if (!await requireFullAccess(request, reply)) return;
+
       const { organizationId } = request.query as { organizationId: string };
 
       if (!organizationId) {
@@ -181,6 +190,8 @@ const dashboardRoutes: FastifyPluginAsync = async (fastify) => {
       },
     },
     handler: async (request: any, reply) => {
+      if (!await requireFullAccess(request, reply)) return;
+
       const { organizationId } = request.query as { organizationId: string };
 
       if (!organizationId) {

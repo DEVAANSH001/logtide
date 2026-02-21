@@ -1,89 +1,102 @@
-import { LogTideClient } from '@logtide/sdk-node';
+import { hub } from '@logtide/core';
 import { getInternalApiKey } from './internal-logging-bootstrap.js';
 
-let internalLogger: LogTideClient | null = null;
 let isEnabled = false;
+let internalDsn: string | null = null;
 
 /**
- * Initialize internal logging client
+ * Build DSN from INTERNAL_DSN env var or from API key + URL
  */
-export async function initializeInternalLogging(): Promise<void> {
-  // Check if internal logging is enabled
+async function buildDsn(): Promise<string | null> {
+  // Priority 1: explicit DSN env var
+  const envDsn = process.env.INTERNAL_DSN;
+  if (envDsn) {
+    return envDsn;
+  }
+
+  // Priority 2: construct from API key + URL
+  const apiKey = await getInternalApiKey();
+  if (!apiKey) {
+    return null;
+  }
+
+  const apiUrl =
+    process.env.INTERNAL_LOGGING_API_URL || process.env.API_URL || 'http://localhost:8080';
+
+  // DSN format: https://key@host/path
+  return `${apiUrl.replace('://', `://${apiKey}@`)}`;
+}
+
+/**
+ * Initialize internal logging via hub from @logtide/core.
+ * Returns the DSN for use by @logtide/fastify plugin registration.
+ */
+export async function initializeInternalLogging(): Promise<string | null> {
   const enabled = process.env.INTERNAL_LOGGING_ENABLED !== 'false';
 
   if (!enabled) {
-    return;
+    return null;
   }
 
   try {
-    // Get API key
-    const apiKey = await getInternalApiKey();
+    const dsn = await buildDsn();
 
-    if (!apiKey) {
-      console.warn('[Internal Logging] Skipping internal logging - no API key available');
-      return;
+    if (!dsn) {
+      console.warn('[Internal Logging] Skipping internal logging - no DSN available');
+      return null;
     }
 
-    // Determine API URL (default to localhost in development)
-    const apiUrl =
-      process.env.INTERNAL_LOGGING_API_URL || process.env.API_URL || 'http://localhost:8080';
-
-    // Initialize client
-    internalLogger = new LogTideClient({
-      apiUrl,
-      apiKey,
-
-      // Configuration
-      batchSize: 50,
-      flushInterval: 10000, // 10 seconds
-      maxBufferSize: 5000,
-
-      // Retry configuration (more aggressive for internal use)
-      maxRetries: 2,
-      retryDelayMs: 500,
-
-      // Circuit breaker (fail fast)
-      circuitBreakerThreshold: 3,
-      circuitBreakerResetMs: 30000,
-
-      // Metrics & debugging
-      enableMetrics: true,
-      debug: process.env.NODE_ENV === 'development',
-
-      // Global metadata
-      globalMetadata: {
-        service: process.env.SERVICE_NAME || 'logtide-backend',
-        env: process.env.NODE_ENV || 'development',
-        version: process.env.npm_package_version || '0.6.1',
-        hostname: process.env.HOSTNAME || 'unknown',
-      },
-    });
-
+    internalDsn = dsn;
     isEnabled = true;
+    return dsn;
   } catch (error) {
     console.error('[Internal Logging] Failed to initialize internal logging:', error);
+    return null;
   }
 }
 
 /**
- * Get the internal logger instance (or null if not initialized)
+ * Initialize hub directly (for worker process that doesn't use Fastify)
  */
-export function getInternalLogger(): LogTideClient | null {
-  return internalLogger;
+export async function initializeWorkerLogging(): Promise<void> {
+  const dsn = await initializeInternalLogging();
+  if (!dsn) return;
+
+  hub.init({
+    dsn,
+    service: process.env.SERVICE_NAME || 'logtide-worker',
+    environment: process.env.NODE_ENV || 'development',
+    release: process.env.npm_package_version || '0.6.2',
+    batchSize: 50,
+    flushInterval: 10000,
+    maxBufferSize: 5000,
+    maxRetries: 2,
+    retryDelayMs: 500,
+    circuitBreakerThreshold: 3,
+    circuitBreakerResetMs: 30000,
+    debug: process.env.NODE_ENV === 'development',
+  });
+}
+
+/**
+ * Get the internal DSN (for @logtide/fastify plugin registration)
+ */
+export function getInternalDsn(): string | null {
+  return internalDsn;
 }
 
 /**
  * Check if internal logging is enabled
  */
 export function isInternalLoggingEnabled(): boolean {
-  return isEnabled && internalLogger !== null;
+  return isEnabled;
 }
 
 /**
  * Shutdown internal logging (flush pending logs)
  */
 export async function shutdownInternalLogging(): Promise<void> {
-  if (internalLogger) {
-    await internalLogger.close();
+  if (isEnabled) {
+    await hub.close();
   }
 }

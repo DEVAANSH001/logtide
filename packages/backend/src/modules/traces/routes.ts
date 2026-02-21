@@ -1,6 +1,7 @@
 import type { FastifyPluginAsync } from 'fastify';
 import { tracesService } from './service.js';
 import { db } from '../../database/index.js';
+import { requireFullAccess } from '../auth/guards.js';
 
 async function verifyProjectAccess(projectId: string, userId: string): Promise<boolean> {
   const result = await db
@@ -31,6 +32,8 @@ const tracesRoutes: FastifyPluginAsync = async (fastify) => {
       },
     },
     handler: async (request: any, reply) => {
+      if (!await requireFullAccess(request, reply)) return;
+
       const { projectId: queryProjectId, service, error, from, to, limit, offset } = request.query as {
         projectId?: string;
         service?: string;
@@ -89,6 +92,8 @@ const tracesRoutes: FastifyPluginAsync = async (fastify) => {
       },
     },
     handler: async (request: any, reply) => {
+      if (!await requireFullAccess(request, reply)) return;
+
       const { traceId } = request.params as { traceId: string };
       const { projectId: queryProjectId } = request.query as { projectId?: string };
 
@@ -138,6 +143,8 @@ const tracesRoutes: FastifyPluginAsync = async (fastify) => {
       },
     },
     handler: async (request: any, reply) => {
+      if (!await requireFullAccess(request, reply)) return;
+
       const { traceId } = request.params as { traceId: string };
       const { projectId: queryProjectId } = request.query as { projectId?: string };
 
@@ -174,6 +181,8 @@ const tracesRoutes: FastifyPluginAsync = async (fastify) => {
       },
     },
     handler: async (request: any, reply) => {
+      if (!await requireFullAccess(request, reply)) return;
+
       const { projectId: queryProjectId } = request.query as { projectId?: string };
 
       const projectId = queryProjectId || request.projectId;
@@ -211,6 +220,8 @@ const tracesRoutes: FastifyPluginAsync = async (fastify) => {
       },
     },
     handler: async (request: any, reply) => {
+      if (!await requireFullAccess(request, reply)) return;
+
       const { projectId: queryProjectId, from, to } = request.query as {
         projectId?: string;
         from?: string;
@@ -256,6 +267,8 @@ const tracesRoutes: FastifyPluginAsync = async (fastify) => {
       },
     },
     handler: async (request: any, reply) => {
+      if (!await requireFullAccess(request, reply)) return;
+
       const { projectId: queryProjectId, from, to } = request.query as {
         projectId?: string;
         from?: string;

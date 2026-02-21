@@ -117,6 +117,8 @@ export async function createTestProject(overrides: {
 export async function createTestApiKey(overrides: {
     projectId?: string;
     name?: string;
+    type?: 'write' | 'full';
+    allowedOrigins?: string[] | null;
 } = {}) {
     // Create project if not provided
     let projectId = overrides.projectId;
@@ -137,6 +139,8 @@ export async function createTestApiKey(overrides: {
             project_id: projectId,
             name,
             key_hash: keyHash,
+            type: overrides.type ?? 'full',
+            allowed_origins: overrides.allowedOrigins ?? null,
             last_used: null,
         })
         .returningAll()

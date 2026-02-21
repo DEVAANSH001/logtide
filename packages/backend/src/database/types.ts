@@ -15,6 +15,7 @@ import type {
   NotificationEventType,
   ChannelConfig,
   PackCategory,
+  ApiKeyType,
 } from '@logtide/shared';
 
 // Re-export types for backward compatibility (modules importing from database/types)
@@ -34,6 +35,7 @@ export type {
   NotificationEventType,
   ChannelConfig,
   PackCategory,
+  ApiKeyType,
 } from '@logtide/shared';
 
 export type Generated<T> = T extends ColumnType<infer S, infer I, infer U>
@@ -125,6 +127,8 @@ export interface ApiKeysTable {
   project_id: string;
   name: string;
   key_hash: string;
+  type: Generated<ApiKeyType>;
+  allowed_origins: string[] | null;
   created_at: Generated<Timestamp>;
   last_used: Timestamp | null;
   revoked: Generated<boolean>;
