@@ -34,14 +34,21 @@ COPY packages/shared/package.json ./packages/shared/
 COPY packages/reservoir/package.json ./packages/reservoir/
 COPY packages/backend/package.json ./packages/backend/
 
-# Install production dependencies only
+# Install production dependencies + tsx for scripts
 RUN pnpm install --frozen-lockfile --prod
+RUN pnpm --filter '@logtide/backend' add tsx
 
 # Copy built files
 COPY --from=builder /app/packages/shared/dist ./packages/shared/dist
 COPY --from=builder /app/packages/reservoir/dist ./packages/reservoir/dist
 COPY --from=builder /app/packages/backend/dist ./packages/backend/dist
 COPY --from=builder /app/packages/backend/migrations ./packages/backend/migrations
+
+# Copy source scripts (for tsx runtime execution)
+COPY --from=builder /app/packages/backend/src/scripts ./packages/backend/src/scripts
+COPY --from=builder /app/packages/backend/tsconfig.json ./packages/backend/tsconfig.json
+COPY --from=builder /app/packages/shared/package.json ./packages/shared/package.json
+COPY --from=builder /app/packages/reservoir/package.json ./packages/reservoir/package.json
 
 # Copy entrypoint script
 COPY packages/backend/entrypoint.sh ./packages/backend/entrypoint.sh
