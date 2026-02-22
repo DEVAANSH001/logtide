@@ -12,13 +12,8 @@
   import { metricsStore } from "$lib/stores/metrics";
   import type { MetricAggregateResult } from "$lib/api/metrics";
   import { currentOrganization } from "$lib/stores/organization";
-  import { authStore } from "$lib/stores/auth";
-  import { ProjectsAPI } from "$lib/api/projects";
+  import { observeContextStore, selectedProjects as selectedProjectsStore, timeRangeType as ctxTimeRangeType } from "$lib/stores/observe-context";
   import { layoutStore } from "$lib/stores/layout";
-  import type { Project } from "@logtide/shared";
-  import TimeRangePicker, {
-    type TimeRangeType,
-  } from "$lib/components/TimeRangePicker.svelte";
 
   import {
     Card,
@@ -62,16 +57,8 @@
     return unsubscribe;
   });
 
-  // Auth
-  let token = $state<string | null>(null);
-  authStore.subscribe((state) => {
-    token = state.token;
-  });
-
-  // Projects
-  let projects = $state<Project[]>([]);
-  let selectedProject = $state<string | null>(null);
-  let projectsAPI = $derived(new ProjectsAPI(() => token));
+  // Derive project from observe context store
+  let selectedProject = $derived($selectedProjectsStore.length > 0 ? $selectedProjectsStore[0] : null);
 
   // Metrics store state
   let storeState = $state({
@@ -123,14 +110,6 @@
     return unsubscribe;
   });
 
-  // Time range
-  let timeRangePicker = $state<ReturnType<typeof TimeRangePicker> | null>(
-    null
-  );
-  let timeRangeType = $state<TimeRangeType>("last_24h");
-  let customFromTime = $state("");
-  let customToTime = $state("");
-
   // Label filter UI
   let selectedLabelKey = $state<string | null>(null);
   let selectedLabelValue = $state<string | null>(null);
@@ -142,42 +121,10 @@
   // Org tracking
   let lastLoadedOrg = $state<string | null>(null);
 
-  function getTimeRange(): { from: Date; to: Date } {
-    if (timeRangePicker) {
-      return timeRangePicker.getTimeRange();
-    }
-    const now = new Date();
-    switch (timeRangeType) {
-      case "last_hour":
-        return { from: new Date(now.getTime() - 60 * 60 * 1000), to: now };
-      case "last_24h":
-        return {
-          from: new Date(now.getTime() - 24 * 60 * 60 * 1000),
-          to: now,
-        };
-      case "last_7d":
-        return {
-          from: new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000),
-          to: now,
-        };
-      case "custom": {
-        const from = customFromTime
-          ? new Date(customFromTime)
-          : new Date(now.getTime() - 24 * 60 * 60 * 1000);
-        const to = customToTime ? new Date(customToTime) : now;
-        return { from, to };
-      }
-      default:
-        return {
-          from: new Date(now.getTime() - 24 * 60 * 60 * 1000),
-          to: now,
-        };
-    }
-  }
-
   onMount(() => {
-    if ($currentOrganization) {
-      loadProjects();
+    // Initial load if project is already selected
+    if (selectedProject) {
+      loadMetricNames();
     }
 
     return () => {
@@ -218,15 +165,30 @@
   // React to org change
   $effect(() => {
     if (!$currentOrganization) {
-      projects = [];
       lastLoadedOrg = null;
       return;
     }
 
     if ($currentOrganization.id === lastLoadedOrg) return;
-
-    loadProjects();
     lastLoadedOrg = $currentOrganization.id;
+  });
+
+  // React to project or time range changes from observe context store
+  let lastContextKey = $state<string | null>(null);
+  $effect(() => {
+    // Track dependencies
+    const _proj = $selectedProjectsStore;
+    const _tr = $ctxTimeRangeType;
+
+    if (!$currentOrganization || !selectedProject) {
+      return;
+    }
+
+    const key = `${$currentOrganization.id}-${selectedProject}-${$ctxTimeRangeType}`;
+    if (key === lastContextKey) return;
+    lastContextKey = key;
+
+    loadMetricNames();
   });
 
   // React to timeseries data changes -> update chart
@@ -238,29 +200,9 @@
     }
   });
 
-  async function loadProjects() {
-    if (!$currentOrganization) {
-      projects = [];
-      return;
-    }
-
-    try {
-      const response = await projectsAPI.getProjects($currentOrganization.id);
-      projects = response.projects;
-
-      if (projects.length > 0 && !selectedProject) {
-        selectedProject = projects[0].id;
-        loadMetricNames();
-      }
-    } catch (e) {
-      console.error("Failed to load projects:", e);
-      projects = [];
-    }
-  }
-
   function loadMetricNames() {
     if (!selectedProject) return;
-    const { from, to } = getTimeRange();
+    const { from, to } = observeContextStore.getTimeRange();
     metricsStore.loadMetricNames(
       selectedProject,
       from.toISOString(),
@@ -268,17 +210,11 @@
     );
   }
 
-  function handleProjectChange(projectId: string) {
-    selectedProject = projectId;
-    metricsStore.selectMetric(null);
-    loadMetricNames();
-  }
-
   function handleMetricSelect(metricName: string) {
     metricsStore.selectMetric(metricName);
     if (!selectedProject) return;
 
-    const { from, to } = getTimeRange();
+    const { from, to } = observeContextStore.getTimeRange();
     const fromISO = from.toISOString();
     const toISO = to.toISOString();
 
@@ -291,29 +227,6 @@
       toISO,
       true
     );
-  }
-
-  function handleTimeRangeChange() {
-    if (storeState.selectedMetric && selectedProject) {
-      const { from, to } = getTimeRange();
-      const fromISO = from.toISOString();
-      const toISO = to.toISOString();
-
-      metricsStore.loadTimeseries(
-        selectedProject,
-        storeState.selectedMetric,
-        fromISO,
-        toISO
-      );
-      metricsStore.loadDataPoints(
-        selectedProject,
-        storeState.selectedMetric,
-        fromISO,
-        toISO,
-        true
-      );
-    }
-    loadMetricNames();
   }
 
   function handleIntervalChange(interval: string) {
@@ -347,7 +260,7 @@
     selectedLabelKey = key;
     selectedLabelValue = null;
     if (selectedProject && storeState.selectedMetric) {
-      const { from, to } = getTimeRange();
+      const { from, to } = observeContextStore.getTimeRange();
       metricsStore.loadLabelValues(
         selectedProject,
         storeState.selectedMetric,
@@ -360,7 +273,7 @@
 
   function reloadTimeseries() {
     if (!selectedProject || !storeState.selectedMetric) return;
-    const { from, to } = getTimeRange();
+    const { from, to } = observeContextStore.getTimeRange();
     metricsStore.loadTimeseries(
       selectedProject,
       storeState.selectedMetric,
@@ -371,7 +284,7 @@
 
   function reloadDataPoints() {
     if (!selectedProject || !storeState.selectedMetric) return;
-    const { from, to } = getTimeRange();
+    const { from, to } = observeContextStore.getTimeRange();
     metricsStore.loadDataPoints(
       selectedProject,
       storeState.selectedMetric,
@@ -498,7 +411,7 @@
 
   function goToTrace(traceId: string) {
     if (selectedProject) {
-      goto(`/dashboard/traces?traceId=${traceId}`);
+      goto(`/dashboard/traces/${traceId}?projectId=${selectedProject}`);
     }
   }
 
@@ -544,28 +457,6 @@
     </CardHeader>
     <CardContent>
       <div class="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        <!-- Project selector -->
-        <div class="space-y-2">
-          <label class="text-sm font-medium">Project</label>
-          <Select.Root
-            type="single"
-            value={selectedProject || ""}
-            onValueChange={(v) => {
-              if (v) handleProjectChange(v);
-            }}
-          >
-            <Select.Trigger class="w-full">
-              {projects.find((p) => p.id === selectedProject)?.name ||
-                "Select project"}
-            </Select.Trigger>
-            <Select.Content>
-              {#each projects as project}
-                <Select.Item value={project.id}>{project.name}</Select.Item>
-              {/each}
-            </Select.Content>
-          </Select.Root>
-        </div>
-
         <!-- Metric name selector -->
         <div class="space-y-2">
           <label class="text-sm font-medium">Metric</label>
@@ -602,17 +493,6 @@
             </Select.Content>
           </Select.Root>
         </div>
-      </div>
-
-      <!-- Time range -->
-      <div class="mt-4">
-        <TimeRangePicker
-          bind:this={timeRangePicker}
-          initialType={timeRangeType}
-          initialCustomFrom={customFromTime}
-          initialCustomTo={customToTime}
-          onchange={handleTimeRangeChange}
-        />
       </div>
     </CardContent>
   </Card>
