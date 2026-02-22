@@ -2,7 +2,18 @@ import { describe, it, expect, beforeEach, afterAll } from 'vitest';
 import request from 'supertest';
 import { build } from '../../../server.js';
 import { createTestContext, createTestTrace, createTestSpan, createTestApiKey } from '../../helpers/index.js';
+import { db } from '../../../database/index.js';
 import crypto from 'crypto';
+
+async function createSession(userId: string) {
+  const token = crypto.randomBytes(32).toString('hex');
+  const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+  await db
+    .insertInto('sessions')
+    .values({ user_id: userId, token, expires_at: expiresAt })
+    .execute();
+  return { token };
+}
 
 describe('Traces Routes', () => {
   let app: any;
@@ -440,6 +451,263 @@ describe('Traces Routes', () => {
           to: new Date(now.getTime() + 1000).toISOString(),
         })
         .set('x-api-key', apiKey)
+        .expect(200);
+
+      expect(response.body.total_traces).toBe(0);
+    });
+  });
+
+  // ==========================================================================
+  // GET /api/v1/traces/service-map
+  // ==========================================================================
+  describe('GET /api/v1/traces/service-map', () => {
+    it('should return 401 without auth', async () => {
+      const response = await request(app.server)
+        .get('/api/v1/traces/service-map')
+        .expect(401);
+
+      expect(response.body.error).toBe('Unauthorized');
+    });
+
+    it('should return empty graph when no data', async () => {
+      const response = await request(app.server)
+        .get('/api/v1/traces/service-map')
+        .set('x-api-key', apiKey)
+        .expect(200);
+
+      expect(response.body.nodes).toEqual([]);
+      expect(response.body.edges).toEqual([]);
+    });
+
+    it('should return enriched service map with span dependencies', async () => {
+      const traceId = crypto.randomBytes(16).toString('hex');
+      const now = new Date();
+
+      const parentSpan = await createTestSpan({
+        projectId: context.project.id,
+        organizationId: context.organization.id,
+        traceId,
+        spanId: 'route-parent',
+        serviceName: 'web-app',
+        startTime: now,
+      });
+
+      await createTestSpan({
+        projectId: context.project.id,
+        organizationId: context.organization.id,
+        traceId,
+        parentSpanId: parentSpan.span_id,
+        serviceName: 'api-server',
+        startTime: new Date(now.getTime() + 10),
+      });
+
+      const response = await request(app.server)
+        .get('/api/v1/traces/service-map')
+        .query({
+          from: new Date(now.getTime() - 5000).toISOString(),
+          to: new Date(now.getTime() + 5000).toISOString(),
+        })
+        .set('x-api-key', apiKey)
+        .expect(200);
+
+      expect(response.body.nodes).toHaveLength(2);
+      expect(response.body.edges).toHaveLength(1);
+
+      // Verify enriched node structure
+      const webNode = response.body.nodes.find((n: any) => n.name === 'web-app');
+      expect(webNode).toBeDefined();
+      expect(webNode.id).toBe('web-app');
+      expect(typeof webNode.callCount).toBe('number');
+      expect(typeof webNode.errorRate).toBe('number');
+      expect(typeof webNode.avgLatencyMs).toBe('number');
+      expect(typeof webNode.totalCalls).toBe('number');
+
+      // Verify enriched edge structure
+      expect(response.body.edges[0]).toMatchObject({
+        source: 'web-app',
+        target: 'api-server',
+        callCount: 1,
+        type: 'span',
+      });
+    });
+
+    it('should filter by time range', async () => {
+      const now = new Date();
+      const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+
+      // Old data
+      const oldTraceId = crypto.randomBytes(16).toString('hex');
+      const oldParent = await createTestSpan({
+        projectId: context.project.id,
+        organizationId: context.organization.id,
+        traceId: oldTraceId,
+        spanId: 'route-old-p',
+        serviceName: 'old-a',
+        startTime: yesterday,
+      });
+      await createTestSpan({
+        projectId: context.project.id,
+        organizationId: context.organization.id,
+        traceId: oldTraceId,
+        parentSpanId: oldParent.span_id,
+        serviceName: 'old-b',
+        startTime: yesterday,
+      });
+
+      // Query recent window only
+      const response = await request(app.server)
+        .get('/api/v1/traces/service-map')
+        .query({
+          from: new Date(now.getTime() - 1000).toISOString(),
+          to: new Date(now.getTime() + 1000).toISOString(),
+        })
+        .set('x-api-key', apiKey)
+        .expect(200);
+
+      expect(response.body.nodes).toEqual([]);
+      expect(response.body.edges).toEqual([]);
+    });
+
+    it('should return service map without time range (defaults)', async () => {
+      const response = await request(app.server)
+        .get('/api/v1/traces/service-map')
+        .set('x-api-key', apiKey)
+        .expect(200);
+
+      expect(response.body).toHaveProperty('nodes');
+      expect(response.body).toHaveProperty('edges');
+      expect(Array.isArray(response.body.nodes)).toBe(true);
+      expect(Array.isArray(response.body.edges)).toBe(true);
+    });
+
+    it('should work with session auth', async () => {
+      const session = await createSession(context.user.id);
+
+      const response = await request(app.server)
+        .get('/api/v1/traces/service-map')
+        .query({ projectId: context.project.id })
+        .set('Authorization', `Bearer ${session.token}`)
+        .expect(200);
+
+      expect(response.body.nodes).toEqual([]);
+      expect(response.body.edges).toEqual([]);
+    });
+
+    it('should return 403 for unauthorized project via session', async () => {
+      const otherContext = await createTestContext();
+      const session = await createSession(context.user.id);
+
+      const response = await request(app.server)
+        .get('/api/v1/traces/service-map')
+        .query({ projectId: otherContext.project.id })
+        .set('Authorization', `Bearer ${session.token}`)
+        .expect(403);
+
+      expect(response.body.error).toContain('Access denied');
+    });
+  });
+
+  // ==========================================================================
+  // Session auth coverage for existing routes
+  // ==========================================================================
+  describe('Session auth - project access control', () => {
+    it('GET /api/v1/traces should work with session auth', async () => {
+      const session = await createSession(context.user.id);
+
+      const response = await request(app.server)
+        .get('/api/v1/traces')
+        .query({ projectId: context.project.id })
+        .set('Authorization', `Bearer ${session.token}`)
+        .expect(200);
+
+      expect(response.body.traces).toEqual([]);
+    });
+
+    it('GET /api/v1/traces should return 403 for unauthorized project', async () => {
+      const otherContext = await createTestContext();
+      const session = await createSession(context.user.id);
+
+      const response = await request(app.server)
+        .get('/api/v1/traces')
+        .query({ projectId: otherContext.project.id })
+        .set('Authorization', `Bearer ${session.token}`)
+        .expect(403);
+
+      expect(response.body.error).toContain('Access denied');
+    });
+
+    it('GET /api/v1/traces/:traceId should return 403 for unauthorized project', async () => {
+      const otherContext = await createTestContext();
+      const session = await createSession(context.user.id);
+
+      const response = await request(app.server)
+        .get('/api/v1/traces/some-trace')
+        .query({ projectId: otherContext.project.id })
+        .set('Authorization', `Bearer ${session.token}`)
+        .expect(403);
+
+      expect(response.body.error).toContain('Access denied');
+    });
+
+    it('GET /api/v1/traces/:traceId/spans should return 403 for unauthorized project', async () => {
+      const otherContext = await createTestContext();
+      const session = await createSession(context.user.id);
+
+      const response = await request(app.server)
+        .get('/api/v1/traces/some-trace/spans')
+        .query({ projectId: otherContext.project.id })
+        .set('Authorization', `Bearer ${session.token}`)
+        .expect(403);
+
+      expect(response.body.error).toContain('Access denied');
+    });
+
+    it('GET /api/v1/traces/services should return 403 for unauthorized project', async () => {
+      const otherContext = await createTestContext();
+      const session = await createSession(context.user.id);
+
+      const response = await request(app.server)
+        .get('/api/v1/traces/services')
+        .query({ projectId: otherContext.project.id })
+        .set('Authorization', `Bearer ${session.token}`)
+        .expect(403);
+
+      expect(response.body.error).toContain('Access denied');
+    });
+
+    it('GET /api/v1/traces/dependencies should return 403 for unauthorized project', async () => {
+      const otherContext = await createTestContext();
+      const session = await createSession(context.user.id);
+
+      const response = await request(app.server)
+        .get('/api/v1/traces/dependencies')
+        .query({ projectId: otherContext.project.id })
+        .set('Authorization', `Bearer ${session.token}`)
+        .expect(403);
+
+      expect(response.body.error).toContain('Access denied');
+    });
+
+    it('GET /api/v1/traces/stats should return 403 for unauthorized project', async () => {
+      const otherContext = await createTestContext();
+      const session = await createSession(context.user.id);
+
+      const response = await request(app.server)
+        .get('/api/v1/traces/stats')
+        .query({ projectId: otherContext.project.id })
+        .set('Authorization', `Bearer ${session.token}`)
+        .expect(403);
+
+      expect(response.body.error).toContain('Access denied');
+    });
+
+    it('GET /api/v1/traces/stats should work with session auth', async () => {
+      const session = await createSession(context.user.id);
+
+      const response = await request(app.server)
+        .get('/api/v1/traces/stats')
+        .query({ projectId: context.project.id })
+        .set('Authorization', `Bearer ${session.token}`)
         .expect(200);
 
       expect(response.body.total_traces).toBe(0);

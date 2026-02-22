@@ -38,6 +38,7 @@
   import LogOut from "@lucide/svelte/icons/log-out";
   import Menu from "@lucide/svelte/icons/menu";
   import Shield from "@lucide/svelte/icons/shield";
+  import Network from "@lucide/svelte/icons/network";
   import Book from "@lucide/svelte/icons/book";
   import Github from "@lucide/svelte/icons/github";
   import X from "@lucide/svelte/icons/x";
@@ -237,6 +238,11 @@
       href: "/dashboard/traces",
       icon: GitBranch,
       badge: { id: 'traces-feature', type: 'new', showUntil: '2025-03-01' }
+    },
+    {
+      label: "Service Map",
+      href: "/dashboard/service-map",
+      icon: Network,
     },
     { label: "Alerts", href: "/dashboard/alerts", icon: AlertTriangle },
     {

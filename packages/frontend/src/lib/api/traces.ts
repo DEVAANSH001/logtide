@@ -72,6 +72,29 @@ export interface ServiceDependencies {
   edges: ServiceDependencyEdge[];
 }
 
+// Enriched types for the service map page
+export interface EnrichedServiceDependencyNode {
+  id: string;
+  name: string;
+  callCount: number;
+  errorRate: number;
+  avgLatencyMs: number;
+  p95LatencyMs: number | null;
+  totalCalls: number;
+}
+
+export interface EnrichedServiceDependencyEdge {
+  source: string;
+  target: string;
+  callCount: number;
+  type: 'span' | 'log_correlation';
+}
+
+export interface EnrichedServiceDependencies {
+  nodes: EnrichedServiceDependencyNode[];
+  edges: EnrichedServiceDependencyEdge[];
+}
+
 
 export class TracesAPI {
   constructor(private getToken: () => string | null) {}
@@ -186,6 +209,26 @@ export class TracesAPI {
 
     if (!response.ok) {
       throw new Error(`Failed to fetch trace stats: ${response.statusText}`);
+    }
+
+    return response.json();
+  }
+
+  async getServiceMap(projectId: string, from?: string, to?: string): Promise<EnrichedServiceDependencies> {
+    const params = new URLSearchParams();
+    params.append('projectId', projectId);
+    if (from) params.append('from', from);
+    if (to) params.append('to', to);
+
+    const url = `${getApiBaseUrl()}/traces/service-map?${params.toString()}`;
+
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: this.getHeaders(),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch service map: ${response.statusText}`);
     }
 
     return response.json();
