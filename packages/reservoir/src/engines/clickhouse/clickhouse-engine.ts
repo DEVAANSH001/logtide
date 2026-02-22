@@ -133,6 +133,20 @@ export class ClickHouseEngine extends StorageEngine {
   async initialize(): Promise<void> {
     if (this.options.skipInitialize) return;
 
+    // Create database if it doesn't exist (connect without specifying database)
+    const bootstrapClient = createClient({
+      url: `http://${this.config.host}:${this.config.port}`,
+      username: this.config.username,
+      password: this.config.password,
+    });
+    try {
+      await bootstrapClient.command({
+        query: `CREATE DATABASE IF NOT EXISTS ${this.config.database}`,
+      });
+    } finally {
+      await bootstrapClient.close();
+    }
+
     const client = this.getClient();
     const t = this.tableName;
 
