@@ -204,66 +204,52 @@ async function migrateLogs(
   let errors = 0;
   const startMs = Date.now();
 
-  // Raw SQL cursor-based read from TimescaleDB - much faster than reservoir.query()
-  // Uses a server-side cursor to stream rows without loading all into memory
-  let lastTime: string | null = null;
-  let lastId: string | null = null;
+  // Use a PostgreSQL server-side cursor to stream rows without ORDER BY or OFFSET
+  // This is the fastest way to read a large table sequentially
+  const client = await pgPool.connect();
+  try {
+    await client.query('BEGIN');
+    await client.query(
+      `DECLARE migrate_cursor CURSOR FOR
+       SELECT id, time, project_id, service, level, message, metadata, trace_id, span_id
+       FROM logs WHERE project_id = $1`,
+      [projectId],
+    );
 
-  while (migrated < sourceCount) {
-    // Keyset pagination: WHERE (time, id) > (lastTime, lastId) ORDER BY time, id
-    // This is O(1) per page regardless of offset (uses index directly)
-    let query: string;
-    let params: unknown[];
+    while (migrated < sourceCount) {
+      const result = await client.query(`FETCH ${batchSize} FROM migrate_cursor`);
+      if (result.rows.length === 0) break;
 
-    if (lastTime === null) {
-      query = `SELECT id, time, project_id, service, level, message, metadata, trace_id, span_id
-               FROM logs
-               WHERE project_id = $1
-               ORDER BY time ASC, id ASC
-               LIMIT $2`;
-      params = [projectId, batchSize];
-    } else {
-      query = `SELECT id, time, project_id, service, level, message, metadata, trace_id, span_id
-               FROM logs
-               WHERE project_id = $1 AND (time, id) > ($2::timestamptz, $3::uuid)
-               ORDER BY time ASC, id ASC
-               LIMIT $4`;
-      params = [projectId, lastTime, lastId, batchSize];
-    }
+      const logs: LogRecord[] = result.rows.map((row: Record<string, unknown>) => ({
+        id: row.id as string,
+        time: row.time as Date,
+        projectId: row.project_id as string,
+        service: row.service as string,
+        level: row.level as LogRecord['level'],
+        message: row.message as string,
+        metadata: typeof row.metadata === 'string' ? JSON.parse(row.metadata as string) : (row.metadata ?? {}),
+        traceId: (row.trace_id as string) || undefined,
+        spanId: (row.span_id as string) || undefined,
+      }));
 
-    const result = await pgPool.query(query, params);
-    if (result.rows.length === 0) break;
-
-    // Track cursor position
-    const lastRow = result.rows[result.rows.length - 1];
-    lastTime = lastRow.time;
-    lastId = lastRow.id;
-
-    // Map to LogRecord format
-    const logs: LogRecord[] = result.rows.map((row: Record<string, unknown>) => ({
-      id: row.id as string,
-      time: row.time as Date,
-      projectId: row.project_id as string,
-      service: row.service as string,
-      level: row.level as LogRecord['level'],
-      message: row.message as string,
-      metadata: typeof row.metadata === 'string' ? JSON.parse(row.metadata as string) : (row.metadata ?? {}),
-      traceId: (row.trace_id as string) || undefined,
-      spanId: (row.span_id as string) || undefined,
-    }));
-
-    try {
-      const ingestResult = await dest.ingest(logs);
-      if (ingestResult.failed > 0) {
-        errors += ingestResult.failed;
+      try {
+        const ingestResult = await dest.ingest(logs);
+        if (ingestResult.failed > 0) {
+          errors += ingestResult.failed;
+        }
+      } catch (err) {
+        errors += logs.length;
+        console.error(`\n    Batch error: ${err instanceof Error ? err.message : err}`);
       }
-    } catch (err) {
-      errors += logs.length;
-      console.error(`\n    Batch error: ${err instanceof Error ? err.message : err}`);
+
+      migrated += result.rows.length;
+      printProgress('Logs:', migrated, sourceCount, startMs);
     }
 
-    migrated += result.rows.length;
-    printProgress('Logs:', migrated, sourceCount, startMs);
+    await client.query('CLOSE migrate_cursor');
+    await client.query('COMMIT');
+  } finally {
+    client.release();
   }
 
   const elapsed = Date.now() - startMs;
