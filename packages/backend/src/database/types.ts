@@ -755,6 +755,38 @@ export interface AuditLogTable {
   >;
 }
 
+// ============================================================================
+// METRICS TABLES (OTLP Metrics Ingestion)
+// ============================================================================
+
+export interface MetricsTable {
+  time: Timestamp;
+  id: Generated<string>;
+  organization_id: string;
+  project_id: string;
+  metric_name: string;
+  metric_type: string;
+  value: number;
+  is_monotonic: boolean | null;
+  service_name: string;
+  attributes: ColumnType<Record<string, unknown> | null, Record<string, unknown> | null, Record<string, unknown> | null>;
+  resource_attributes: ColumnType<Record<string, unknown> | null, Record<string, unknown> | null, Record<string, unknown> | null>;
+  histogram_data: ColumnType<Record<string, unknown> | null, Record<string, unknown> | null, Record<string, unknown> | null>;
+  has_exemplars: boolean;
+}
+
+export interface MetricExemplarsTable {
+  time: Timestamp;
+  id: Generated<string>;
+  metric_id: string;
+  project_id: string;
+  exemplar_value: number;
+  exemplar_time: Timestamp | null;
+  trace_id: string | null;
+  span_id: string | null;
+  attributes: ColumnType<Record<string, unknown> | null, Record<string, unknown> | null, Record<string, unknown> | null>;
+}
+
 export interface Database {
   logs: LogsTable;
   users: UsersTable;
@@ -812,4 +844,7 @@ export interface Database {
   organization_pii_salts: OrganizationPiiSaltsTable;
   // Audit log
   audit_log: AuditLogTable;
+  // Metrics (OTLP)
+  metrics: MetricsTable;
+  metric_exemplars: MetricExemplarsTable;
 }

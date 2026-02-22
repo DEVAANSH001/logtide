@@ -8,6 +8,7 @@ import type {
   QueryResult,
   AggregateParams,
   AggregateResult,
+  AggregationInterval,
   IngestResult,
   IngestReturningResult,
   HealthStatus,
@@ -37,6 +38,21 @@ import type {
   DeleteSpansByTimeRangeParams,
   SpanKind,
   SpanStatusCode,
+  MetricRecord,
+  StoredMetricRecord,
+  MetricQueryParams,
+  MetricQueryResult,
+  MetricAggregateParams,
+  MetricAggregateResult,
+  MetricNamesParams,
+  MetricNamesResult,
+  MetricLabelParams,
+  MetricLabelResult,
+  IngestMetricsResult,
+  DeleteMetricsByTimeRangeParams,
+  MetricType,
+  MetricTimeBucket,
+  MetricExemplar,
 } from '../../core/types.js';
 import { TimescaleQueryTranslator } from './query-translator.js';
 
@@ -45,6 +61,16 @@ const { Pool } = pg;
 function sanitizeNull(value: string): string {
   return value.includes('\0') ? value.replace(/\0/g, '') : value;
 }
+
+const METRIC_INTERVAL_MAP: Record<AggregationInterval, string> = {
+  '1m': '1 minute',
+  '5m': '5 minutes',
+  '15m': '15 minutes',
+  '1h': '1 hour',
+  '6h': '6 hours',
+  '1d': '1 day',
+  '1w': '1 week',
+};
 
 export interface TimescaleEngineOptions {
   /** Use an existing pg.Pool instead of creating a new one */
@@ -802,6 +828,560 @@ export class TimescaleEngine extends StorageEngine {
       executionTimeMs: Date.now() - start,
     };
   }
+
+  // =========================================================================
+  // Metric Operations
+  // =========================================================================
+
+  async ingestMetrics(metrics: MetricRecord[]): Promise<IngestMetricsResult> {
+    if (metrics.length === 0) {
+      return { ingested: 0, failed: 0, durationMs: 0 };
+    }
+
+    const start = Date.now();
+    const pool = this.getPool();
+    const s = this.schema;
+
+    const times: Date[] = [];
+    const orgIds: string[] = [];
+    const projectIds: string[] = [];
+    const metricNames: string[] = [];
+    const metricTypes: string[] = [];
+    const values: number[] = [];
+    const isMonotonics: (boolean | null)[] = [];
+    const serviceNames: string[] = [];
+    const attributesJsons: (string | null)[] = [];
+    const resourceAttrsJsons: (string | null)[] = [];
+    const histogramDataJsons: (string | null)[] = [];
+
+    for (const m of metrics) {
+      times.push(m.time);
+      orgIds.push(sanitizeNull(m.organizationId));
+      projectIds.push(sanitizeNull(m.projectId));
+      metricNames.push(sanitizeNull(m.metricName));
+      metricTypes.push(m.metricType);
+      values.push(m.value);
+      isMonotonics.push(m.isMonotonic ?? null);
+      serviceNames.push(sanitizeNull(m.serviceName));
+      attributesJsons.push(m.attributes ? JSON.stringify(m.attributes) : null);
+      resourceAttrsJsons.push(m.resourceAttributes ? JSON.stringify(m.resourceAttributes) : null);
+      histogramDataJsons.push(m.histogramData ? JSON.stringify(m.histogramData) : null);
+    }
+
+    // Compute has_exemplars flags
+    const hasExemplarsFlags: boolean[] = metrics.map(m => (m.exemplars?.length ?? 0) > 0);
+
+    try {
+      const insertResult = await pool.query(
+        `INSERT INTO ${s}.metrics (
+          time, organization_id, project_id, metric_name, metric_type,
+          value, is_monotonic, service_name, attributes, resource_attributes, histogram_data, has_exemplars
+        )
+        SELECT * FROM UNNEST(
+          $1::timestamptz[], $2::uuid[], $3::uuid[], $4::text[], $5::text[],
+          $6::double precision[], $7::boolean[], $8::text[], $9::jsonb[], $10::jsonb[], $11::jsonb[], $12::boolean[]
+        )
+        RETURNING id, time`,
+        [times, orgIds, projectIds, metricNames, metricTypes,
+         values, isMonotonics, serviceNames, attributesJsons, resourceAttrsJsons, histogramDataJsons, hasExemplarsFlags],
+      );
+
+      // Insert exemplars if any metrics have them
+      const exemplarTimes: Date[] = [];
+      const exemplarMetricIds: string[] = [];
+      const exemplarProjectIds: string[] = [];
+      const exemplarValues: number[] = [];
+      const exemplarTimesReal: (Date | null)[] = [];
+      const exemplarTraceIds: (string | null)[] = [];
+      const exemplarSpanIds: (string | null)[] = [];
+      const exemplarAttrsJsons: (string | null)[] = [];
+
+      for (let i = 0; i < metrics.length; i++) {
+        const m = metrics[i];
+        if (m.exemplars && m.exemplars.length > 0) {
+          const row = insertResult.rows[i];
+          const metricId = row.id as string;
+          const metricTime = row.time as Date;
+
+          for (const ex of m.exemplars) {
+            exemplarTimes.push(metricTime);
+            exemplarMetricIds.push(metricId);
+            exemplarProjectIds.push(sanitizeNull(m.projectId));
+            exemplarValues.push(ex.exemplarValue);
+            exemplarTimesReal.push(ex.exemplarTime ?? null);
+            exemplarTraceIds.push(ex.traceId ?? null);
+            exemplarSpanIds.push(ex.spanId ?? null);
+            exemplarAttrsJsons.push(ex.attributes ? JSON.stringify(ex.attributes) : null);
+          }
+        }
+      }
+
+      if (exemplarTimes.length > 0) {
+        await pool.query(
+          `INSERT INTO ${s}.metric_exemplars (
+            time, metric_id, project_id,
+            exemplar_value, exemplar_time, trace_id, span_id, attributes
+          )
+          SELECT * FROM UNNEST(
+            $1::timestamptz[], $2::uuid[], $3::uuid[],
+            $4::double precision[], $5::timestamptz[], $6::text[], $7::text[], $8::jsonb[]
+          )`,
+          [exemplarTimes, exemplarMetricIds, exemplarProjectIds,
+           exemplarValues, exemplarTimesReal, exemplarTraceIds, exemplarSpanIds, exemplarAttrsJsons],
+        );
+      }
+
+      return { ingested: metrics.length, failed: 0, durationMs: Date.now() - start };
+    } catch (err) {
+      return {
+        ingested: 0,
+        failed: metrics.length,
+        durationMs: Date.now() - start,
+        errors: [{ index: 0, error: err instanceof Error ? err.message : String(err) }],
+      };
+    }
+  }
+
+  async queryMetrics(params: MetricQueryParams): Promise<MetricQueryResult> {
+    const start = Date.now();
+    const pool = this.getPool();
+    const s = this.schema;
+    const limit = params.limit ?? 50;
+    const offset = params.offset ?? 0;
+
+    const conditions: string[] = [];
+    const values: unknown[] = [];
+    let idx = 1;
+
+    // Time range
+    conditions.push(`m.time ${params.fromExclusive ? '>' : '>='} $${idx++}`);
+    values.push(params.from);
+    conditions.push(`m.time ${params.toExclusive ? '<' : '<='} $${idx++}`);
+    values.push(params.to);
+
+    // Project filter
+    const pids = Array.isArray(params.projectId) ? params.projectId : [params.projectId];
+    conditions.push(`m.project_id = ANY($${idx++})`);
+    values.push(pids);
+
+    // Optional filters
+    if (params.organizationId) {
+      const oids = Array.isArray(params.organizationId) ? params.organizationId : [params.organizationId];
+      conditions.push(`m.organization_id = ANY($${idx++})`);
+      values.push(oids);
+    }
+    if (params.metricName) {
+      const names = Array.isArray(params.metricName) ? params.metricName : [params.metricName];
+      conditions.push(`m.metric_name = ANY($${idx++})`);
+      values.push(names);
+    }
+    if (params.metricType) {
+      const types = Array.isArray(params.metricType) ? params.metricType : [params.metricType];
+      conditions.push(`m.metric_type = ANY($${idx++})`);
+      values.push(types);
+    }
+    if (params.serviceName) {
+      const svcs = Array.isArray(params.serviceName) ? params.serviceName : [params.serviceName];
+      conditions.push(`m.service_name = ANY($${idx++})`);
+      values.push(svcs);
+    }
+    if (params.attributes) {
+      conditions.push(`m.attributes @> $${idx++}::jsonb`);
+      values.push(JSON.stringify(params.attributes));
+    }
+
+    const where = `WHERE ${conditions.join(' AND ')}`;
+    const sortOrder = params.sortOrder ?? 'desc';
+
+    // Count total
+    const countResult = await pool.query(
+      `SELECT COUNT(*)::int AS count FROM ${s}.metrics m ${where}`,
+      values,
+    );
+    const total = countResult.rows[0]?.count ?? 0;
+
+    // Fetch rows
+    const dataResult = await pool.query(
+      `SELECT m.* FROM ${s}.metrics m ${where}
+       ORDER BY m.time ${sortOrder}
+       LIMIT $${idx++} OFFSET $${idx++}`,
+      [...values, limit, offset],
+    );
+
+    let metricsResult = dataResult.rows.map(mapRowToStoredMetricRecord);
+
+    // Optionally load exemplars
+    if (params.includeExemplars && metricsResult.length > 0) {
+      const metricIds = metricsResult.map((m) => m.id);
+      const exResult = await pool.query(
+        `SELECT * FROM ${s}.metric_exemplars WHERE metric_id = ANY($1::uuid[])`,
+        [metricIds],
+      );
+
+      const exemplarsByMetricId = new Map<string, MetricExemplar[]>();
+      for (const row of exResult.rows) {
+        const mid = row.metric_id as string;
+        if (!exemplarsByMetricId.has(mid)) {
+          exemplarsByMetricId.set(mid, []);
+        }
+        exemplarsByMetricId.get(mid)!.push({
+          exemplarValue: Number(row.exemplar_value),
+          exemplarTime: row.exemplar_time ? (row.exemplar_time as Date) : undefined,
+          traceId: row.trace_id as string | undefined,
+          spanId: row.span_id as string | undefined,
+          attributes: row.attributes as Record<string, unknown> | undefined,
+        });
+      }
+
+      metricsResult = metricsResult.map((m) => ({
+        ...m,
+        exemplars: exemplarsByMetricId.get(m.id) ?? undefined,
+        hasExemplars: exemplarsByMetricId.has(m.id),
+      }));
+    }
+
+    return {
+      metrics: metricsResult,
+      total,
+      hasMore: offset + metricsResult.length < total,
+      limit,
+      offset,
+      executionTimeMs: Date.now() - start,
+    };
+  }
+
+  async aggregateMetrics(params: MetricAggregateParams): Promise<MetricAggregateResult> {
+    const start = Date.now();
+    const pool = this.getPool();
+    const s = this.schema;
+
+    const intervalSql = METRIC_INTERVAL_MAP[params.interval];
+    const conditions: string[] = [];
+    const values: unknown[] = [intervalSql];
+    let idx = 2;
+
+    // Time range
+    conditions.push(`time >= $${idx++}`);
+    values.push(params.from);
+    conditions.push(`time <= $${idx++}`);
+    values.push(params.to);
+
+    // Project filter
+    const pids = Array.isArray(params.projectId) ? params.projectId : [params.projectId];
+    conditions.push(`project_id = ANY($${idx++})`);
+    values.push(pids);
+
+    // Metric name
+    conditions.push(`metric_name = $${idx++}`);
+    values.push(params.metricName);
+
+    // Optional filters
+    if (params.organizationId) {
+      const oids = Array.isArray(params.organizationId) ? params.organizationId : [params.organizationId];
+      conditions.push(`organization_id = ANY($${idx++})`);
+      values.push(oids);
+    }
+    if (params.metricType) {
+      conditions.push(`metric_type = $${idx++}`);
+      values.push(params.metricType);
+    }
+    if (params.serviceName) {
+      const svcs = Array.isArray(params.serviceName) ? params.serviceName : [params.serviceName];
+      conditions.push(`service_name = ANY($${idx++})`);
+      values.push(svcs);
+    }
+    if (params.attributes) {
+      conditions.push(`attributes @> $${idx++}::jsonb`);
+      values.push(JSON.stringify(params.attributes));
+    }
+
+    const where = `WHERE ${conditions.join(' AND ')}`;
+
+    // Build aggregation expression
+    let aggExpr: string;
+    switch (params.aggregation) {
+      case 'avg':
+        aggExpr = 'AVG(value)';
+        break;
+      case 'sum':
+        aggExpr = 'SUM(value)';
+        break;
+      case 'min':
+        aggExpr = 'MIN(value)';
+        break;
+      case 'max':
+        aggExpr = 'MAX(value)';
+        break;
+      case 'count':
+        aggExpr = 'COUNT(*)';
+        break;
+      case 'last':
+        aggExpr = '(array_agg(value ORDER BY time DESC))[1]';
+        break;
+      default:
+        aggExpr = 'AVG(value)';
+    }
+
+    // Build groupBy columns (parameterized to prevent SQL injection)
+    const groupByColumns: string[] = [];
+    const selectExtra: string[] = [];
+    if (params.groupBy && params.groupBy.length > 0) {
+      for (const key of params.groupBy) {
+        const alias = `label_${groupByColumns.length}`;
+        selectExtra.push(`attributes->>$${idx++} AS ${alias}`);
+        values.push(key);
+        groupByColumns.push(alias);
+      }
+    }
+
+    const selectCols = [
+      `time_bucket($1, time) AS bucket`,
+      `${aggExpr} AS agg_value`,
+      ...selectExtra,
+    ].join(', ');
+
+    const groupByCols = ['bucket', ...groupByColumns].join(', ');
+
+    const result = await pool.query(
+      `SELECT ${selectCols}
+       FROM ${s}.metrics
+       ${where}
+       GROUP BY ${groupByCols}
+       ORDER BY bucket ASC`,
+      values,
+    );
+
+    const timeseries: MetricTimeBucket[] = result.rows.map((row: Record<string, unknown>) => {
+      const bucket: MetricTimeBucket = {
+        bucket: row.bucket as Date,
+        value: Number(row.agg_value),
+      };
+      if (params.groupBy && params.groupBy.length > 0) {
+        const labels: Record<string, string> = {};
+        for (let i = 0; i < params.groupBy.length; i++) {
+          labels[params.groupBy[i]] = (row[`label_${i}`] as string) ?? '';
+        }
+        bucket.labels = labels;
+      }
+      return bucket;
+    });
+
+    return {
+      metricName: params.metricName,
+      metricType: params.metricType ?? 'gauge',
+      timeseries,
+      executionTimeMs: Date.now() - start,
+    };
+  }
+
+  async getMetricNames(params: MetricNamesParams): Promise<MetricNamesResult> {
+    const start = Date.now();
+    const pool = this.getPool();
+    const s = this.schema;
+
+    const conditions: string[] = [];
+    const values: unknown[] = [];
+    let idx = 1;
+
+    // Project filter
+    const pids = Array.isArray(params.projectId) ? params.projectId : [params.projectId];
+    conditions.push(`project_id = ANY($${idx++})`);
+    values.push(pids);
+
+    // Optional filters
+    if (params.organizationId) {
+      const oids = Array.isArray(params.organizationId) ? params.organizationId : [params.organizationId];
+      conditions.push(`organization_id = ANY($${idx++})`);
+      values.push(oids);
+    }
+    if (params.metricType) {
+      const types = Array.isArray(params.metricType) ? params.metricType : [params.metricType];
+      conditions.push(`metric_type = ANY($${idx++})`);
+      values.push(types);
+    }
+    if (params.from) {
+      conditions.push(`time >= $${idx++}`);
+      values.push(params.from);
+    }
+    if (params.to) {
+      conditions.push(`time <= $${idx++}`);
+      values.push(params.to);
+    }
+
+    const where = `WHERE ${conditions.join(' AND ')}`;
+    const limitClause = params.limit ? `LIMIT $${idx++}` : '';
+    const limitValues = params.limit ? [params.limit] : [];
+
+    const result = await pool.query(
+      `SELECT DISTINCT metric_name, metric_type
+       FROM ${s}.metrics
+       ${where}
+       ORDER BY metric_name ASC
+       ${limitClause}`,
+      [...values, ...limitValues],
+    );
+
+    return {
+      names: result.rows.map((row: Record<string, unknown>) => ({
+        name: row.metric_name as string,
+        type: row.metric_type as MetricType,
+      })),
+      executionTimeMs: Date.now() - start,
+    };
+  }
+
+  async getMetricLabelKeys(params: MetricLabelParams): Promise<MetricLabelResult> {
+    const start = Date.now();
+    const pool = this.getPool();
+    const s = this.schema;
+
+    const conditions: string[] = [];
+    const values: unknown[] = [];
+    let idx = 1;
+
+    // Project filter
+    const pids = Array.isArray(params.projectId) ? params.projectId : [params.projectId];
+    conditions.push(`project_id = ANY($${idx++})`);
+    values.push(pids);
+
+    // Metric name
+    conditions.push(`metric_name = $${idx++}`);
+    values.push(params.metricName);
+
+    // Optional filters
+    if (params.organizationId) {
+      const oids = Array.isArray(params.organizationId) ? params.organizationId : [params.organizationId];
+      conditions.push(`organization_id = ANY($${idx++})`);
+      values.push(oids);
+    }
+    if (params.from) {
+      conditions.push(`time >= $${idx++}`);
+      values.push(params.from);
+    }
+    if (params.to) {
+      conditions.push(`time <= $${idx++}`);
+      values.push(params.to);
+    }
+
+    const where = `WHERE ${conditions.join(' AND ')}`;
+    const limitClause = params.limit ? `LIMIT $${idx++}` : '';
+    const limitValues = params.limit ? [params.limit] : [];
+
+    const result = await pool.query(
+      `SELECT DISTINCT jsonb_object_keys(attributes) AS key
+       FROM ${s}.metrics
+       ${where} AND attributes IS NOT NULL
+       ORDER BY key ASC
+       ${limitClause}`,
+      [...values, ...limitValues],
+    );
+
+    return {
+      keys: result.rows.map((row: Record<string, unknown>) => row.key as string),
+      executionTimeMs: Date.now() - start,
+    };
+  }
+
+  async getMetricLabelValues(params: MetricLabelParams, labelKey: string): Promise<MetricLabelResult> {
+    const start = Date.now();
+    const pool = this.getPool();
+    const s = this.schema;
+
+    const conditions: string[] = [];
+    const values: unknown[] = [];
+    let idx = 1;
+
+    // Project filter
+    const pids = Array.isArray(params.projectId) ? params.projectId : [params.projectId];
+    conditions.push(`project_id = ANY($${idx++})`);
+    values.push(pids);
+
+    // Metric name
+    conditions.push(`metric_name = $${idx++}`);
+    values.push(params.metricName);
+
+    // Must have the key
+    conditions.push(`attributes ? $${idx++}`);
+    values.push(labelKey);
+
+    // Optional filters
+    if (params.organizationId) {
+      const oids = Array.isArray(params.organizationId) ? params.organizationId : [params.organizationId];
+      conditions.push(`organization_id = ANY($${idx++})`);
+      values.push(oids);
+    }
+    if (params.from) {
+      conditions.push(`time >= $${idx++}`);
+      values.push(params.from);
+    }
+    if (params.to) {
+      conditions.push(`time <= $${idx++}`);
+      values.push(params.to);
+    }
+
+    const where = `WHERE ${conditions.join(' AND ')}`;
+    const limitClause = params.limit ? `LIMIT $${idx++}` : '';
+    const limitValues = params.limit ? [params.limit] : [];
+
+    const result = await pool.query(
+      `SELECT DISTINCT attributes->>$${idx++} AS value
+       FROM ${s}.metrics
+       ${where}
+       ORDER BY value ASC
+       ${limitClause}`,
+      [...values, ...limitValues, labelKey],
+    );
+
+    return {
+      values: result.rows
+        .map((row: Record<string, unknown>) => row.value as string)
+        .filter((v) => v != null),
+      executionTimeMs: Date.now() - start,
+    };
+  }
+
+  async deleteMetricsByTimeRange(params: DeleteMetricsByTimeRangeParams): Promise<DeleteResult> {
+    const start = Date.now();
+    const pool = this.getPool();
+    const s = this.schema;
+    const pids = Array.isArray(params.projectId) ? params.projectId : [params.projectId];
+
+    const conditions = ['project_id = ANY($1)', 'time >= $2', 'time <= $3'];
+    const values: unknown[] = [pids, params.from, params.to];
+    let idx = 4;
+
+    if (params.metricName) {
+      const names = Array.isArray(params.metricName) ? params.metricName : [params.metricName];
+      conditions.push(`metric_name = ANY($${idx++})`);
+      values.push(names);
+    }
+    if (params.serviceName) {
+      const svcs = Array.isArray(params.serviceName) ? params.serviceName : [params.serviceName];
+      conditions.push(`service_name = ANY($${idx++})`);
+      values.push(svcs);
+    }
+
+    const where = conditions.join(' AND ');
+
+    // Delete exemplars first (they reference metrics)
+    await pool.query(
+      `DELETE FROM ${s}.metric_exemplars WHERE metric_id IN (
+        SELECT id FROM ${s}.metrics WHERE ${where}
+      )`,
+      values,
+    );
+
+    // Delete metrics
+    const result = await pool.query(
+      `DELETE FROM ${s}.metrics WHERE ${where}`,
+      values,
+    );
+
+    return {
+      deleted: Number(result.rowCount ?? 0),
+      executionTimeMs: Date.now() - start,
+    };
+  }
 }
 
 function mapRowToLogRecord(row: Record<string, unknown>): LogRecord {
@@ -862,5 +1442,23 @@ function mapRowToTraceRecord(row: Record<string, unknown>): TraceRecord {
     durationMs: row.duration_ms as number,
     spanCount: row.span_count as number,
     error: row.error as boolean,
+  };
+}
+
+function mapRowToStoredMetricRecord(row: Record<string, unknown>): StoredMetricRecord {
+  return {
+    id: row.id as string,
+    time: row.time as Date,
+    organizationId: row.organization_id as string,
+    projectId: row.project_id as string,
+    metricName: row.metric_name as string,
+    metricType: row.metric_type as MetricType,
+    value: Number(row.value),
+    isMonotonic: row.is_monotonic as boolean | undefined,
+    serviceName: row.service_name as string,
+    attributes: row.attributes as Record<string, unknown> | undefined,
+    resourceAttributes: row.resource_attributes as Record<string, unknown> | undefined,
+    histogramData: row.histogram_data as StoredMetricRecord['histogramData'],
+    hasExemplars: Boolean(row.has_exemplars),
   };
 }

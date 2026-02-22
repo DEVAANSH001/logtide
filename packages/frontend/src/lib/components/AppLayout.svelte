@@ -47,6 +47,7 @@
   import LayoutGrid from "@lucide/svelte/icons/layout-grid";
   import Check from "@lucide/svelte/icons/check";
   import SearchIcon from "@lucide/svelte/icons/search";
+  import BarChart3 from "@lucide/svelte/icons/bar-chart-3";
   import { formatTimeAgo } from "$lib/utils/datetime";
   import Footer from "$lib/components/Footer.svelte";
   import OnboardingChecklist from "$lib/components/OnboardingChecklist.svelte";
@@ -238,6 +239,12 @@
       href: "/dashboard/traces",
       icon: GitBranch,
       badge: { id: 'traces-feature', type: 'new', showUntil: '2025-03-01' }
+    },
+    {
+      label: "Metrics",
+      href: "/dashboard/metrics",
+      icon: BarChart3,
+      badge: { id: 'metrics-feature', type: 'new', showUntil: '2026-09-01' }
     },
     {
       label: "Service Map",

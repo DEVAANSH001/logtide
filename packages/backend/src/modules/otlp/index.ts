@@ -1,5 +1,6 @@
 export { default as otlpRoutes } from './routes.js';
 export { default as otlpTraceRoutes } from './trace-routes.js';
+export { default as otlpMetricRoutes } from './metric-routes.js';
 export * from './parser.js';
 export * from './transformer.js';
 export * from './severity-mapper.js';

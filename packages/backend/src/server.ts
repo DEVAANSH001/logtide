@@ -22,8 +22,9 @@ import { siemRoutes } from './modules/siem/routes.js';
 import { registerSiemSseRoutes } from './modules/siem/sse-events.js';
 import { adminRoutes } from './modules/admin/index.js';
 import { publicAuthRoutes, authenticatedAuthRoutes, adminAuthRoutes } from './modules/auth/external-routes.js';
-import { otlpRoutes, otlpTraceRoutes } from './modules/otlp/index.js';
+import { otlpRoutes, otlpTraceRoutes, otlpMetricRoutes } from './modules/otlp/index.js';
 import { tracesRoutes } from './modules/traces/index.js';
+import { metricsRoutes } from './modules/metrics/index.js';
 import { onboardingRoutes } from './modules/onboarding/index.js';
 import { exceptionsRoutes } from './modules/exceptions/index.js';
 import { settingsRoutes, publicSettingsRoutes, settingsService } from './modules/settings/index.js';
@@ -187,7 +188,9 @@ export async function build(opts = {}) {
   await fastify.register(piiMaskingRoutes, { prefix: '/api' });
   await fastify.register(otlpRoutes);
   await fastify.register(otlpTraceRoutes);
+  await fastify.register(otlpMetricRoutes);
   await fastify.register(tracesRoutes);
+  await fastify.register(metricsRoutes, { prefix: '/api/v1/metrics' });
   await fastify.register(websocketPlugin);
   await fastify.register(websocketRoutes);
 
