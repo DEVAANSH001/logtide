@@ -195,101 +195,100 @@ async function migrateLogs(
   projectId: string,
   batchSize: number,
   sourceCount: number,
-  destCount: number,
+  _destCount: number,
 ): Promise<{ migrated: number; errors: number }> {
-  const toMigrate = sourceCount - destCount;
-  if (toMigrate <= 0) return { migrated: 0, errors: 0 };
+  if (sourceCount <= 0) return { migrated: 0, errors: 0 };
 
   let migrated = 0;
   let errors = 0;
   const startMs = Date.now();
 
-  // Use time-based cursor instead of OFFSET (OFFSET is O(n) on large tables)
-  // Find the starting time: if we already have some logs in dest, start after the latest one
-  let cursor: Date;
-  if (destCount > 0) {
-    const lastInDest = await dest.query({
-      projectId,
-      from: new Date('2000-01-01'),
-      to: new Date('2100-01-01'),
-      limit: 1,
-      sortBy: 'time',
-      sortOrder: 'desc',
-    });
-    cursor = lastInDest.logs.length > 0 ? new Date(lastInDest.logs[0].time) : new Date('2000-01-01');
-  } else {
-    cursor = new Date('2000-01-01');
-  }
+  // Find the time range of source data
+  const oldest = await source.query({
+    projectId,
+    from: new Date('2000-01-01'),
+    to: new Date('2100-01-01'),
+    limit: 1,
+    sortBy: 'time',
+    sortOrder: 'asc',
+  });
 
-  while (migrated < toMigrate) {
-    const result = await source.query({
-      projectId,
-      from: cursor,
-      to: new Date('2100-01-01'),
-      limit: batchSize,
-      offset: 0,
-      sortBy: 'time',
-      sortOrder: 'asc',
-    });
+  if (oldest.logs.length === 0) return { migrated: 0, errors: 0 };
 
-    if (result.logs.length === 0) break;
+  const newest = await source.query({
+    projectId,
+    from: new Date('2000-01-01'),
+    to: new Date('2100-01-01'),
+    limit: 1,
+    sortBy: 'time',
+    sortOrder: 'desc',
+  });
 
-    // Advance cursor to the last log's time for next batch
-    const lastLog = result.logs[result.logs.length - 1];
-    const newCursor = new Date(lastLog.time);
+  const startTime = new Date(oldest.logs[0].time);
+  const finalTime = new Date(newest.logs[0].time);
 
-    // If cursor didn't advance (many logs with same timestamp), use small offset to skip past them
-    if (newCursor.getTime() === cursor.getTime()) {
-      // Count how many we got with this exact timestamp, then offset past them
-      const sameTimeLogs = result.logs.filter(
-        (l: StoredLogRecord) => new Date(l.time).getTime() === cursor.getTime()
-      );
-      if (sameTimeLogs.length === result.logs.length) {
-        // All logs have the same timestamp - advance by 1ms to avoid infinite loop
-        cursor = new Date(cursor.getTime() + 1);
-      }
-    } else {
-      cursor = newCursor;
-    }
+  // Time-window pagination: 1-hour windows with offset inside each window
+  // Offset within a small window is fast (bounded rows), unlike offset on full table
+  const WINDOW_MS = 60 * 60 * 1000; // 1 hour
+  let windowStart = startTime;
 
-    // Convert StoredLogRecord back to LogRecord with id preserved
-    const logsWithIds = result.logs.map((log: StoredLogRecord) => ({
-      id: log.id,
-      time: log.time,
-      organizationId: log.organizationId,
-      projectId: log.projectId,
-      service: log.service,
-      level: log.level,
-      message: log.message,
-      metadata: log.metadata,
-      traceId: log.traceId,
-      spanId: log.spanId,
-      hostname: log.hostname,
-    }));
+  while (windowStart <= finalTime) {
+    const windowEnd = new Date(windowStart.getTime() + WINDOW_MS);
+    let windowOffset = 0;
 
-    try {
-      const ingestResult = await dest.ingest(logsWithIds);
-      if (ingestResult.failed > 0) {
-        errors += ingestResult.failed;
-        // Retry once
-        const retryResult = await dest.ingest(logsWithIds);
-        if (retryResult.failed > 0) {
-          console.error(`\n    Batch failed after retry: ${retryResult.errors?.[0]?.error}`);
-        } else {
-          errors -= ingestResult.failed;
+    while (true) {
+      const result = await source.query({
+        projectId,
+        from: windowStart,
+        to: windowEnd,
+        limit: batchSize,
+        offset: windowOffset,
+        sortBy: 'time',
+        sortOrder: 'asc',
+      });
+
+      if (result.logs.length === 0) break;
+
+      const logsWithIds = result.logs.map((log: StoredLogRecord) => ({
+        id: log.id,
+        time: log.time,
+        organizationId: log.organizationId,
+        projectId: log.projectId,
+        service: log.service,
+        level: log.level,
+        message: log.message,
+        metadata: log.metadata,
+        traceId: log.traceId,
+        spanId: log.spanId,
+        hostname: log.hostname,
+      }));
+
+      try {
+        const ingestResult = await dest.ingest(logsWithIds);
+        if (ingestResult.failed > 0) {
+          errors += ingestResult.failed;
+          const retryResult = await dest.ingest(logsWithIds);
+          if (retryResult.failed > 0) {
+            console.error(`\n    Batch failed after retry: ${retryResult.errors?.[0]?.error}`);
+          } else {
+            errors -= ingestResult.failed;
+          }
         }
+      } catch (err) {
+        errors += result.logs.length;
+        console.error(`\n    Batch error: ${err instanceof Error ? err.message : err}`);
       }
-    } catch (err) {
-      errors += result.logs.length;
-      console.error(`\n    Batch error: ${err instanceof Error ? err.message : err}`);
+
+      migrated += result.logs.length;
+      windowOffset += result.logs.length;
+      printProgress('Logs:', migrated, sourceCount, startMs);
     }
 
-    migrated += result.logs.length;
-    printProgress('Logs:', migrated, toMigrate, startMs);
+    windowStart = windowEnd;
   }
 
   const elapsed = Date.now() - startMs;
-  process.stdout.write(`\r  Logs: 100.0% | ${fmt(migrated)}/${fmt(toMigrate)} | done in ${fmtDuration(elapsed)}   \n`);
+  process.stdout.write(`\r  Logs: 100.0% | ${fmt(migrated)}/${fmt(sourceCount)} | done in ${fmtDuration(elapsed)}   \n`);
 
   return { migrated, errors };
 }
@@ -352,7 +351,7 @@ async function migrateSpans(
 
 async function migrateTraces(
   source: Reservoir,
-  dest: Reservoir,
+  _dest: Reservoir,
   projectId: string,
   sourceCount: number,
   destCount: number,
@@ -364,25 +363,24 @@ async function migrateTraces(
   let errors = 0;
   let offset = destCount;
   const startMs = Date.now();
-  const concurrency = 100;
+  const concurrency = 200;
 
-  // Traces don't have a batch ingest — use upsertTrace with concurrency
   while (migrated < toMigrate) {
     const result = await source.queryTraces({
       projectId,
       from: new Date('2000-01-01'),
       to: new Date('2100-01-01'),
-      limit: 1000,
+      limit: 2000,
       offset,
     });
 
     if (result.traces.length === 0) break;
 
-    // Process in groups of `concurrency`
+    // Fire all upserts with high concurrency
     for (let i = 0; i < result.traces.length; i += concurrency) {
       const group = result.traces.slice(i, i + concurrency);
       const results = await Promise.allSettled(
-        group.map((trace: TraceRecord) => dest.upsertTrace(trace)),
+        group.map((trace: TraceRecord) => _dest.upsertTrace(trace)),
       );
 
       for (const r of results) {
