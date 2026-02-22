@@ -1,0 +1,351 @@
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+
+const mockIngestMetrics = vi.fn();
+const mockGetMetricNames = vi.fn();
+const mockGetMetricLabelKeys = vi.fn();
+const mockGetMetricLabelValues = vi.fn();
+const mockQueryMetrics = vi.fn();
+const mockAggregateMetrics = vi.fn();
+
+vi.mock('../../../database/reservoir.js', () => ({
+  reservoir: {
+    ingestMetrics: (...args: unknown[]) => mockIngestMetrics(...args),
+    getMetricNames: (...args: unknown[]) => mockGetMetricNames(...args),
+    getMetricLabelKeys: (...args: unknown[]) => mockGetMetricLabelKeys(...args),
+    getMetricLabelValues: (...args: unknown[]) => mockGetMetricLabelValues(...args),
+    queryMetrics: (...args: unknown[]) => mockQueryMetrics(...args),
+    aggregateMetrics: (...args: unknown[]) => mockAggregateMetrics(...args),
+  },
+}));
+
+import { MetricsService } from '../../../modules/metrics/service.js';
+
+describe('MetricsService', () => {
+  let service: MetricsService;
+
+  beforeEach(() => {
+    service = new MetricsService();
+    vi.clearAllMocks();
+  });
+
+  describe('ingestMetrics', () => {
+    it('should return 0 for empty records array without calling reservoir', async () => {
+      const result = await service.ingestMetrics([], 'proj-1', 'org-1');
+
+      expect(result).toBe(0);
+      expect(mockIngestMetrics).not.toHaveBeenCalled();
+    });
+
+    it('should enrich records with projectId and organizationId', async () => {
+      mockIngestMetrics.mockResolvedValueOnce({ ingested: 2 });
+
+      const records = [
+        {
+          time: new Date('2025-01-01T00:00:00Z'),
+          metricName: 'http_requests_total',
+          metricType: 'sum' as const,
+          value: 42,
+          serviceName: 'api-gateway',
+          organizationId: '',
+          projectId: '',
+        },
+        {
+          time: new Date('2025-01-01T00:01:00Z'),
+          metricName: 'cpu_usage',
+          metricType: 'gauge' as const,
+          value: 0.75,
+          serviceName: 'worker',
+          organizationId: '',
+          projectId: '',
+        },
+      ];
+
+      await service.ingestMetrics(records, 'proj-1', 'org-1');
+
+      expect(mockIngestMetrics).toHaveBeenCalledOnce();
+      const enriched = mockIngestMetrics.mock.calls[0][0];
+      expect(enriched).toHaveLength(2);
+      expect(enriched[0]).toEqual(expect.objectContaining({
+        projectId: 'proj-1',
+        organizationId: 'org-1',
+        metricName: 'http_requests_total',
+        value: 42,
+      }));
+      expect(enriched[1]).toEqual(expect.objectContaining({
+        projectId: 'proj-1',
+        organizationId: 'org-1',
+        metricName: 'cpu_usage',
+        value: 0.75,
+      }));
+    });
+
+    it('should return ingested count from reservoir result', async () => {
+      mockIngestMetrics.mockResolvedValueOnce({ ingested: 5 });
+
+      const records = [
+        {
+          time: new Date('2025-01-01T00:00:00Z'),
+          metricName: 'requests',
+          metricType: 'sum' as const,
+          value: 1,
+          serviceName: 'api',
+          organizationId: '',
+          projectId: '',
+        },
+      ];
+
+      const result = await service.ingestMetrics(records, 'proj-1', 'org-1');
+
+      expect(result).toBe(5);
+    });
+  });
+
+  describe('listMetricNames', () => {
+    it('should delegate to reservoir.getMetricNames with correct params', async () => {
+      mockGetMetricNames.mockResolvedValueOnce(['http_requests_total', 'cpu_usage']);
+
+      const result = await service.listMetricNames('proj-1');
+
+      expect(mockGetMetricNames).toHaveBeenCalledWith({
+        projectId: 'proj-1',
+        from: undefined,
+        to: undefined,
+      });
+      expect(result).toEqual(['http_requests_total', 'cpu_usage']);
+    });
+
+    it('should pass optional from/to dates', async () => {
+      mockGetMetricNames.mockResolvedValueOnce(['cpu_usage']);
+
+      const from = new Date('2025-01-01T00:00:00Z');
+      const to = new Date('2025-01-02T00:00:00Z');
+
+      const result = await service.listMetricNames('proj-1', from, to);
+
+      expect(mockGetMetricNames).toHaveBeenCalledWith({
+        projectId: 'proj-1',
+        from,
+        to,
+      });
+      expect(result).toEqual(['cpu_usage']);
+    });
+  });
+
+  describe('getLabelKeys', () => {
+    it('should delegate to reservoir.getMetricLabelKeys with correct params', async () => {
+      mockGetMetricLabelKeys.mockResolvedValueOnce(['host', 'method', 'status']);
+
+      const from = new Date('2025-01-01T00:00:00Z');
+      const to = new Date('2025-01-02T00:00:00Z');
+
+      const result = await service.getLabelKeys('proj-1', 'http_requests_total', from, to);
+
+      expect(mockGetMetricLabelKeys).toHaveBeenCalledWith({
+        projectId: 'proj-1',
+        metricName: 'http_requests_total',
+        from,
+        to,
+      });
+      expect(result).toEqual(['host', 'method', 'status']);
+    });
+  });
+
+  describe('getLabelValues', () => {
+    it('should delegate to reservoir.getMetricLabelValues with correct params including labelKey', async () => {
+      mockGetMetricLabelValues.mockResolvedValueOnce(['GET', 'POST', 'PUT']);
+
+      const from = new Date('2025-01-01T00:00:00Z');
+      const to = new Date('2025-01-02T00:00:00Z');
+
+      const result = await service.getLabelValues(
+        'proj-1',
+        'http_requests_total',
+        'method',
+        from,
+        to,
+      );
+
+      expect(mockGetMetricLabelValues).toHaveBeenCalledWith(
+        {
+          projectId: 'proj-1',
+          metricName: 'http_requests_total',
+          from,
+          to,
+        },
+        'method',
+      );
+      expect(result).toEqual(['GET', 'POST', 'PUT']);
+    });
+  });
+
+  describe('queryMetrics', () => {
+    it('should delegate to reservoir.queryMetrics with all params', async () => {
+      const mockResult = {
+        metrics: [
+          { id: 'm-1', metricName: 'cpu_usage', value: 0.8, time: new Date() },
+        ],
+        total: 1,
+        hasMore: false,
+        limit: 100,
+        offset: 0,
+      };
+      mockQueryMetrics.mockResolvedValueOnce(mockResult);
+
+      const from = new Date('2025-01-01T00:00:00Z');
+      const to = new Date('2025-01-02T00:00:00Z');
+
+      const result = await service.queryMetrics({
+        projectId: 'proj-1',
+        metricName: 'cpu_usage',
+        from,
+        to,
+        limit: 100,
+        offset: 0,
+      });
+
+      expect(mockQueryMetrics).toHaveBeenCalledWith({
+        projectId: 'proj-1',
+        metricName: 'cpu_usage',
+        from,
+        to,
+        attributes: undefined,
+        limit: 100,
+        offset: 0,
+        includeExemplars: undefined,
+      });
+      expect(result).toBe(mockResult);
+    });
+
+    it('should pass through optional attributes and includeExemplars', async () => {
+      const mockResult = {
+        metrics: [],
+        total: 0,
+        hasMore: false,
+        limit: 50,
+        offset: 0,
+      };
+      mockQueryMetrics.mockResolvedValueOnce(mockResult);
+
+      const from = new Date('2025-01-01T00:00:00Z');
+      const to = new Date('2025-01-02T00:00:00Z');
+
+      const result = await service.queryMetrics({
+        projectId: ['proj-1', 'proj-2'],
+        metricName: ['cpu_usage', 'memory_usage'],
+        from,
+        to,
+        attributes: { host: 'server-1', region: 'eu-west' },
+        limit: 50,
+        offset: 10,
+        includeExemplars: true,
+      });
+
+      expect(mockQueryMetrics).toHaveBeenCalledWith({
+        projectId: ['proj-1', 'proj-2'],
+        metricName: ['cpu_usage', 'memory_usage'],
+        from,
+        to,
+        attributes: { host: 'server-1', region: 'eu-west' },
+        limit: 50,
+        offset: 10,
+        includeExemplars: true,
+      });
+      expect(result).toBe(mockResult);
+    });
+  });
+
+  describe('aggregateMetrics', () => {
+    it('should delegate to reservoir.aggregateMetrics with all params', async () => {
+      const mockResult = {
+        timeseries: [
+          { time: new Date('2025-01-01T00:00:00Z'), value: 42 },
+          { time: new Date('2025-01-01T01:00:00Z'), value: 55 },
+        ],
+      };
+      mockAggregateMetrics.mockResolvedValueOnce(mockResult);
+
+      const from = new Date('2025-01-01T00:00:00Z');
+      const to = new Date('2025-01-02T00:00:00Z');
+
+      const result = await service.aggregateMetrics({
+        projectId: 'proj-1',
+        metricName: 'http_requests_total',
+        from,
+        to,
+        interval: '1h',
+        aggregation: 'sum',
+      });
+
+      expect(mockAggregateMetrics).toHaveBeenCalledWith({
+        projectId: 'proj-1',
+        metricName: 'http_requests_total',
+        from,
+        to,
+        interval: '1h',
+        aggregation: 'sum',
+        groupBy: undefined,
+        attributes: undefined,
+      });
+      expect(result).toBe(mockResult);
+    });
+
+    it('should pass through optional groupBy and attributes', async () => {
+      const mockResult = {
+        timeseries: [
+          { time: new Date('2025-01-01T00:00:00Z'), value: 10, group: { method: 'GET' } },
+        ],
+      };
+      mockAggregateMetrics.mockResolvedValueOnce(mockResult);
+
+      const from = new Date('2025-01-01T00:00:00Z');
+      const to = new Date('2025-01-02T00:00:00Z');
+
+      const result = await service.aggregateMetrics({
+        projectId: ['proj-1', 'proj-2'],
+        metricName: 'http_requests_total',
+        from,
+        to,
+        interval: '5m',
+        aggregation: 'avg',
+        groupBy: ['method', 'status'],
+        attributes: { host: 'server-1' },
+      });
+
+      expect(mockAggregateMetrics).toHaveBeenCalledWith({
+        projectId: ['proj-1', 'proj-2'],
+        metricName: 'http_requests_total',
+        from,
+        to,
+        interval: '5m',
+        aggregation: 'avg',
+        groupBy: ['method', 'status'],
+        attributes: { host: 'server-1' },
+      });
+      expect(result).toBe(mockResult);
+    });
+
+    it('should pass interval and aggregation correctly for all supported values', async () => {
+      mockAggregateMetrics.mockResolvedValueOnce({ timeseries: [] });
+
+      const from = new Date('2025-01-01T00:00:00Z');
+      const to = new Date('2025-01-08T00:00:00Z');
+
+      await service.aggregateMetrics({
+        projectId: 'proj-1',
+        metricName: 'memory_usage',
+        from,
+        to,
+        interval: '1d',
+        aggregation: 'max',
+      });
+
+      expect(mockAggregateMetrics).toHaveBeenCalledWith(
+        expect.objectContaining({
+          interval: '1d',
+          aggregation: 'max',
+          metricName: 'memory_usage',
+        }),
+      );
+    });
+  });
+});
