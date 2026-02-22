@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Service Dependency Graph & Correlation Analysis** (#40): dedicated `/dashboard/service-map` page visualizing microservice interactions
+  - Force-directed graph (ECharts) built from span parent-child relationships + log co-occurrence analysis
+  - Enriched backend endpoint `GET /api/v1/traces/service-map` runs 3 parallel queries: span deps (reservoir), per-service health stats (continuous aggregates), log co-occurrence (trace_id self-join)
+  - Health color-coding on nodes: green (<1% errors), amber (1-10%), red (>10%)
+  - Click-to-inspect side panel showing error rate, avg/p95 latency, total calls, upstream/downstream edges
+  - Dashed edges for log correlation, solid for span-based dependencies
+  - PNG export, time range filtering, project picker
+  - New "Service Map" nav item in sidebar
+
 - **Audit Log**: comprehensive audit trail tracking all user actions across the platform for compliance and security (SOC 2, ISO 27001, HIPAA)
   - Tracks 4 event categories: log access, config changes, user management, data modifications
   - Logged actions: login, logout, register, create/update/delete organizations, create/update/delete projects, create/revoke API keys, member role changes, member removal, leave organization, admin operations
