@@ -5,7 +5,7 @@ import path from 'path';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: path.join(__dirname, '../../../../.env') });
 
-import type { EngineType, StoredLogRecord, TraceRecord } from '@logtide/reservoir';
+import type { EngineType, TraceRecord, LogRecord } from '@logtide/reservoir';
 import { Reservoir } from '@logtide/reservoir';
 import pg from 'pg';
 
@@ -190,101 +190,81 @@ async function countTraces(reservoir: Reservoir, projectId: string): Promise<num
 }
 
 async function migrateLogs(
-  source: Reservoir,
+  _source: Reservoir,
   dest: Reservoir,
   projectId: string,
   batchSize: number,
   sourceCount: number,
   _destCount: number,
+  pgPool?: pg.Pool,
 ): Promise<{ migrated: number; errors: number }> {
-  if (sourceCount <= 0) return { migrated: 0, errors: 0 };
+  if (sourceCount <= 0 || !pgPool) return { migrated: 0, errors: 0 };
 
   let migrated = 0;
   let errors = 0;
   const startMs = Date.now();
 
-  // Find the time range of source data
-  const oldest = await source.query({
-    projectId,
-    from: new Date('2000-01-01'),
-    to: new Date('2100-01-01'),
-    limit: 1,
-    sortBy: 'time',
-    sortOrder: 'asc',
-  });
+  // Raw SQL cursor-based read from TimescaleDB - much faster than reservoir.query()
+  // Uses a server-side cursor to stream rows without loading all into memory
+  let lastTime: string | null = null;
+  let lastId: string | null = null;
 
-  if (oldest.logs.length === 0) return { migrated: 0, errors: 0 };
+  while (migrated < sourceCount) {
+    // Keyset pagination: WHERE (time, id) > (lastTime, lastId) ORDER BY time, id
+    // This is O(1) per page regardless of offset (uses index directly)
+    let query: string;
+    let params: unknown[];
 
-  const newest = await source.query({
-    projectId,
-    from: new Date('2000-01-01'),
-    to: new Date('2100-01-01'),
-    limit: 1,
-    sortBy: 'time',
-    sortOrder: 'desc',
-  });
-
-  const startTime = new Date(oldest.logs[0].time);
-  const finalTime = new Date(newest.logs[0].time);
-
-  // Time-window pagination: 1-hour windows with offset inside each window
-  // Offset within a small window is fast (bounded rows), unlike offset on full table
-  const WINDOW_MS = 60 * 60 * 1000; // 1 hour
-  let windowStart = startTime;
-
-  while (windowStart <= finalTime) {
-    const windowEnd = new Date(windowStart.getTime() + WINDOW_MS);
-    let windowOffset = 0;
-
-    while (true) {
-      const result = await source.query({
-        projectId,
-        from: windowStart,
-        to: windowEnd,
-        limit: batchSize,
-        offset: windowOffset,
-        sortBy: 'time',
-        sortOrder: 'asc',
-      });
-
-      if (result.logs.length === 0) break;
-
-      const logsWithIds = result.logs.map((log: StoredLogRecord) => ({
-        id: log.id,
-        time: log.time,
-        organizationId: log.organizationId,
-        projectId: log.projectId,
-        service: log.service,
-        level: log.level,
-        message: log.message,
-        metadata: log.metadata,
-        traceId: log.traceId,
-        spanId: log.spanId,
-        hostname: log.hostname,
-      }));
-
-      try {
-        const ingestResult = await dest.ingest(logsWithIds);
-        if (ingestResult.failed > 0) {
-          errors += ingestResult.failed;
-          const retryResult = await dest.ingest(logsWithIds);
-          if (retryResult.failed > 0) {
-            console.error(`\n    Batch failed after retry: ${retryResult.errors?.[0]?.error}`);
-          } else {
-            errors -= ingestResult.failed;
-          }
-        }
-      } catch (err) {
-        errors += result.logs.length;
-        console.error(`\n    Batch error: ${err instanceof Error ? err.message : err}`);
-      }
-
-      migrated += result.logs.length;
-      windowOffset += result.logs.length;
-      printProgress('Logs:', migrated, sourceCount, startMs);
+    if (lastTime === null) {
+      query = `SELECT id, time, project_id, service, level, message, metadata, trace_id, span_id, hostname
+               FROM logs
+               WHERE project_id = $1
+               ORDER BY time ASC, id ASC
+               LIMIT $2`;
+      params = [projectId, batchSize];
+    } else {
+      query = `SELECT id, time, project_id, service, level, message, metadata, trace_id, span_id, hostname
+               FROM logs
+               WHERE project_id = $1 AND (time, id) > ($2::timestamptz, $3::uuid)
+               ORDER BY time ASC, id ASC
+               LIMIT $4`;
+      params = [projectId, lastTime, lastId, batchSize];
     }
 
-    windowStart = windowEnd;
+    const result = await pgPool.query(query, params);
+    if (result.rows.length === 0) break;
+
+    // Track cursor position
+    const lastRow = result.rows[result.rows.length - 1];
+    lastTime = lastRow.time;
+    lastId = lastRow.id;
+
+    // Map to LogRecord format
+    const logs: LogRecord[] = result.rows.map((row: Record<string, unknown>) => ({
+      id: row.id as string,
+      time: row.time as Date,
+      projectId: row.project_id as string,
+      service: row.service as string,
+      level: row.level as LogRecord['level'],
+      message: row.message as string,
+      metadata: typeof row.metadata === 'string' ? JSON.parse(row.metadata as string) : (row.metadata ?? {}),
+      traceId: (row.trace_id as string) || undefined,
+      spanId: (row.span_id as string) || undefined,
+      hostname: (row.hostname as string) || undefined,
+    }));
+
+    try {
+      const ingestResult = await dest.ingest(logs);
+      if (ingestResult.failed > 0) {
+        errors += ingestResult.failed;
+      }
+    } catch (err) {
+      errors += logs.length;
+      console.error(`\n    Batch error: ${err instanceof Error ? err.message : err}`);
+    }
+
+    migrated += result.rows.length;
+    printProgress('Logs:', migrated, sourceCount, startMs);
   }
 
   const elapsed = Date.now() - startMs;
@@ -522,7 +502,7 @@ async function main(): Promise<void> {
 
     // Migrate logs
     if (logsToMigrate > 0) {
-      const logResult = await migrateLogs(source, dest, project.id, opts.batchSize, srcLogs, dstLogs);
+      const logResult = await migrateLogs(source, dest, project.id, opts.batchSize, srcLogs, dstLogs, pgPool);
       summary.logs += logResult.migrated;
       summary.errors += logResult.errors;
     }
