@@ -202,21 +202,55 @@ async function migrateLogs(
 
   let migrated = 0;
   let errors = 0;
-  let offset = destCount;
   const startMs = Date.now();
+
+  // Use time-based cursor instead of OFFSET (OFFSET is O(n) on large tables)
+  // Find the starting time: if we already have some logs in dest, start after the latest one
+  let cursor: Date;
+  if (destCount > 0) {
+    const lastInDest = await dest.query({
+      projectId,
+      from: new Date('2000-01-01'),
+      to: new Date('2100-01-01'),
+      limit: 1,
+      sortBy: 'time',
+      sortOrder: 'desc',
+    });
+    cursor = lastInDest.logs.length > 0 ? new Date(lastInDest.logs[0].time) : new Date('2000-01-01');
+  } else {
+    cursor = new Date('2000-01-01');
+  }
 
   while (migrated < toMigrate) {
     const result = await source.query({
       projectId,
-      from: new Date('2000-01-01'),
+      from: cursor,
       to: new Date('2100-01-01'),
       limit: batchSize,
-      offset,
+      offset: 0,
       sortBy: 'time',
       sortOrder: 'asc',
     });
 
     if (result.logs.length === 0) break;
+
+    // Advance cursor to the last log's time for next batch
+    const lastLog = result.logs[result.logs.length - 1];
+    const newCursor = new Date(lastLog.time);
+
+    // If cursor didn't advance (many logs with same timestamp), use small offset to skip past them
+    if (newCursor.getTime() === cursor.getTime()) {
+      // Count how many we got with this exact timestamp, then offset past them
+      const sameTimeLogs = result.logs.filter(
+        (l: StoredLogRecord) => new Date(l.time).getTime() === cursor.getTime()
+      );
+      if (sameTimeLogs.length === result.logs.length) {
+        // All logs have the same timestamp - advance by 1ms to avoid infinite loop
+        cursor = new Date(cursor.getTime() + 1);
+      }
+    } else {
+      cursor = newCursor;
+    }
 
     // Convert StoredLogRecord back to LogRecord with id preserved
     const logsWithIds = result.logs.map((log: StoredLogRecord) => ({
@@ -240,18 +274,17 @@ async function migrateLogs(
         // Retry once
         const retryResult = await dest.ingest(logsWithIds);
         if (retryResult.failed > 0) {
-          console.error(`\n    Batch at offset ${offset} failed after retry: ${retryResult.errors?.[0]?.error}`);
+          console.error(`\n    Batch failed after retry: ${retryResult.errors?.[0]?.error}`);
         } else {
           errors -= ingestResult.failed;
         }
       }
     } catch (err) {
       errors += result.logs.length;
-      console.error(`\n    Batch at offset ${offset} error: ${err instanceof Error ? err.message : err}`);
+      console.error(`\n    Batch error: ${err instanceof Error ? err.message : err}`);
     }
 
     migrated += result.logs.length;
-    offset += result.logs.length;
     printProgress('Logs:', migrated, toMigrate, startMs);
   }
 
@@ -331,7 +364,7 @@ async function migrateTraces(
   let errors = 0;
   let offset = destCount;
   const startMs = Date.now();
-  const concurrency = 10;
+  const concurrency = 100;
 
   // Traces don't have a batch ingest — use upsertTrace with concurrency
   while (migrated < toMigrate) {
@@ -339,7 +372,7 @@ async function migrateTraces(
       projectId,
       from: new Date('2000-01-01'),
       to: new Date('2100-01-01'),
-      limit: 100,
+      limit: 1000,
       offset,
     });
 
