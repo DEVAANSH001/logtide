@@ -33,6 +33,7 @@
   import ChevronRight from '@lucide/svelte/icons/chevron-right';
   import BellRing from '@lucide/svelte/icons/bell-ring';
   import ShieldAlert from '@lucide/svelte/icons/shield-alert';
+  import ClipboardList from '@lucide/svelte/icons/clipboard-list';
   import {
     Table,
     TableBody,
@@ -511,6 +512,29 @@
       </p>
     </CardContent>
   </Card>
+
+  {#if canManage}
+    <Card class="hover:bg-accent/50 transition-colors cursor-pointer" onclick={() => goto('/dashboard/settings/audit-log')}>
+      <CardHeader>
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-2">
+            <ClipboardList class="w-5 h-5 text-primary" />
+            <div>
+              <CardTitle>Audit Log</CardTitle>
+              <CardDescription>Track all actions performed in your organization</CardDescription>
+            </div>
+          </div>
+          <ChevronRight class="w-5 h-5 text-muted-foreground" />
+        </div>
+      </CardHeader>
+      <CardContent>
+        <p class="text-sm text-muted-foreground">
+          View a complete audit trail of user actions including configuration changes,
+          member management, and data modifications for compliance and security.
+        </p>
+      </CardContent>
+    </Card>
+  {/if}
 
   <Card>
     <CardHeader>

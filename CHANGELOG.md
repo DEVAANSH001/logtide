@@ -5,6 +5,23 @@ All notable changes to LogTide will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.0] - Unreleased
+
+### Added
+
+- **Audit Log**: comprehensive audit trail tracking all user actions across the platform for compliance and security (SOC 2, ISO 27001, HIPAA)
+  - Tracks 4 event categories: log access, config changes, user management, data modifications
+  - Logged actions: login, logout, register, create/update/delete organizations, create/update/delete projects, create/revoke API keys, member role changes, member removal, leave organization, admin operations
+  - TimescaleDB hypertable with 7-day chunks, automatic compression (30 days), and retention policy (365 days)
+  - High-performance in-memory buffer with periodic flush (50 entries or 1s interval) for non-blocking writes
+  - Accessible to organization owners and admins via Organization Settings
+  - Expandable table rows showing full event details: metadata, resource IDs, user agent, IP address
+  - Category and action filters
+  - CSV export with current filters applied (up to 10k rows)
+  - Export actions are themselves audit-logged (meta-meta logging)
+
+---
+
 ## [0.6.3] - 2026-02-22
 
 ### Fixed

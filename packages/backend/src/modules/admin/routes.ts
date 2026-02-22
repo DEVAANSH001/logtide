@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { adminService } from './service.js';
 import { authenticate } from '../auth/middleware.js';
 import { requireAdmin } from './middleware.js';
+import { auditLogService } from '../audit-log/index.js';
 
 export async function adminRoutes(fastify: FastifyInstance) {
     // All routes require session authentication + admin role
@@ -243,6 +244,19 @@ export async function adminRoutes(fastify: FastifyInstance) {
 
                 const user = await adminService.updateUserStatus(id, disabled);
 
+                auditLogService.log({
+                    organizationId: null,
+                    userId: (request as any).user?.id,
+                    userEmail: (request as any).user?.email,
+                    action: disabled ? 'disable_user' : 'enable_user',
+                    category: 'user_management',
+                    resourceType: 'user',
+                    resourceId: id,
+                    ipAddress: request.ip,
+                    userAgent: request.headers['user-agent'],
+                    metadata: { targetEmail: user.email },
+                });
+
                 return reply.send({
                     message: `User ${disabled ? 'disabled' : 'enabled'} successfully`,
                     user,
@@ -285,6 +299,19 @@ export async function adminRoutes(fastify: FastifyInstance) {
 
                 const user = await adminService.updateUserRole(id, is_admin);
 
+                auditLogService.log({
+                    organizationId: null,
+                    userId: (request as any).user?.id,
+                    userEmail: (request as any).user?.email,
+                    action: 'update_user_role',
+                    category: 'user_management',
+                    resourceType: 'user',
+                    resourceId: id,
+                    ipAddress: request.ip,
+                    userAgent: request.headers['user-agent'],
+                    metadata: { is_admin, targetEmail: user.email },
+                });
+
                 return reply.send({
                     message: `User ${is_admin ? 'promoted to admin' : 'demoted from admin'} successfully`,
                     user,
@@ -318,6 +345,19 @@ export async function adminRoutes(fastify: FastifyInstance) {
                 }
 
                 const user = await adminService.resetUserPassword(id, newPassword);
+
+                auditLogService.log({
+                    organizationId: null,
+                    userId: (request as any).user?.id,
+                    userEmail: (request as any).user?.email,
+                    action: 'reset_user_password',
+                    category: 'user_management',
+                    resourceType: 'user',
+                    resourceId: id,
+                    ipAddress: request.ip,
+                    userAgent: request.headers['user-agent'],
+                    metadata: { targetEmail: user.email },
+                });
 
                 return reply.send({
                     message: 'Password reset successfully',
@@ -414,6 +454,19 @@ export async function adminRoutes(fastify: FastifyInstance) {
             try {
                 const { id } = request.params as { id: string };
                 const result = await adminService.deleteOrganization(id);
+
+                auditLogService.log({
+                    organizationId: id,
+                    userId: (request as any).user?.id,
+                    userEmail: (request as any).user?.email,
+                    action: 'admin_delete_organization',
+                    category: 'data_modification',
+                    resourceType: 'organization',
+                    resourceId: id,
+                    ipAddress: request.ip,
+                    userAgent: request.headers['user-agent'],
+                });
+
                 return reply.send(result);
             } catch (error: any) {
                 console.error('Error deleting organization:', error);
@@ -505,7 +558,21 @@ export async function adminRoutes(fastify: FastifyInstance) {
         async (request, reply) => {
             try {
                 const { id } = request.params as { id: string };
+                const project = await adminService.getProjectDetails(id);
                 const result = await adminService.deleteProject(id);
+
+                auditLogService.log({
+                    organizationId: project.organization_id,
+                    userId: (request as any).user?.id,
+                    userEmail: (request as any).user?.email,
+                    action: 'admin_delete_project',
+                    category: 'data_modification',
+                    resourceType: 'project',
+                    resourceId: id,
+                    ipAddress: request.ip,
+                    userAgent: request.headers['user-agent'],
+                });
+
                 return reply.send(result);
             } catch (error: any) {
                 console.error('Error deleting project:', error);

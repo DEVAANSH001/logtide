@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { OrganizationsService } from './service.js';
 import { authenticate } from '../auth/middleware.js';
 import type { OrgRole } from '@logtide/shared';
+import { auditLogService } from '../audit-log/index.js';
 
 const organizationsService = new OrganizationsService();
 
@@ -129,6 +130,19 @@ export async function organizationsRoutes(fastify: FastifyInstance) {
 
       await organizationsService.updateMemberRole(id, memberId, role as OrgRole, request.user.id);
 
+      auditLogService.log({
+        organizationId: id,
+        userId: request.user.id,
+        userEmail: request.user.email,
+        action: 'update_member_role',
+        category: 'user_management',
+        resourceType: 'organization_member',
+        resourceId: memberId,
+        ipAddress: request.ip,
+        userAgent: request.headers['user-agent'],
+        metadata: { role },
+      });
+
       return reply.send({ success: true });
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -171,6 +185,18 @@ export async function organizationsRoutes(fastify: FastifyInstance) {
       const { id, memberId } = memberIdSchema.parse(request.params);
 
       await organizationsService.removeMember(id, memberId, request.user.id);
+
+      auditLogService.log({
+        organizationId: id,
+        userId: request.user.id,
+        userEmail: request.user.email,
+        action: 'remove_member',
+        category: 'user_management',
+        resourceType: 'organization_member',
+        resourceId: memberId,
+        ipAddress: request.ip,
+        userAgent: request.headers['user-agent'],
+      });
 
       return reply.status(204).send();
     } catch (error) {
@@ -224,6 +250,18 @@ export async function organizationsRoutes(fastify: FastifyInstance) {
 
       await organizationsService.leaveOrganization(id, request.user.id);
 
+      auditLogService.log({
+        organizationId: id,
+        userId: request.user.id,
+        userEmail: request.user.email,
+        action: 'leave_organization',
+        category: 'user_management',
+        resourceType: 'organization',
+        resourceId: id,
+        ipAddress: request.ip,
+        userAgent: request.headers['user-agent'],
+      });
+
       return reply.status(204).send();
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -260,6 +298,19 @@ export async function organizationsRoutes(fastify: FastifyInstance) {
         description: body.description,
       });
 
+      auditLogService.log({
+        organizationId: organization.id,
+        userId: request.user.id,
+        userEmail: request.user.email,
+        action: 'create_organization',
+        category: 'config_change',
+        resourceType: 'organization',
+        resourceId: organization.id,
+        ipAddress: request.ip,
+        userAgent: request.headers['user-agent'],
+        metadata: { name: organization.name },
+      });
+
       return reply.status(201).send({ organization });
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -288,6 +339,19 @@ export async function organizationsRoutes(fastify: FastifyInstance) {
       const body = updateOrganizationSchema.parse(request.body);
 
       const organization = await organizationsService.updateOrganization(id, request.user.id, body);
+
+      auditLogService.log({
+        organizationId: id,
+        userId: request.user.id,
+        userEmail: request.user.email,
+        action: 'update_organization',
+        category: 'config_change',
+        resourceType: 'organization',
+        resourceId: id,
+        ipAddress: request.ip,
+        userAgent: request.headers['user-agent'],
+        metadata: body,
+      });
 
       return reply.send({ organization });
     } catch (error) {
@@ -332,6 +396,18 @@ export async function organizationsRoutes(fastify: FastifyInstance) {
       const { id } = organizationIdSchema.parse(request.params);
 
       await organizationsService.deleteOrganization(id, request.user.id);
+
+      auditLogService.log({
+        organizationId: id,
+        userId: request.user.id,
+        userEmail: request.user.email,
+        action: 'delete_organization',
+        category: 'data_modification',
+        resourceType: 'organization',
+        resourceId: id,
+        ipAddress: request.ip,
+        userAgent: request.headers['user-agent'],
+      });
 
       return reply.status(204).send();
     } catch (error) {

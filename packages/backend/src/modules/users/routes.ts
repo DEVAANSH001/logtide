@@ -4,6 +4,7 @@ import { usersService } from './service.js';
 import { config } from '../../config/index.js';
 import { settingsService } from '../settings/service.js';
 import { bootstrapService } from '../bootstrap/service.js';
+import { auditLogService } from '../audit-log/index.js';
 
 const registerSchema = z.object({
   email: z.string().email(),
@@ -55,6 +56,16 @@ export async function usersRoutes(fastify: FastifyInstance) {
         const session = await usersService.login({
           email: body.email,
           password: body.password,
+        });
+
+        auditLogService.log({
+          organizationId: null,
+          userId: user.id,
+          userEmail: user.email,
+          action: 'register',
+          category: 'user_management',
+          ipAddress: request.ip,
+          userAgent: request.headers['user-agent'],
         });
 
         return reply.status(201).send({
@@ -111,6 +122,16 @@ export async function usersRoutes(fastify: FastifyInstance) {
           });
         }
 
+        auditLogService.log({
+          organizationId: null,
+          userId: user.id,
+          userEmail: user.email,
+          action: 'login',
+          category: 'user_management',
+          ipAddress: request.ip,
+          userAgent: request.headers['user-agent'],
+        });
+
         return reply.send({
           user: {
             id: user.id,
@@ -154,7 +175,18 @@ export async function usersRoutes(fastify: FastifyInstance) {
       });
     }
 
+    const user = await usersService.validateSession(token);
     await usersService.logout(token);
+
+    auditLogService.log({
+      organizationId: null,
+      userId: user?.id ?? null,
+      userEmail: user?.email ?? null,
+      action: 'logout',
+      category: 'user_management',
+      ipAddress: request.ip,
+      userAgent: request.headers['user-agent'],
+    });
 
     return reply.send({
       message: 'Logged out successfully',
@@ -306,6 +338,16 @@ export async function usersRoutes(fastify: FastifyInstance) {
       const body = deleteUserSchema.parse(request.body);
 
       await usersService.deleteUser(currentUser.id, body.password);
+
+      auditLogService.log({
+        organizationId: null,
+        userId: currentUser.id,
+        userEmail: currentUser.email,
+        action: 'delete_account',
+        category: 'user_management',
+        ipAddress: request.ip,
+        userAgent: request.headers['user-agent'],
+      });
 
       // Logout (delete session)
       await usersService.logout(token);
