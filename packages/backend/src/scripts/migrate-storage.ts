@@ -216,14 +216,14 @@ async function migrateLogs(
     let params: unknown[];
 
     if (lastTime === null) {
-      query = `SELECT id, time, project_id, service, level, message, metadata, trace_id, span_id, hostname
+      query = `SELECT id, time, project_id, service, level, message, metadata, trace_id, span_id
                FROM logs
                WHERE project_id = $1
                ORDER BY time ASC, id ASC
                LIMIT $2`;
       params = [projectId, batchSize];
     } else {
-      query = `SELECT id, time, project_id, service, level, message, metadata, trace_id, span_id, hostname
+      query = `SELECT id, time, project_id, service, level, message, metadata, trace_id, span_id
                FROM logs
                WHERE project_id = $1 AND (time, id) > ($2::timestamptz, $3::uuid)
                ORDER BY time ASC, id ASC
@@ -250,7 +250,6 @@ async function migrateLogs(
       metadata: typeof row.metadata === 'string' ? JSON.parse(row.metadata as string) : (row.metadata ?? {}),
       traceId: (row.trace_id as string) || undefined,
       spanId: (row.span_id as string) || undefined,
-      hostname: (row.hostname as string) || undefined,
     }));
 
     try {
