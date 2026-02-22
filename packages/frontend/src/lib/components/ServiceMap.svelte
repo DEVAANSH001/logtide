@@ -1,22 +1,23 @@
 <script lang="ts">
   import { onMount, onDestroy } from "svelte";
   import * as echarts from "echarts";
-  import type { ServiceDependencies } from "$lib/api/traces";
+  import type { ServiceDependencies, EnrichedServiceDependencies } from "$lib/api/traces";
   import { themeStore } from "$lib/stores/theme";
   import { getEChartsTheme, getTooltipStyle } from "$lib/utils/echarts-theme";
 
   interface Props {
-    dependencies: ServiceDependencies;
+    dependencies: ServiceDependencies | EnrichedServiceDependencies;
     width?: string;
     height?: string;
+    onNodeClick?: (nodeName: string) => void;
   }
 
-  let { dependencies, width = "100%", height = "400px" }: Props = $props();
+  let { dependencies, width = "100%", height = "400px", onNodeClick }: Props = $props();
 
   let chartContainer: HTMLDivElement;
   let chart: echarts.ECharts | null = null;
 
-  // Color palette for services
+  // Color palette for services (fallback for non-enriched nodes)
   const colors = [
     "#5470c6",
     "#91cc75",
@@ -34,6 +35,29 @@
       return char.charCodeAt(0) + ((acc << 5) - acc);
     }, 0);
     return colors[Math.abs(hash) % colors.length];
+  }
+
+  function getNodeColor(node: { name: string; errorRate?: number }): string {
+    if ('errorRate' in node && node.errorRate !== undefined) {
+      if (node.errorRate >= 0.1) return '#ef4444';
+      if (node.errorRate >= 0.01) return '#f59e0b';
+      return '#10b981';
+    }
+    return getServiceColor(node.name);
+  }
+
+  function isEnrichedNode(node: unknown): node is { errorRate: number; avgLatencyMs: number; totalCalls: number } {
+    return typeof node === 'object' && node !== null && 'errorRate' in node;
+  }
+
+  function isEnrichedEdge(edge: unknown): edge is { type: string } {
+    return typeof edge === 'object' && edge !== null && 'type' in edge;
+  }
+
+  function formatLatency(ms: number): string {
+    if (ms < 1) return "<1ms";
+    if (ms < 1000) return `${Math.round(ms)}ms`;
+    return `${(ms / 1000).toFixed(2)}s`;
   }
 
   function buildChartOptions() {
@@ -61,20 +85,25 @@
     );
 
     // Build nodes with sizes based on call count
-    const nodes = dependencies.nodes.map((node) => ({
-      name: node.name,
-      id: node.id,
-      symbolSize: 30 + (node.callCount / maxCallCount) * 40,
-      value: node.callCount,
-      itemStyle: {
-        color: getServiceColor(node.name),
-      },
-      label: {
-        show: true,
-        position: "bottom",
-        fontSize: 12,
-      },
-    }));
+    const nodes = dependencies.nodes.map((node) => {
+      const hasErrors = isEnrichedNode(node) && node.errorRate >= 0.1;
+      return {
+        name: node.name,
+        id: node.id,
+        symbolSize: 30 + (node.callCount / maxCallCount) * 40,
+        value: node.callCount,
+        itemStyle: {
+          color: getNodeColor(node),
+          borderColor: hasErrors ? '#991b1b' : undefined,
+          borderWidth: hasErrors ? 2 : 0,
+        },
+        label: {
+          show: true,
+          position: "bottom" as const,
+          fontSize: 12,
+        },
+      };
+    });
 
     // Find max edge call count for scaling
     const maxEdgeCount = Math.max(
@@ -83,29 +112,47 @@
     );
 
     // Build edges with width based on call count
-    const edges = dependencies.edges.map((edge) => ({
-      source: edge.source,
-      target: edge.target,
-      value: edge.callCount,
-      lineStyle: {
-        width: 1 + (edge.callCount / maxEdgeCount) * 5,
-        curveness: 0.2,
-      },
-      label: {
-        show: true,
-        formatter: `${edge.callCount}`,
-        fontSize: 10,
-      },
-    }));
+    const edges = dependencies.edges.map((edge) => {
+      const isLogCorrelation = isEnrichedEdge(edge) && edge.type === 'log_correlation';
+      return {
+        source: edge.source,
+        target: edge.target,
+        value: edge.callCount,
+        lineStyle: {
+          width: 1 + (edge.callCount / maxEdgeCount) * 5,
+          curveness: 0.2,
+          type: isLogCorrelation ? 'dashed' as const : 'solid' as const,
+          opacity: isLogCorrelation ? 0.4 : 0.6,
+        },
+        label: {
+          show: true,
+          formatter: `${edge.callCount}`,
+          fontSize: 10,
+        },
+      };
+    });
 
     return {
       tooltip: {
         trigger: "item",
         formatter: (params: any) => {
           if (params.dataType === "node") {
-            return `<strong>${params.name}</strong><br/>Calls: ${params.value}`;
+            const node = dependencies.nodes.find((n) => n.name === params.name);
+            let html = `<strong>${params.name}</strong><br/>Calls: ${params.value}`;
+            if (node && isEnrichedNode(node)) {
+              html += `<br/>Error rate: ${(node.errorRate * 100).toFixed(1)}%`;
+              html += `<br/>Avg latency: ${formatLatency(node.avgLatencyMs)}`;
+            }
+            return html;
           } else if (params.dataType === "edge") {
-            return `${params.data.source} → ${params.data.target}<br/>Calls: ${params.data.value}`;
+            const edge = dependencies.edges.find(
+              (e) => e.source === params.data.source && e.target === params.data.target
+            );
+            let html = `${params.data.source} → ${params.data.target}<br/>Calls: ${params.data.value}`;
+            if (edge && isEnrichedEdge(edge) && edge.type === 'log_correlation') {
+              html += `<br/><em>(log correlation)</em>`;
+            }
+            return html;
           }
           return "";
         },
@@ -154,6 +201,14 @@
     chart = echarts.init(chartContainer);
     const options = buildChartOptions();
     chart.setOption(options);
+
+    if (onNodeClick) {
+      chart.on('click', 'series.graph', (params: any) => {
+        if (params.dataType === 'node') {
+          onNodeClick(params.name);
+        }
+      });
+    }
   }
 
   let themeUnsubscribe: (() => void) | null = null;

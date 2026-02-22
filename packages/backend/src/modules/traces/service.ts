@@ -1,4 +1,5 @@
 import { db } from '../../database/index.js';
+import { pool } from '../../database/connection.js';
 import { reservoir } from '../../database/reservoir.js';
 import type { TransformedSpan, AggregatedTrace } from '../otlp/trace-transformer.js';
 import type {
@@ -49,6 +50,44 @@ export interface SpanRecord {
   events: Array<Record<string, unknown>> | null;
   links: Array<Record<string, unknown>> | null;
   resource_attributes: Record<string, unknown> | null;
+}
+
+// Service map enriched types
+export interface ServiceHealthStats {
+  service_name: string;
+  total_calls: number;
+  total_errors: number;
+  error_rate: number;
+  avg_latency_ms: number;
+  p95_latency_ms: number | null;
+}
+
+export interface EnrichedServiceDependencyNode {
+  id: string;
+  name: string;
+  callCount: number;
+  errorRate: number;
+  avgLatencyMs: number;
+  p95LatencyMs: number | null;
+  totalCalls: number;
+}
+
+export interface EnrichedServiceDependencyEdge {
+  source: string;
+  target: string;
+  callCount: number;
+  type: 'span' | 'log_correlation';
+}
+
+export interface EnrichedServiceDependencies {
+  nodes: EnrichedServiceDependencyNode[];
+  edges: EnrichedServiceDependencyEdge[];
+}
+
+interface LogCoOccurrenceRow {
+  source_service: string;
+  target_service: string;
+  co_occurrence_count: number;
 }
 
 export class TracesService {
@@ -162,6 +201,189 @@ export class TracesService {
 
   async getServiceDependencies(projectId: string, from?: Date, to?: Date) {
     return reservoir.getServiceDependencies(projectId, from, to);
+  }
+
+  async getEnrichedServiceDependencies(
+    projectId: string,
+    from?: Date,
+    to?: Date,
+  ): Promise<EnrichedServiceDependencies> {
+    const effectiveFrom = from || new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const effectiveTo = to || new Date();
+    const rangeHours = (effectiveTo.getTime() - effectiveFrom.getTime()) / (1000 * 60 * 60);
+
+    // Only include log co-occurrence for ranges <= 7 days (performance guard)
+    const includeLogCorrelation = rangeHours <= 168;
+
+    const results = await Promise.allSettled([
+      reservoir.getServiceDependencies(projectId, effectiveFrom, effectiveTo),
+      this.getServiceHealthStats(projectId, effectiveFrom, effectiveTo, rangeHours),
+      includeLogCorrelation
+        ? this.getLogCoOccurrenceEdges(projectId, effectiveFrom, effectiveTo)
+        : Promise.resolve([]),
+    ]);
+
+    const spanDeps = results[0].status === 'fulfilled' ? results[0].value : { nodes: [], edges: [] };
+    const healthStats = results[1].status === 'fulfilled' ? results[1].value : [];
+    const logCoOccurrence = results[2].status === 'fulfilled' ? results[2].value : [];
+
+    // Build health map for quick lookup
+    const healthMap = new Map<string, ServiceHealthStats>(
+      healthStats.map((s) => [s.service_name, s]),
+    );
+
+    // Merge nodes: start from span-based, add log-only services
+    const nodeMap = new Map<string, EnrichedServiceDependencyNode>();
+
+    for (const node of spanDeps.nodes) {
+      const health = healthMap.get(node.name);
+      nodeMap.set(node.name, {
+        id: node.name,
+        name: node.name,
+        callCount: node.callCount,
+        errorRate: health?.error_rate ?? 0,
+        avgLatencyMs: health?.avg_latency_ms ?? 0,
+        p95LatencyMs: health?.p95_latency_ms ?? null,
+        totalCalls: health?.total_calls ?? node.callCount,
+      });
+    }
+
+    // Add services that appear only in log co-occurrence (no spans)
+    for (const edge of logCoOccurrence) {
+      for (const svcName of [edge.source_service, edge.target_service]) {
+        if (!nodeMap.has(svcName)) {
+          const health = healthMap.get(svcName);
+          nodeMap.set(svcName, {
+            id: svcName,
+            name: svcName,
+            callCount: 0,
+            errorRate: health?.error_rate ?? 0,
+            avgLatencyMs: health?.avg_latency_ms ?? 0,
+            p95LatencyMs: health?.p95_latency_ms ?? null,
+            totalCalls: health?.total_calls ?? 0,
+          });
+        }
+      }
+    }
+
+    // Merge edges: span edges take priority, log edges fill gaps
+    const edgeKey = (s: string, t: string) => `${s}-->${t}`;
+    const edgeMap = new Map<string, EnrichedServiceDependencyEdge>();
+
+    for (const edge of spanDeps.edges) {
+      edgeMap.set(edgeKey(edge.source, edge.target), {
+        source: edge.source,
+        target: edge.target,
+        callCount: edge.callCount,
+        type: 'span',
+      });
+    }
+
+    for (const edge of logCoOccurrence) {
+      const fwdKey = edgeKey(edge.source_service, edge.target_service);
+      const revKey = edgeKey(edge.target_service, edge.source_service);
+      if (!edgeMap.has(fwdKey) && !edgeMap.has(revKey)) {
+        edgeMap.set(fwdKey, {
+          source: edge.source_service,
+          target: edge.target_service,
+          callCount: edge.co_occurrence_count,
+          type: 'log_correlation',
+        });
+      }
+    }
+
+    return {
+      nodes: Array.from(nodeMap.values()),
+      edges: Array.from(edgeMap.values()),
+    };
+  }
+
+  private async getServiceHealthStats(
+    projectId: string,
+    from: Date,
+    to: Date,
+    rangeHours: number,
+  ): Promise<ServiceHealthStats[]> {
+    if (reservoir.getEngineType() !== 'timescale') {
+      return [];
+    }
+
+    const { sql } = await import('kysely');
+    const table = rangeHours <= 48 ? 'spans_hourly_stats' as const : 'spans_daily_stats' as const;
+
+    const result = await db
+      .selectFrom(table)
+      .select([
+        'service_name',
+      ])
+      .select([
+        db.fn.sum<number>('span_count').as('total_calls'),
+        db.fn.sum<number>('error_count').as('total_errors'),
+        // Weighted average: SUM(avg * count) / SUM(count)
+        sql<number>`CASE WHEN SUM(span_count) > 0
+          THEN SUM(COALESCE(duration_avg_ms, 0) * span_count) / SUM(span_count)
+          ELSE 0 END`.as('avg_latency_ms'),
+        db.fn.max<number>('duration_p95_ms').as('p95_latency_ms'),
+      ])
+      .where('project_id', '=', projectId)
+      .where('bucket', '>=', from)
+      .where('bucket', '<=', to)
+      .groupBy('service_name')
+      .execute();
+
+    return result.map((r) => ({
+      service_name: r.service_name,
+      total_calls: Number(r.total_calls ?? 0),
+      total_errors: Number(r.total_errors ?? 0),
+      error_rate: Number(r.total_calls) > 0
+        ? Number(r.total_errors) / Number(r.total_calls)
+        : 0,
+      avg_latency_ms: Number(r.avg_latency_ms ?? 0),
+      p95_latency_ms: r.p95_latency_ms != null ? Number(r.p95_latency_ms) : null,
+    }));
+  }
+
+  private async getLogCoOccurrenceEdges(
+    projectId: string,
+    from: Date,
+    to: Date,
+  ): Promise<LogCoOccurrenceRow[]> {
+    if (reservoir.getEngineType() !== 'timescale') {
+      return [];
+    }
+
+    const result = await pool.query<{
+      source_service: string;
+      target_service: string;
+      co_occurrence_count: string;
+    }>(
+      `SELECT
+         a.service  AS source_service,
+         b.service  AS target_service,
+         COUNT(*)::int AS co_occurrence_count
+       FROM logs a
+       JOIN logs b
+         ON  a.trace_id   = b.trace_id
+         AND a.project_id = b.project_id
+         AND a.service    < b.service
+       WHERE a.project_id = $1
+         AND a.trace_id   IS NOT NULL
+         AND a.time >= $2
+         AND a.time <= $3
+         AND b.time >= $2
+         AND b.time <= $3
+       GROUP BY a.service, b.service
+       HAVING COUNT(*) >= 2
+       ORDER BY co_occurrence_count DESC
+       LIMIT 500`,
+      [projectId, from, to],
+    );
+
+    return result.rows.map((r) => ({
+      source_service: r.source_service,
+      target_service: r.target_service,
+      co_occurrence_count: Number(r.co_occurrence_count),
+    }));
   }
 
   async getStats(projectId: string, from?: Date, to?: Date) {
