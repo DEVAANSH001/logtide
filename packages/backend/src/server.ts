@@ -30,6 +30,7 @@ import { settingsRoutes, publicSettingsRoutes, settingsService } from './modules
 import { retentionRoutes } from './modules/retention/index.js';
 import { correlationRoutes, patternRoutes } from './modules/correlation/index.js';
 import { piiMaskingRoutes } from './modules/pii-masking/index.js';
+import { auditLogRoutes, auditLogService } from './modules/audit-log/index.js';
 import { bootstrapService } from './modules/bootstrap/index.js';
 import { notificationChannelsRoutes } from './modules/notification-channels/index.js';
 import internalLoggingPlugin from './plugins/internal-logging-plugin.js';
@@ -175,6 +176,7 @@ export async function build(opts = {}) {
   await fastify.register(dashboardRoutes);
   await fastify.register(adminRoutes, { prefix: '/api/v1/admin' });
   await fastify.register(settingsRoutes, { prefix: '/api/v1/admin/settings' });
+  await fastify.register(auditLogRoutes, { prefix: '/api/v1/audit-log' });
   await fastify.register(retentionRoutes, { prefix: '/api/v1/admin' });
 
   await fastify.register(authPlugin);
@@ -197,6 +199,7 @@ async function start() {
 
   await bootstrapService.runInitialBootstrap();
   await initializeInternalLogging();
+  auditLogService.start();
   await enrichmentService.initialize();
   await notificationManager.initialize(config.DATABASE_URL);
 
@@ -210,6 +213,7 @@ async function start() {
 
   const shutdown = async () => {
     console.log('[Server] Shutting down gracefully...');
+    await auditLogService.shutdown();
     await notificationManager.shutdown();
     await shutdownInternalLogging();
     await app.close();

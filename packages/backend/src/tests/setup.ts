@@ -55,6 +55,7 @@ beforeEach(async () => {
     await db.deleteFrom('organization_members').execute();
     await db.deleteFrom('projects').execute();
     await db.deleteFrom('organizations').execute();
+    await db.deleteFrom('audit_log').execute();
     await db.deleteFrom('sessions').execute();
     await db.deleteFrom('users').execute();
 });

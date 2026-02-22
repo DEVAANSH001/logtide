@@ -726,6 +726,35 @@ export interface OrganizationPiiSaltsTable {
   created_at: Generated<Timestamp>;
 }
 
+// ============================================================================
+// AUDIT LOG TABLE
+// ============================================================================
+
+export type AuditCategory =
+  | 'log_access'
+  | 'config_change'
+  | 'user_management'
+  | 'data_modification';
+
+export interface AuditLogTable {
+  time: Generated<Timestamp>;
+  id: Generated<string>;
+  organization_id: string | null;
+  user_id: string | null;
+  user_email: string | null;
+  action: string;
+  category: AuditCategory;
+  resource_type: string | null;
+  resource_id: string | null;
+  ip_address: string | null;
+  user_agent: string | null;
+  metadata: ColumnType<
+    Record<string, unknown> | null,
+    Record<string, unknown> | null,
+    Record<string, unknown> | null
+  >;
+}
+
 export interface Database {
   logs: LogsTable;
   users: UsersTable;
@@ -781,4 +810,6 @@ export interface Database {
   // PII masking
   pii_masking_rules: PiiMaskingRulesTable;
   organization_pii_salts: OrganizationPiiSaltsTable;
+  // Audit log
+  audit_log: AuditLogTable;
 }
