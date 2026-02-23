@@ -217,7 +217,7 @@
 			title="No security events detected"
 			description="Enable Sigma rules to start detecting security threats in your logs."
 			actionLabel="Manage Sigma Rules"
-			onAction={() => goto('/dashboard/alerts')}
+			onAction={() => goto('/dashboard/security/rules')}
 		/>
 	{:else}
 		<!-- Stats Bar -->

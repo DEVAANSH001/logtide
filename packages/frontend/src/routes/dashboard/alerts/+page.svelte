@@ -7,7 +7,6 @@
 		type AlertRule,
 		type AlertHistory,
 	} from "$lib/api/alerts";
-	import { sigmaAPI, type SigmaRule } from "$lib/api/sigma";
 	import { getRecentDetections, type DetectionEvent } from "$lib/api/siem";
 	import { toastStore } from "$lib/stores/toast";
 	import Button from "$lib/components/ui/button/button.svelte";
@@ -40,25 +39,17 @@
 	import { Switch } from "$lib/components/ui/switch";
 	import CreateAlertDialog from "$lib/components/CreateAlertDialog.svelte";
 	import EditAlertDialog from "$lib/components/EditAlertDialog.svelte";
-	import SigmaRulesList from "$lib/components/SigmaRulesList.svelte";
 	import SeverityBadge from "$lib/components/siem/shared/SeverityBadge.svelte";
-	import SigmaRuleDetailsDialog from "$lib/components/SigmaRuleDetailsDialog.svelte";
-	import SigmaSyncDialog from "$lib/components/SigmaSyncDialog.svelte";
-	import DetectionPacksGalleryDialog from "$lib/components/DetectionPacksGalleryDialog.svelte";
 	import Spinner from "$lib/components/Spinner.svelte";
 	import Bell from "@lucide/svelte/icons/bell";
 	import Plus from "@lucide/svelte/icons/plus";
-	import Package from "@lucide/svelte/icons/package";
 	import Trash2 from "@lucide/svelte/icons/trash-2";
 	import Pencil from "@lucide/svelte/icons/pencil";
 	import Clock from "@lucide/svelte/icons/clock";
 	import Mail from "@lucide/svelte/icons/mail";
-	import Webhook from "@lucide/svelte/icons/webhook";
 	import FolderKanban from "@lucide/svelte/icons/folder-kanban";
-	import Download from "@lucide/svelte/icons/download";
 	import ChevronDown from "@lucide/svelte/icons/chevron-down";
 	import ChevronUp from "@lucide/svelte/icons/chevron-up";
-	import AlertTriangle from "@lucide/svelte/icons/alert-triangle";
 	import TrendingUp from "@lucide/svelte/icons/trending-up";
 	import HelpTooltip from "$lib/components/HelpTooltip.svelte";
 	import { checklistStore } from "$lib/stores/checklist";
@@ -82,18 +73,13 @@
 		return unsubscribe;
 	});
 	let alertHistory = $state<AlertHistory[]>([]);
-	let sigmaRules = $state<SigmaRule[]>([]);
 	let loading = $state(false);
 	let loadingHistory = $state(false);
 	let error = $state("");
 	let showCreateDialog = $state(false);
 	let deletingAlertId = $state<string | null>(null);
 	let lastLoadedOrgId = $state<string | null>(null);
-	let selectedSigmaRule = $state<SigmaRule | null>(null);
-	let showSigmaDetails = $state(false);
-	let showSyncDialog = $state(false);
 	let showDeleteDialog = $state(false);
-	let showPacksDialog = $state(false);
 	let showEditDialog = $state(false);
 	let alertToDelete = $state<string | null>(null);
 	let alertToEdit = $state<AlertRule | null>(null);
@@ -124,12 +110,8 @@
 		error = "";
 
 		try {
-			const [rulesRes, sigmaRes] = await Promise.all([
-				alertsAPI.getAlertRules($currentOrganization.id),
-				sigmaAPI.getRules($currentOrganization.id),
-			]);
+			const rulesRes = await alertsAPI.getAlertRules($currentOrganization.id);
 			alertRules = rulesRes.alertRules || [];
-			sigmaRules = sigmaRes.rules || [];
 			lastLoadedOrgId = $currentOrganization.id;
 		} catch (e) {
 			error =
@@ -184,7 +166,6 @@
 		if (!browser || !$currentOrganization) {
 			alertRules = [];
 			alertHistory = [];
-			sigmaRules = [];
 			detections = [];
 			lastLoadedOrgId = null;
 			return;
@@ -365,10 +346,6 @@
 		percentile_p95: '95th percentile (7d)',
 	};
 
-	function handleSigmaView(event: CustomEvent<SigmaRule>) {
-		selectedSigmaRule = event.detail;
-		showSigmaDetails = true;
-	}
 </script>
 
 <svelte:head>
@@ -388,15 +365,6 @@
 		</div>
 		<div class="flex gap-2">
 			<Button
-				onclick={() => (showPacksDialog = true)}
-				size="lg"
-				variant="outline"
-				class="gap-2"
-			>
-				<Package class="w-5 h-5" />
-				Detection Packs
-			</Button>
-			<Button
 				onclick={() => (showCreateDialog = true)}
 				size="lg"
 				class="gap-2"
@@ -413,12 +381,6 @@
 				Alert Rules
 				<HelpTooltip
 					text="Alert rules trigger notifications when log volume exceeds a threshold within a time window."
-				/>
-			</TabsTrigger>
-			<TabsTrigger value="sigma" class="gap-1">
-				Sigma Rules
-				<HelpTooltip
-					text="Sigma rules are industry-standard detection rules for security threats. Import from SigmaHQ or create your own."
 				/>
 			</TabsTrigger>
 			<TabsTrigger value="history">History</TabsTrigger>
@@ -543,49 +505,6 @@
 						</Card>
 					{/each}
 				</div>
-			{/if}
-		</TabsContent>
-
-		<!-- Sigma Rules Tab -->
-		<TabsContent value="sigma" class="space-y-4">
-			<div class="flex justify-end">
-				<Button onclick={() => (showSyncDialog = true)} size="sm" variant="outline" class="gap-2">
-					<Download class="w-4 h-4" />
-					Sync from SigmaHQ
-				</Button>
-			</div>
-
-			{#if loading}
-				<div class="flex items-center justify-center py-12">
-					<Spinner />
-					<span class="ml-3 text-muted-foreground">Loading Sigma rules...</span>
-				</div>
-			{:else if sigmaRules.length === 0}
-				<Card class="border-2 border-dashed">
-					<CardContent class="py-16 text-center">
-						<div class="w-16 h-16 mx-auto mb-6 rounded-full bg-primary/10 flex items-center justify-center">
-							<FolderKanban class="w-8 h-8 text-primary" />
-						</div>
-						<h3 class="text-xl font-semibold mb-2">No Sigma rules yet</h3>
-						<p class="text-muted-foreground mb-6 max-w-md mx-auto">
-							Import Sigma rules to automatically create alert rules from community standards
-						</p>
-						<Button onclick={() => (showCreateDialog = true)} size="lg" class="gap-2">
-							<Plus class="w-5 h-5" />
-							Import Sigma Rule
-						</Button>
-					</CardContent>
-				</Card>
-			{:else}
-				<SigmaRulesList
-					rules={sigmaRules}
-					organizationId={$currentOrganization.id}
-					onrefresh={loadAlertRules}
-					onview={(rule) => {
-						selectedSigmaRule = rule;
-						showSigmaDetails = true;
-					}}
-				/>
 			{/if}
 		</TabsContent>
 
@@ -855,26 +774,6 @@
 		}}
 	/>
 
-	<SigmaRuleDetailsDialog
-		bind:open={showSigmaDetails}
-		rule={selectedSigmaRule}
-	/>
-
-	<SigmaSyncDialog
-		bind:open={showSyncDialog}
-		organizationId={$currentOrganization.id}
-		onSuccess={() => {
-			loadAlertRules();
-		}}
-	/>
-
-	<DetectionPacksGalleryDialog
-		bind:open={showPacksDialog}
-		organizationId={$currentOrganization.id}
-		onSuccess={() => {
-			loadAlertRules();
-		}}
-	/>
 
 	<AlertDialog bind:open={showDeleteDialog}>
 		<AlertDialogContent onkeydown={handleDeleteKeydown}>
