@@ -4,7 +4,6 @@
 	import { goto } from '$app/navigation';
 	import { authStore } from '$lib/stores/auth';
 	import { organizationStore } from '$lib/stores/organization';
-	import { layoutStore } from '$lib/stores/layout';
 	import {
 		getAuditLog,
 		getAuditLogActions,
@@ -31,7 +30,6 @@
 	import type { OrganizationWithRole } from '@logtide/shared';
 	import { canManageMembers } from '@logtide/shared';
 	import ClipboardList from '@lucide/svelte/icons/clipboard-list';
-	import ArrowLeft from '@lucide/svelte/icons/arrow-left';
 	import ChevronLeft from '@lucide/svelte/icons/chevron-left';
 	import ChevronRight from '@lucide/svelte/icons/chevron-right';
 	import ChevronDown from '@lucide/svelte/icons/chevron-down';
@@ -63,8 +61,6 @@
 
 	let token: string | null = null;
 	let currentOrg = $state<OrganizationWithRole | null>(null);
-	let maxWidthClass = $state('max-w-7xl');
-	let containerPadding = $state('px-6 py-8');
 
 	let entries = $state<AuditLogEntry[]>([]);
 	let total = $state(0);
@@ -82,20 +78,6 @@
 	// Pagination
 	let currentPage = $state(1);
 	const pageSize = 50;
-
-	$effect(() => {
-		const unsubscribe = layoutStore.maxWidthClass.subscribe((value) => {
-			maxWidthClass = value;
-		});
-		return unsubscribe;
-	});
-
-	$effect(() => {
-		const unsubscribe = layoutStore.containerPadding.subscribe((value) => {
-			containerPadding = value;
-		});
-		return unsubscribe;
-	});
 
 	authStore.subscribe((state) => {
 		token = state.token;
@@ -273,33 +255,16 @@
 	<title>Audit Log - LogTide</title>
 </svelte:head>
 
-<div class="container mx-auto space-y-6 {containerPadding} {maxWidthClass}">
-	<div>
-		<Button variant="ghost" size="sm" href="/dashboard/settings" class="mb-4 -ml-2 gap-2">
-			<ArrowLeft class="w-4 h-4" />
-			Back to Settings
+<div class="space-y-6">
+	<div class="flex items-center justify-end gap-2">
+		<Button variant="outline" size="sm" onclick={handleExport} disabled={exporting || !canManage}>
+			<Download class="h-4 w-4 mr-1" />
+			{exporting ? 'Exporting...' : 'Export CSV'}
 		</Button>
-		<div class="flex items-center justify-between">
-			<div>
-				<h1 class="text-3xl font-bold tracking-tight">Audit Log</h1>
-				<div class="flex items-center gap-2 mt-2">
-					<ClipboardList class="w-4 h-4 text-muted-foreground" />
-					<p class="text-muted-foreground">
-						Track all actions performed in {currentOrg?.name || 'your organization'}
-					</p>
-				</div>
-			</div>
-			<div class="flex gap-2">
-				<Button variant="outline" size="sm" onclick={handleExport} disabled={exporting || !canManage}>
-					<Download class="h-4 w-4 mr-1" />
-					{exporting ? 'Exporting...' : 'Export CSV'}
-				</Button>
-				<Button variant="outline" size="sm" onclick={() => loadEntries()}>
-					<RotateCcw class="h-4 w-4 mr-1" />
-					Refresh
-				</Button>
-			</div>
-		</div>
+		<Button variant="outline" size="sm" onclick={() => loadEntries()}>
+			<RotateCcw class="h-4 w-4 mr-1" />
+			Refresh
+		</Button>
 	</div>
 
 	{#if !canManage}
