@@ -42,6 +42,8 @@
   import TerminalLogView from "$lib/components/TerminalLogView.svelte";
   import TimeRangePicker, { type TimeRangeType } from "$lib/components/TimeRangePicker.svelte";
   import { layoutStore } from "$lib/stores/layout";
+  import { observeContextStore } from "$lib/stores/observe-context";
+  import { get } from "svelte/store";
   import AlertTriangle from "@lucide/svelte/icons/alert-triangle";
   import Download from "@lucide/svelte/icons/download";
   import ChevronLeft from "@lucide/svelte/icons/chevron-left";
@@ -399,7 +401,15 @@
       projects = response.projects;
 
       if (projects.length > 0 && selectedProjects.length === 0) {
-        selectedProjects = projects.map((p) => p.id);
+        // Initialize from observe context store if it has selections
+        const ctxState = get(observeContextStore);
+        if (ctxState.selectedProjects.length > 0) {
+          const validIds = ctxState.selectedProjects.filter(id => projects.some(p => p.id === id));
+          selectedProjects = validIds.length > 0 ? validIds : projects.map((p) => p.id);
+        } else {
+          selectedProjects = projects.map((p) => p.id);
+        }
+        observeContextStore.setProjects(selectedProjects);
         await Promise.all([loadServices(), loadHostnames()]);
         loadLogs();
       }
@@ -462,6 +472,7 @@
       hasMoreLogs = response.hasMore ?? (response.logs.length >= pageSize);
     } catch (e) {
       console.error("Failed to load logs:", e);
+      toastStore.error("Failed to load logs. Please try again.");
       logs = [];
       hasMoreLogs = false;
     } finally {
@@ -569,8 +580,6 @@
   });
 
   let paginatedLogs = $derived(logs);
-  let filteredLogs = $derived(logs);
-
   let effectiveTotalLogs = $derived(logs.length);
 
   // Track when live tail is activated for checklist
@@ -791,6 +800,12 @@
   }
 
   async function handleTimeRangeChange() {
+    // Sync time range back to observe context store
+    if (timeRangePicker) {
+      const type = timeRangePicker.getType();
+      const custom = timeRangePicker.getCustomValues?.() ?? { from: '', to: '' };
+      observeContextStore.setTimeRange(type, custom.from, custom.to);
+    }
     await Promise.all([loadServices(), loadHostnames()]);
     applyFilters();
   }
@@ -940,6 +955,7 @@
                         class="flex-1"
                         onclick={async () => {
                           selectedProjects = projects.map((p) => p.id);
+                          observeContextStore.setProjects(selectedProjects);
                           await Promise.all([loadServices(), loadHostnames()]);
                           applyFilters();
                         }}
@@ -952,6 +968,7 @@
                         class="flex-1"
                         onclick={() => {
                           selectedProjects = [];
+                          observeContextStore.setProjects([]);
                           availableServices = [];
                           availableHostnames = [];
                           applyFilters();
@@ -982,6 +999,7 @@
                                   (id) => id !== project.id,
                                 );
                               }
+                              observeContextStore.setProjects(selectedProjects);
                               await Promise.all([loadServices(), loadHostnames()]);
                               applyFilters();
                             }}
