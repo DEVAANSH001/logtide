@@ -53,7 +53,7 @@
   import FeatureBadge from "$lib/components/FeatureBadge.svelte";
   import ThemeToggle from "$lib/components/ThemeToggle.svelte";
   import { logoPath } from "$lib/utils/theme";
-  import ObserveContextBar from "$lib/components/ObserveContextBar.svelte";
+
 
   interface Props {
     children?: import("svelte").Snippet;
@@ -280,9 +280,6 @@
       page.url.pathname === href || page.url.pathname.startsWith(href + "/")
     );
   }
-
-  const OBSERVE_PATHS = ['/dashboard/search', '/dashboard/traces', '/dashboard/metrics', '/dashboard/errors'];
-  let isObservePage = $derived(OBSERVE_PATHS.some((p) => page.url.pathname === p || page.url.pathname.startsWith(p + '/')));
 
   async function handleLogout() {
     authStore.clearAuth();
@@ -536,9 +533,6 @@
             <Building2 class="w-4 h-4 text-muted-foreground" />
             <span class="text-sm font-medium">{$currentOrganization.name}</span>
           </div>
-        {/if}
-        {#if isObservePage}
-          <ObserveContextBar />
         {/if}
       </div>
 

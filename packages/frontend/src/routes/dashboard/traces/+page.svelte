@@ -4,7 +4,8 @@
   import { goto } from "$app/navigation";
   import { currentOrganization } from "$lib/stores/organization";
   import { authStore } from "$lib/stores/auth";
-  import { observeContextStore, selectedProjects, timeRangeType as ctxTimeRangeType } from "$lib/stores/observe-context";
+  import { ProjectsAPI } from "$lib/api/projects";
+  import type { Project } from "@logtide/shared";
   import {
     tracesAPI,
     type TraceRecord,
@@ -89,8 +90,39 @@
     token = state.token;
   });
 
-  // Derive project from observe context store
-  let selectedProject = $derived($selectedProjects.length > 0 ? $selectedProjects[0] : null);
+  // Local project and time range state
+  let projects = $state<Project[]>([]);
+  let selectedProject = $state<string | null>(null);
+  let timeRangeType = $state<'last_hour' | 'last_24h' | 'last_7d'>('last_24h');
+
+  let projectsAPI = $derived(new ProjectsAPI(() => token));
+
+  async function loadProjects() {
+    if (!$currentOrganization) return;
+    try {
+      const res = await projectsAPI.getProjects($currentOrganization.id);
+      projects = res.projects;
+      if (projects.length > 0 && !selectedProject) {
+        selectedProject = projects[0].id;
+      }
+    } catch (e) {
+      console.error("Failed to load projects:", e);
+    }
+  }
+
+  function getTimeRange(): { from: Date; to: Date } {
+    const now = new Date();
+    switch (timeRangeType) {
+      case 'last_hour':
+        return { from: new Date(now.getTime() - 60 * 60 * 1000), to: now };
+      case 'last_24h':
+        return { from: new Date(now.getTime() - 24 * 60 * 60 * 1000), to: now };
+      case 'last_7d':
+        return { from: new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000), to: now };
+      default:
+        return { from: new Date(now.getTime() - 24 * 60 * 60 * 1000), to: now };
+    }
+  }
 
   // Pagination
   let pageSize = $state(25);
@@ -109,14 +141,10 @@
     }
 
     if (urlProjectId) {
-      observeContextStore.setProjects([urlProjectId]);
+      selectedProject = urlProjectId;
     }
 
-    // Initial load if project is already selected
-    if (selectedProject) {
-      loadTraces();
-      loadServices();
-    }
+    loadProjects();
   });
 
   // React to organization changes
@@ -129,13 +157,14 @@
 
     if ($currentOrganization.id === lastLoadedOrg) return;
     lastLoadedOrg = $currentOrganization.id;
+    selectedProject = null;
+    loadProjects();
   });
 
-  // React to project or time range changes from observe context store
+  // React to project or time range changes
   $effect(() => {
-    // Track dependencies
-    const _proj = $selectedProjects;
-    const _tr = $ctxTimeRangeType;
+    const _proj = selectedProject;
+    const _tr = timeRangeType;
 
     if (!selectedProject) {
       traces = [];
@@ -165,7 +194,7 @@
     isLoading = true;
 
     try {
-      const timeRange = observeContextStore.getTimeRange();
+      const timeRange = getTimeRange();
       const offset = (currentPage - 1) * pageSize;
 
       const response = await tracesAPI.getTraces({
@@ -220,7 +249,7 @@
     mapLoadError = null;
 
     try {
-      const { from, to } = observeContextStore.getTimeRange();
+      const { from, to } = getTimeRange();
       mapData = await tracesAPI.getServiceMap(
         selectedProject,
         from.toISOString(),
@@ -441,60 +470,100 @@
     </div>
   </div>
 
+  <!-- Filters (visible in both list and map views) -->
+  <Card class="mb-6">
+    <CardHeader>
+      <CardTitle>Filters</CardTitle>
+    </CardHeader>
+    <CardContent>
+      <div class="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <div class="space-y-2">
+          <Label>Project</Label>
+          <Select.Root
+            type="single"
+            value={selectedProject || ""}
+            onValueChange={(v) => {
+              selectedProject = v || null;
+            }}
+          >
+            <Select.Trigger class="w-full">
+              {projects.find(p => p.id === selectedProject)?.name || "Select project"}
+            </Select.Trigger>
+            <Select.Content>
+              {#each projects as project}
+                <Select.Item value={project.id}>{project.name}</Select.Item>
+              {/each}
+            </Select.Content>
+          </Select.Root>
+        </div>
+
+        <div class="space-y-2">
+          <Label>Time Range</Label>
+          <Select.Root
+            type="single"
+            value={timeRangeType}
+            onValueChange={(v) => {
+              if (v) timeRangeType = v as typeof timeRangeType;
+            }}
+          >
+            <Select.Trigger class="w-full">
+              {timeRangeType === 'last_hour' ? 'Last Hour' : timeRangeType === 'last_24h' ? 'Last 24 Hours' : 'Last 7 Days'}
+            </Select.Trigger>
+            <Select.Content>
+              <Select.Item value="last_hour">Last Hour</Select.Item>
+              <Select.Item value="last_24h">Last 24 Hours</Select.Item>
+              <Select.Item value="last_7d">Last 7 Days</Select.Item>
+            </Select.Content>
+          </Select.Root>
+        </div>
+
+        <div class="space-y-2">
+          <Label>Service</Label>
+          <Select.Root
+            type="single"
+            value={selectedService || ""}
+            onValueChange={(v) => {
+              selectedService = v || null;
+              applyFilters();
+            }}
+          >
+            <Select.Trigger class="w-full">
+              {selectedService || "All services"}
+            </Select.Trigger>
+            <Select.Content>
+              <Select.Item value="">All services</Select.Item>
+              {#each availableServices as service}
+                <Select.Item value={service}>{service}</Select.Item>
+              {/each}
+            </Select.Content>
+          </Select.Root>
+        </div>
+
+        <div class="space-y-2">
+          <Label>Status</Label>
+          <Select.Root
+            type="single"
+            value={errorOnly ? "error" : "all"}
+            onValueChange={(v) => {
+              errorOnly = v === "error";
+              applyFilters();
+            }}
+          >
+            <Select.Trigger class="w-full">
+              {errorOnly ? "Errors only" : "All traces"}
+            </Select.Trigger>
+            <Select.Content>
+              <Select.Item value="all">All traces</Select.Item>
+              <Select.Item value="error">Errors only</Select.Item>
+            </Select.Content>
+          </Select.Root>
+        </div>
+      </div>
+    </CardContent>
+  </Card>
+
   <!-- LIST VIEW -->
   {#if activeView === 'list'}
-    <!-- Filters -->
-    <Card class="mb-6">
-      <CardHeader>
-        <CardTitle>Filters</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <div class="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          <div class="space-y-2">
-            <Label>Service</Label>
-            <Select.Root
-              type="single"
-              value={selectedService || ""}
-              onValueChange={(v) => {
-                selectedService = v || null;
-                applyFilters();
-              }}
-            >
-              <Select.Trigger class="w-full">
-                {selectedService || "All services"}
-              </Select.Trigger>
-              <Select.Content>
-                <Select.Item value="">All services</Select.Item>
-                {#each availableServices as service}
-                  <Select.Item value={service}>{service}</Select.Item>
-                {/each}
-              </Select.Content>
-            </Select.Root>
-          </div>
-
-          <div class="space-y-2">
-            <Label>Status</Label>
-            <Select.Root
-              type="single"
-              value={errorOnly ? "error" : "all"}
-              onValueChange={(v) => {
-                errorOnly = v === "error";
-                applyFilters();
-              }}
-            >
-              <Select.Trigger class="w-full">
-                {errorOnly ? "Errors only" : "All traces"}
-              </Select.Trigger>
-              <Select.Content>
-                <Select.Item value="all">All traces</Select.Item>
-                <Select.Item value="error">Errors only</Select.Item>
-              </Select.Content>
-            </Select.Root>
-          </div>
-        </div>
-      </CardContent>
-    </Card>
-
     <!-- Traces table -->
     <Card>
       <CardHeader>
