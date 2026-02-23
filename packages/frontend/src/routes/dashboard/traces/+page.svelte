@@ -46,6 +46,7 @@
   import EmptyTraces from "$lib/components/EmptyTraces.svelte";
   import Spinner from "$lib/components/Spinner.svelte";
   import { layoutStore } from "$lib/stores/layout";
+  import { toastStore } from "$lib/stores/toast";
 
   let token = $state<string | null>(null);
   let maxWidthClass = $state("max-w-7xl");
@@ -188,6 +189,7 @@
       stats = statsResponse;
     } catch (e) {
       console.error("Failed to load traces:", e);
+      toastStore.error('Failed to load traces');
       traces = [];
     } finally {
       isLoading = false;
