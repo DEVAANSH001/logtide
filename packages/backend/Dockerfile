@@ -34,9 +34,8 @@ COPY packages/shared/package.json ./packages/shared/
 COPY packages/reservoir/package.json ./packages/reservoir/
 COPY packages/backend/package.json ./packages/backend/
 
-# Install production dependencies + tsx for scripts
+# Install production dependencies (tsx is in dependencies for runtime scripts)
 RUN pnpm install --frozen-lockfile --prod
-RUN pnpm --filter '@logtide/backend' add tsx
 
 # Copy built files
 COPY --from=builder /app/packages/shared/dist ./packages/shared/dist
