@@ -194,57 +194,66 @@ export class SiemService {
   /**
    * List incidents with filters
    */
-  async listIncidents(filters: IncidentFilters): Promise<Incident[]> {
-    let query = this.db
+  async listIncidents(filters: IncidentFilters): Promise<{ incidents: Incident[]; total: number }> {
+    let baseQuery = this.db
       .selectFrom('incidents')
-      .selectAll()
       .where('organization_id', '=', filters.organizationId);
 
     if (filters.projectId !== undefined) {
-      query = query.where('project_id', '=', filters.projectId);
+      baseQuery = baseQuery.where('project_id', '=', filters.projectId);
     }
 
     if (filters.status) {
       if (Array.isArray(filters.status)) {
-        query = query.where('status', 'in', filters.status);
+        baseQuery = baseQuery.where('status', 'in', filters.status);
       } else {
-        query = query.where('status', '=', filters.status);
+        baseQuery = baseQuery.where('status', '=', filters.status);
       }
     }
 
     if (filters.severity) {
       if (Array.isArray(filters.severity)) {
-        query = query.where('severity', 'in', filters.severity);
+        baseQuery = baseQuery.where('severity', 'in', filters.severity);
       } else {
-        query = query.where('severity', '=', filters.severity);
+        baseQuery = baseQuery.where('severity', '=', filters.severity);
       }
     }
 
     if (filters.assigneeId !== undefined) {
-      query = query.where('assignee_id', '=', filters.assigneeId);
+      baseQuery = baseQuery.where('assignee_id', '=', filters.assigneeId);
     }
 
     // Filter by service (check if service is in affected_services array)
     if (filters.service) {
-      query = query.where(
+      baseQuery = baseQuery.where(
         sql<boolean>`${filters.service} = ANY(affected_services)` as Expression<SqlBool>
       );
     }
 
     // Filter by MITRE technique (check if technique is in mitre_techniques array)
     if (filters.technique) {
-      query = query.where(
+      baseQuery = baseQuery.where(
         sql<boolean>`${filters.technique} = ANY(mitre_techniques)` as Expression<SqlBool>
       );
     }
 
-    query = query
-      .orderBy('created_at', 'desc')
-      .limit(filters.limit ?? 50)
-      .offset(filters.offset ?? 0);
+    // Run data query and count query in parallel
+    const [results, countResult] = await Promise.all([
+      baseQuery
+        .selectAll()
+        .orderBy('created_at', 'desc')
+        .limit(filters.limit ?? 50)
+        .offset(filters.offset ?? 0)
+        .execute(),
+      baseQuery
+        .select(sql<number>`count(*)::int`.as('count'))
+        .executeTakeFirstOrThrow(),
+    ]);
 
-    const results = await query.execute();
-    return results.map(this.mapIncident);
+    return {
+      incidents: results.map(this.mapIncident),
+      total: countResult.count,
+    };
   }
 
   /**

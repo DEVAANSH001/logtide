@@ -58,7 +58,9 @@
 	// Pagination
 	let currentPage = $state(1);
 	let pageSize = $state(20);
+	let totalIncidents = $state(0);
 	let hasMore = $state(false);
+	let totalPages = $derived(totalIncidents > 0 ? Math.ceil(totalIncidents / pageSize) : 0);
 
 	// Initialize filters from URL params
 	$effect(() => {
@@ -102,7 +104,8 @@
 			});
 
 			incidents = response.incidents;
-			hasMore = response.incidents.length === pageSize;
+			totalIncidents = response.total;
+			hasMore = (currentPage - 1) * pageSize + response.incidents.length < response.total;
 			lastLoadedOrg = $currentOrganization.id;
 		} catch (e) {
 			error = e instanceof Error ? e.message : 'Failed to load incidents';
@@ -275,7 +278,7 @@
 		/>
 		{#if incidents.length > 0}
 			<p class="text-sm text-muted-foreground">
-				Showing {incidents.length} incident{incidents.length !== 1 ? 's' : ''}
+				Showing {(currentPage - 1) * pageSize + 1} to {Math.min(currentPage * pageSize, totalIncidents)} of {totalIncidents} incident{totalIncidents !== 1 ? 's' : ''}
 				{#if activeFiltersCount > 0}
 					(filtered)
 				{/if}
@@ -315,7 +318,7 @@
 		<!-- Pagination -->
 		<div class="mt-6 flex items-center justify-between">
 			<div class="text-sm text-muted-foreground">
-				Page {currentPage}
+				Page {currentPage}{#if totalPages > 0} of {totalPages}{/if}
 			</div>
 			<div class="flex items-center gap-2">
 				<Button

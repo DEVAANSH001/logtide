@@ -140,6 +140,11 @@ export class Reservoir {
     return this.engine.count(params);
   }
 
+  async countEstimate(params: CountParams): Promise<CountResult> {
+    this.ensureInitialized();
+    return this.engine.countEstimate(params);
+  }
+
   async distinct(params: DistinctParams): Promise<DistinctResult> {
     this.ensureInitialized();
     return this.engine.distinct(params);

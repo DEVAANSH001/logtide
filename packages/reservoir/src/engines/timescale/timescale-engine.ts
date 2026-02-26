@@ -354,6 +354,22 @@ export class TimescaleEngine extends StorageEngine {
     };
   }
 
+  async countEstimate(params: CountParams): Promise<CountResult> {
+    const start = Date.now();
+    const pool = this.getPool();
+    const native = this.translator.translateCountEstimate(params);
+    const result = await pool.query(
+      `EXPLAIN (FORMAT JSON) ${native.query}`,
+      native.parameters,
+    );
+    const plan = (result.rows[0] as Record<string, unknown>)['QUERY PLAN'] as Array<{ Plan: { 'Plan Rows': number } }>;
+    const estimate = Math.round(plan[0]?.Plan?.['Plan Rows'] ?? 0);
+    return {
+      count: estimate,
+      executionTimeMs: Date.now() - start,
+    };
+  }
+
   async distinct(params: DistinctParams): Promise<DistinctResult> {
     const start = Date.now();
     const pool = this.getPool();

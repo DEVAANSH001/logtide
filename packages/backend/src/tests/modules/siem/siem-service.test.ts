@@ -207,30 +207,33 @@ describe('SIEM Service - Incidents', () => {
         ]);
 
         // Filter by status
-        const openIncidents = await siemService.listIncidents({
+        const openResult = await siemService.listIncidents({
             organizationId: organization.id,
             status: ['open'],
         });
 
-        expect(openIncidents).toHaveLength(2);
+        expect(openResult.incidents).toHaveLength(2);
+        expect(openResult.total).toBe(2);
 
         // Filter by severity
-        const criticalIncidents = await siemService.listIncidents({
+        const criticalResult = await siemService.listIncidents({
             organizationId: organization.id,
             severity: ['critical'],
         });
 
-        expect(criticalIncidents).toHaveLength(1);
-        expect(criticalIncidents[0].title).toBe('Critical Incident');
+        expect(criticalResult.incidents).toHaveLength(1);
+        expect(criticalResult.incidents[0].title).toBe('Critical Incident');
+        expect(criticalResult.total).toBe(1);
 
         // Filter by both
-        const criticalOpen = await siemService.listIncidents({
+        const criticalOpenResult = await siemService.listIncidents({
             organizationId: organization.id,
             status: ['open'],
             severity: ['critical'],
         });
 
-        expect(criticalOpen).toHaveLength(1);
+        expect(criticalOpenResult.incidents).toHaveLength(1);
+        expect(criticalOpenResult.total).toBe(1);
     });
 
     it('should update an incident', async () => {

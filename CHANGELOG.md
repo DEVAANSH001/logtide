@@ -52,6 +52,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Pagination total count**: search and incidents pages now show total count ("Showing 1 to 25 of ~1,234 logs") instead of incrementing per-page — logs use fast approximate count via EXPLAIN planner estimates (no full table scan), incidents use exact COUNT(*); stale cache entries with missing totals are automatically invalidated
 - **Chart locale**: timestamps no longer hardcoded to Italian locale — charts now respect user's system language
 - **Silent API errors**: search and traces pages now show error toasts when data loading fails
 - **Empty states**: added "No services yet" and "No errors yet" empty states to dashboard widgets

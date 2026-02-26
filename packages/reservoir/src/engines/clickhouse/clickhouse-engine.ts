@@ -490,6 +490,11 @@ export class ClickHouseEngine extends StorageEngine {
     };
   }
 
+  async countEstimate(params: CountParams): Promise<CountResult> {
+    // ClickHouse COUNT is already fast (columnar storage), use exact count
+    return this.count(params);
+  }
+
   async distinct(params: DistinctParams): Promise<DistinctResult> {
     const start = Date.now();
     const client = this.getClient();

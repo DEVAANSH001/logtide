@@ -66,7 +66,7 @@ export class QueryService {
     const cacheKey = CacheManager.queryKey(projectId, cacheParams);
     const cached = await CacheManager.get<any>(cacheKey);
 
-    if (cached) {
+    if (cached && cached.total !== -1) {
       return {
         ...cached,
         logs: cached.logs.map((log: any) => ({
@@ -77,20 +77,29 @@ export class QueryService {
     }
 
     // Delegate to reservoir (raw parametrized SQL, no Kysely overhead)
-    const queryResult = await reservoir.query({
+    const effectiveTo = to ?? new Date();
+    const commonParams = {
       projectId,
       service,
       level,
       hostname,
       traceId,
       from: effectiveFrom,
-      to: to ?? new Date(),
+      to: effectiveTo,
       search: q,
       searchMode,
-      limit,
-      offset,
-      cursor,
-    });
+    };
+
+    // Run data query and count query in parallel
+    const [queryResult, countResult] = await Promise.all([
+      reservoir.query({
+        ...commonParams,
+        limit,
+        offset,
+        cursor,
+      }),
+      reservoir.countEstimate(commonParams),
+    ]);
 
     // Map reservoir StoredLogRecord to API format
     const logs = queryResult.logs.map((log: StoredLogRecord) => ({
@@ -106,7 +115,7 @@ export class QueryService {
 
     const result = {
       logs,
-      total: -1,
+      total: countResult.count,
       hasMore: queryResult.hasMore,
       limit: queryResult.limit,
       offset: queryResult.offset,

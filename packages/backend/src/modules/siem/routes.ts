@@ -381,7 +381,7 @@ export async function siemRoutes(fastify: FastifyInstance) {
           });
         }
 
-        const incidents = await siemService.listIncidents({
+        const result = await siemService.listIncidents({
           organizationId: query.organizationId,
           projectId: query.projectId,
           status: query.status,
@@ -393,7 +393,7 @@ export async function siemRoutes(fastify: FastifyInstance) {
           offset: query.offset,
         });
 
-        return reply.send({ incidents });
+        return reply.send({ incidents: result.incidents, total: result.total });
       } catch (error: any) {
         if (error instanceof z.ZodError) {
           return reply.status(400).send({

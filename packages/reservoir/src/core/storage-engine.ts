@@ -98,6 +98,9 @@ export abstract class StorageEngine {
   /** Count logs matching filters */
   abstract count(params: CountParams): Promise<CountResult>;
 
+  /** Estimate count using query planner (fast, approximate) */
+  abstract countEstimate(params: CountParams): Promise<CountResult>;
+
   /** Get distinct values for a field */
   abstract distinct(params: DistinctParams): Promise<DistinctResult>;
 
