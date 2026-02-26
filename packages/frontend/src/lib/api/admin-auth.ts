@@ -1,5 +1,4 @@
 import { getApiBaseUrl } from '$lib/config';
-import type { AuthProvider } from './auth';
 
 export interface AuthProviderConfig {
   id: string;

@@ -39,8 +39,11 @@
     onchange,
   }: Props = $props();
 
+  // svelte-ignore state_referenced_locally
   let timeRangeType = $state<TimeRangeType>(initialType);
+  // svelte-ignore state_referenced_locally
   let customFromTime = $state(formatDateForInput(initialCustomFrom));
+  // svelte-ignore state_referenced_locally
   let customToTime = $state(formatDateForInput(initialCustomTo));
 
   /**

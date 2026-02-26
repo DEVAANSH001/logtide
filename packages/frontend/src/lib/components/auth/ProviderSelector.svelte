@@ -79,12 +79,13 @@
 {:else if hasExternalProviders}
   <div class="space-y-3">
     {#each externalProviders as provider}
+      {@const ProviderIcon = getProviderIcon(provider)}
       <Button
         variant="outline"
         class="w-full gap-2"
         onclick={() => handleProviderClick(provider)}
       >
-        <svelte:component this={getProviderIcon(provider)} class="h-4 w-4" />
+        <ProviderIcon class="h-4 w-4" />
         {actionLabel} with {provider.name}
       </Button>
     {/each}

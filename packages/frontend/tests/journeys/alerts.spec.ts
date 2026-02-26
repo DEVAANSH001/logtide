@@ -12,7 +12,7 @@ test.describe('Alert Journey', () => {
   test.beforeAll(async () => {
     // Create test user and setup
     testUserEmail = generateTestEmail();
-    const { user, token } = await registerUser(generateTestName('Alert'), testUserEmail, 'TestPassword123!');
+    const { token } = await registerUser(generateTestName('Alert'), testUserEmail, 'TestPassword123!');
     userToken = token;
     apiClient = new TestApiClient(token);
 
@@ -184,7 +184,7 @@ test.describe('Alert Journey', () => {
   test('5. User can delete an alert rule', async ({ page }) => {
     // First create an alert via API
     const alertName = `Delete Test Alert ${Date.now()}`;
-    const createdAlert = await apiClient.createAlertRule(projectId, {
+    await apiClient.createAlertRule(projectId, {
       organizationId,
       projectId,
       name: alertName,

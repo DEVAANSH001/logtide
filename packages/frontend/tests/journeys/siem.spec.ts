@@ -1,5 +1,4 @@
 import { test, expect, TestApiClient, registerUser, setAuthState, generateTestEmail, generateTestName, TEST_FRONTEND_URL } from '../fixtures/auth';
-import { wait } from '../helpers/factories';
 
 test.describe('SIEM Journey', () => {
   let apiClient: TestApiClient;
@@ -10,7 +9,7 @@ test.describe('SIEM Journey', () => {
   test.beforeAll(async () => {
     // Create test user and setup
     const email = generateTestEmail();
-    const { user, token } = await registerUser(generateTestName('SIEM'), email, 'TestPassword123!');
+    const { token } = await registerUser(generateTestName('SIEM'), email, 'TestPassword123!');
     userToken = token;
     apiClient = new TestApiClient(token);
 
@@ -106,7 +105,6 @@ test.describe('SIEM Journey', () => {
     }
 
     // Verify URL was updated with filter
-    const url = page.url();
     // Either URL has status param or page shows filtered state
     const pageContent = await page.content();
     expect(pageContent).toBeTruthy();
@@ -378,10 +376,6 @@ test.describe('SIEM Journey', () => {
     await page.goto(`${TEST_FRONTEND_URL}/dashboard/security`);
     await page.waitForLoadState('load');
     await page.waitForTimeout(2000);
-
-    // Look for summary stat cards
-    const statCards = page.locator('[class*="Card"]');
-    const cardCount = await statCards.count();
 
     // Should have at least some cards (stats or empty state)
     const pageContent = await page.content();

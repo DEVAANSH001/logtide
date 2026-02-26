@@ -43,7 +43,7 @@ async function ensureLocalAuthProvider(): Promise<void> {
   }
 }
 
-async function globalSetup(config: FullConfig): Promise<void> {
+async function globalSetup(_config: FullConfig): Promise<void> {
   console.log('=== E2E Test Global Setup ===');
   console.log(`API URL: ${TEST_API_URL}`);
   console.log(`Frontend URL: ${TEST_FRONTEND_URL}`);

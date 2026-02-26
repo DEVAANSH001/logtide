@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { generateTestEmail, generateTestName, TEST_FRONTEND_URL, TEST_API_URL, waitForAuthForm } from '../fixtures/auth';
+import { generateTestEmail, generateTestName, TEST_FRONTEND_URL, waitForAuthForm } from '../fixtures/auth';
 
 const ONBOARDING_STORAGE_KEY = 'logtide_onboarding';
 
@@ -9,7 +9,6 @@ test.describe('Onboarding Tutorial Journey', () => {
   let userEmail: string;
   let userPassword: string;
   let userName: string;
-  let authToken: string;
 
   test.beforeAll(() => {
     userEmail = generateTestEmail();
@@ -41,11 +40,6 @@ test.describe('Onboarding Tutorial Journey', () => {
     // Should see "Skip for now" button
     await expect(page.locator('button:has-text("Skip for now")')).toBeVisible();
 
-    // Store auth token for later tests
-    const authData = await page.evaluate(() => localStorage.getItem('logtide_auth'));
-    if (authData) {
-      authToken = JSON.parse(authData).token;
-    }
   });
 
   test('2. User can start tutorial and create organization', async ({ page }) => {

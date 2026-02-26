@@ -2,7 +2,7 @@ import { writable, derived, get } from 'svelte/store';
 import { browser } from '$app/environment';
 import { authStore } from './auth';
 import { checklistStore } from './checklist';
-import { OnboardingAPI, type OnboardingState as APIOnboardingState } from '$lib/api/onboarding';
+import { OnboardingAPI } from '$lib/api/onboarding';
 
 // Map onboarding steps to checklist items
 const STEP_TO_CHECKLIST: Record<string, string> = {

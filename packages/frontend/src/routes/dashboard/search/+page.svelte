@@ -1461,7 +1461,7 @@
                 <TableBody>
                   {#each paginatedLogs as log, i}
                     {@const globalIndex = i}
-                    <TableRow data-log-row class="{selectedLogIndex === globalIndex ? 'bg-accent/50 ring-1 ring-primary/30' : ''}">
+                    <TableRow data-log-row class={selectedLogIndex === globalIndex ? 'bg-accent/50 ring-1 ring-primary/30' : ''}>
                       <TableCell class="font-mono text-xs">
                         {formatDateTime(log.time)}
                       </TableCell>

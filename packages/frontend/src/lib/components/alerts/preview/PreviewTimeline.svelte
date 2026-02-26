@@ -20,7 +20,7 @@
 
 	let { incidents, threshold, timeRange }: Props = $props();
 
-	let chartContainer: HTMLDivElement;
+	let chartContainer = $state<HTMLDivElement>();
 	let chart: echarts.ECharts | null = null;
 	let cleanup: (() => void) | undefined;
 

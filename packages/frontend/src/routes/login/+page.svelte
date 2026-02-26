@@ -29,6 +29,7 @@
 
   let email = $state('');
   let password = $state('');
+  // svelte-ignore state_referenced_locally
   let error = $state(urlError || '');
   let loading = $state(false);
   let emailError = $state('');

@@ -52,6 +52,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Frontend warning cleanup**: eliminated all 46 TypeScript and Svelte compiler warnings across the codebase (26 unused imports/variables, 4 deprecated `<svelte:component>` usages, 7 a11y label warnings, 2 non-reactive bindings, and miscellaneous Svelte 5 migration issues)
 - **Pagination total count**: search and incidents pages now show total count ("Showing 1 to 25 of ~1,234 logs") instead of incrementing per-page — logs use fast approximate count via EXPLAIN planner estimates (no full table scan), incidents use exact COUNT(*); stale cache entries with missing totals are automatically invalidated
 - **Admin dashboard timeline gaps (ClickHouse)**: periodic drops to zero in Platform Activity chart caused by bucket key format mismatch — ClickHouse produced ISO timestamps (`2026-02-26T13:00:00.000Z`) while PostgreSQL produced text format (`2026-02-26 13:00:00+00`), preventing merge; now all bucket keys are normalized to ISO format and all 24 hourly buckets are pre-filled to eliminate gaps
 - **Chart locale**: timestamps no longer hardcoded to Italian locale — charts now respect user's system language

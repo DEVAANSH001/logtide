@@ -65,6 +65,8 @@
 				};
 		}
 	});
+
+	const SeverityIcon = $derived(severityConfig.icon);
 </script>
 
 <div class="rounded-lg border bg-card p-4">
@@ -103,10 +105,7 @@
 		</div>
 
 		<Badge variant="outline" class={severityConfig.color}>
-			<svelte:component
-				this={severityConfig.icon}
-				class="w-3 h-3 mr-1"
-			/>
+			<SeverityIcon class="w-3 h-3 mr-1" />
 			{severityConfig.label}
 		</Badge>
 	</div>

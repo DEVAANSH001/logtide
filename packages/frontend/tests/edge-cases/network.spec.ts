@@ -7,7 +7,7 @@ test.describe('Network Edge Cases', () => {
 
   test.beforeAll(async () => {
     const email = generateTestEmail();
-    const { user, token } = await registerUser(generateTestName('Network'), email, 'TestPassword123!');
+    const { token } = await registerUser(generateTestName('Network'), email, 'TestPassword123!');
     userToken = token;
 
     const apiClient = new TestApiClient(token);

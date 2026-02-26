@@ -492,7 +492,7 @@
       <div class="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         <!-- Project selector -->
         <div class="space-y-2">
-          <label class="text-sm font-medium">Project</label>
+          <span class="text-sm font-medium">Project</span>
           <Select.Root
             type="single"
             value={selectedProject || ""}
@@ -513,7 +513,7 @@
 
         <!-- Time range selector -->
         <div class="space-y-2">
-          <label class="text-sm font-medium">Time Range</label>
+          <span class="text-sm font-medium">Time Range</span>
           <Select.Root
             type="single"
             value={timeRangeType}
@@ -534,7 +534,7 @@
 
         <!-- Metric name selector -->
         <div class="space-y-2">
-          <label class="text-sm font-medium">Metric</label>
+          <span class="text-sm font-medium">Metric</span>
           <Select.Root
             type="single"
             value={storeState.selectedMetric || ""}
@@ -585,7 +585,7 @@
         <div class="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
           <!-- Interval -->
           <div class="space-y-2">
-            <label class="text-sm font-medium">Interval</label>
+            <span class="text-sm font-medium">Interval</span>
             <Select.Root
               type="single"
               value={storeState.selectedInterval}
@@ -609,7 +609,7 @@
 
           <!-- Aggregation -->
           <div class="space-y-2">
-            <label class="text-sm font-medium">Aggregation</label>
+            <span class="text-sm font-medium">Aggregation</span>
             <Select.Root
               type="single"
               value={storeState.selectedAggregation}
@@ -632,7 +632,7 @@
 
           <!-- Label key filter -->
           <div class="space-y-2">
-            <label class="text-sm font-medium">Filter by label</label>
+            <span class="text-sm font-medium">Filter by label</span>
             <Select.Root
               type="single"
               value={selectedLabelKey || ""}
@@ -658,7 +658,7 @@
 
           <!-- Label value filter -->
           <div class="space-y-2">
-            <label class="text-sm font-medium">Label value</label>
+            <span class="text-sm font-medium">Label value</span>
             <div class="flex gap-2">
               <Select.Root
                 type="single"

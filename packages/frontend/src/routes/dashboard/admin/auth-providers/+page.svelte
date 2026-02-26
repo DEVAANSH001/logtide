@@ -321,12 +321,13 @@
   {:else}
     <div class="grid gap-4">
       {#each providers as provider}
+        {@const ProviderIcon = getProviderIcon(provider.type)}
         <Card>
           <CardContent class="p-4">
             <div class="flex items-center justify-between">
               <div class="flex items-center gap-4">
                 <div class="p-2 rounded-lg bg-muted">
-                  <svelte:component this={getProviderIcon(provider.type)} class="h-5 w-5" />
+                  <ProviderIcon class="h-5 w-5" />
                 </div>
                 <div>
                   <div class="font-medium flex items-center gap-2">
