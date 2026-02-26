@@ -42,6 +42,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Batch ingestion endpoint**: `POST /api/v1/ingest` now accepts flexible payload formats for better collector compatibility (Vector, Fluent Bit, etc.)
+  - Standard format: `{"logs": [{...}]}` (unchanged)
+  - Direct array: `[{log1}, {log2}]` (Vector with `codec: json`)
+  - Wrapped array: `[{"logs": [{...}]}, ...]` (Vector with VRL wrapping)
+  - Array formats auto-normalize fields via `normalizeLogData` (auto-generates `time`, normalizes `level`, extracts `service`)
+
 - **UX Restructuring**: major navigation and page layout overhaul for better discoverability
   - **Sidebar grouped into sections**: Observe (Logs, Traces, Metrics, Errors), Detect (Alerts, Security), Manage (Projects, Settings) — replaces flat 11-item list
   - **Service Map merged into Traces**: list/map view toggle on the Traces page instead of a separate route
@@ -63,6 +69,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Removed
 
 - Dead code cleanup: unused `Navigation.svelte` component, duplicate log viewer in project pages, unreachable code paths
+
+---
+
+## [0.6.4] - 2026-02-26
+
+### Changed
+
+- **Batch ingestion endpoint**: `POST /api/v1/ingest` now accepts flexible payload formats for better collector compatibility (Vector, Fluent Bit, etc.)
+  - Standard format: `{"logs": [{...}]}` (unchanged)
+  - Direct array: `[{log1}, {log2}]` (Vector with `codec: json`)
+  - Wrapped array: `[{"logs": [{...}]}, ...]` (Vector with VRL wrapping)
+  - Array formats auto-normalize fields via `normalizeLogData` (auto-generates `time`, normalizes `level`, extracts `service`)
 
 ---
 

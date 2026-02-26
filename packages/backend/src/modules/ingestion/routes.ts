@@ -347,15 +347,21 @@ const ingestionRoutes: FastifyPluginAsync = async (fastify) => {
       description: 'Ingest logs in batch',
       tags: ['ingestion'],
       body: {
-        type: 'object',
-        properties: {
-          logs: {
-            type: 'array',
-            items: {
-              type: 'object',
+        oneOf: [
+          {
+            type: 'object',
+            properties: {
+              logs: {
+                type: 'array',
+                items: { type: 'object' },
+              },
             },
           },
-        },
+          {
+            type: 'array',
+            items: { type: 'object' },
+          },
+        ],
       },
       response: {
         200: {
@@ -381,8 +387,64 @@ const ingestionRoutes: FastifyPluginAsync = async (fastify) => {
       },
     },
     handler: async (request: any, reply) => {
-      // Validate request body
-      const parseResult = ingestRequestSchema.safeParse(request.body);
+      // Get projectId from authenticated request (set by auth plugin)
+      const projectId = request.projectId;
+
+      if (!projectId) {
+        return reply.code(401).send({
+          error: 'Project context missing',
+        });
+      }
+
+      const body = request.body;
+
+      // Support multiple payload formats:
+      // 1. Standard: {"logs": [{...}, {...}]}
+      // 2. Array of logs: [{...}, {...}] (e.g. Vector with codec: json)
+      // 3. Array of wrapped: [{"logs": [{...}]}, {"logs": [{...}]}] (e.g. Vector with VRL wrapping)
+      if (Array.isArray(body)) {
+        // Check if it's format 3: array of {"logs": [...]} objects
+        const isWrappedArray = body.length > 0 && body.every(
+          (item: any) => item && typeof item === 'object' && Array.isArray(item.logs)
+        );
+
+        let rawLogs: any[];
+        if (isWrappedArray) {
+          // Flatten: [{"logs": [a]}, {"logs": [b]}] → [a, b]
+          rawLogs = body.flatMap((item: any) => item.logs);
+        } else {
+          // Direct array: [log1, log2]
+          rawLogs = body;
+        }
+
+        // Normalize and validate each log
+        const validLogs = [];
+        const errors = [];
+
+        for (const logData of rawLogs) {
+          const log = normalizeLogData(logData);
+          const parseResult = logSchema.safeParse(log);
+
+          if (parseResult.success) {
+            validLogs.push(parseResult.data);
+          } else {
+            errors.push({ log: logData, error: parseResult.error.format() });
+          }
+        }
+
+        if (validLogs.length === 0) {
+          return reply.code(400).send({
+            error: 'Validation error',
+            details: errors.length > 0 ? errors[0].error : { message: 'Empty batch' },
+          });
+        }
+
+        const received = await ingestionService.ingestLogs(validLogs, projectId);
+        return { received, timestamp: new Date().toISOString() };
+      }
+
+      // Standard format: {"logs": [...]}
+      const parseResult = ingestRequestSchema.safeParse(body);
 
       if (!parseResult.success) {
         return reply.code(400).send({
@@ -392,15 +454,6 @@ const ingestionRoutes: FastifyPluginAsync = async (fastify) => {
       }
 
       const { logs } = parseResult.data;
-
-      // Get projectId from authenticated request (set by auth plugin)
-      const projectId = request.projectId;
-
-      if (!projectId) {
-        return reply.code(401).send({
-          error: 'Project context missing',
-        });
-      }
 
       // Ingest logs
       const received = await ingestionService.ingestLogs(logs, projectId);
