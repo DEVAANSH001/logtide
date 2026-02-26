@@ -725,11 +725,9 @@
     // Mark as loading
     toLoad.forEach(id => loadingLogIds.add(id));
 
-    console.log("[Correlation] Loading identifiers for", toLoad.length, "logs");
     loadingIdentifiers = true;
     try {
       const result = await correlationAPI.getLogIdentifiersBatch(toLoad);
-      console.log("[Correlation] Got result:", Object.keys(result).length, "logs with identifiers");
       const newMap = new Map(logIdentifiers);
       for (const [logId, identifiers] of Object.entries(result)) {
         newMap.set(logId, identifiers);

@@ -45,11 +45,8 @@ const otlpRoutes: FastifyPluginAsync = async (fastify) => {
       // Handle gzip decompression - check header OR magic bytes
       const needsDecompression = contentEncoding?.toLowerCase() === 'gzip' || isGzipCompressed(buffer);
       if (needsDecompression) {
-        const detectedBy = isGzipCompressed(buffer) ? 'magic bytes' : 'Content-Encoding header';
-        console.log(`[OTLP] Decompressing gzip JSON (detected by ${detectedBy})`);
         try {
           buffer = await decompressGzip(buffer);
-          console.log(`[OTLP] Decompressed JSON to ${buffer.length} bytes`);
         } catch (error) {
           const errMsg = error instanceof Error ? error.message : 'Unknown error';
           console.error('[OTLP] Gzip JSON decompression failed:', errMsg);
@@ -166,11 +163,8 @@ const otlpRoutes: FastifyPluginAsync = async (fastify) => {
         if (Buffer.isBuffer(body)) {
           const needsDecompression = contentEncoding?.toLowerCase() === 'gzip' || isGzipCompressed(body);
           if (needsDecompression) {
-            const detectedBy = isGzipCompressed(body) ? 'magic bytes' : 'Content-Encoding header';
-            console.log(`[OTLP] Decompressing gzip protobuf (detected by ${detectedBy})`);
             try {
               body = await decompressGzip(body);
-              console.log(`[OTLP] Decompressed protobuf to ${body.length} bytes`);
             } catch (decompressError) {
               const errMsg = decompressError instanceof Error ? decompressError.message : 'Unknown error';
               console.error('[OTLP] Gzip decompression failed:', errMsg);
@@ -208,8 +202,6 @@ const otlpRoutes: FastifyPluginAsync = async (fastify) => {
         }));
 
         await ingestionService.ingestLogs(logInputs, projectId);
-
-        console.log(`[OTLP] Ingested ${logs.length} logs for project ${projectId}`);
 
         return {
           partialSuccess: {

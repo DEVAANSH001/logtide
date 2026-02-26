@@ -183,8 +183,6 @@ const otlpMetricRoutes: FastifyPluginAsync = async (fastify) => {
 
         await metricsService.ingestMetrics(records, projectId, project.organization_id);
 
-        console.log(`[OTLP Metrics] Ingested ${records.length} data points for project ${projectId}`);
-
         return {
           partialSuccess: {
             rejectedDataPoints: 0,

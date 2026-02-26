@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { browser } from '$app/environment';
 	import { goto } from '$app/navigation';
-	import { page } from '$app/stores';
+	import { page } from '$app/state';
 	import { currentOrganization } from '$lib/stores/organization';
 	import { authStore } from '$lib/stores/auth';
 	import {
@@ -86,7 +86,7 @@
 		authToken = state.token;
 	});
 
-	const incidentId = $derived($page.params.id);
+	const incidentId = $derived(page.params.id);
 	const organizationsAPI = $derived(new OrganizationsAPI(() => authToken));
 
 	async function loadIncident() {

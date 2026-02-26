@@ -66,10 +66,14 @@ export class AuditLogService {
   }
 
   private async flush(): Promise<void> {
-    if (this.flushing || this.buffer.length === 0) return;
+    if (this.flushing) return;
     this.flushing = true;
 
     const toInsert = this.buffer.splice(0, this.buffer.length);
+    if (toInsert.length === 0) {
+      this.flushing = false;
+      return;
+    }
     try {
       await db
         .insertInto('audit_log')

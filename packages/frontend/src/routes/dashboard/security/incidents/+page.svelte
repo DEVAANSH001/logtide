@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { browser } from '$app/environment';
 	import { goto } from '$app/navigation';
-	import { page } from '$app/stores';
+	import { page } from '$app/state';
 	import { currentOrganization } from '$lib/stores/organization';
 	import { siemStore, realtimeEnabled, lastSseEvent } from '$lib/stores/siem';
 	import { listIncidents, type Incident, type IncidentStatus, type Severity } from '$lib/api/siem';
@@ -65,7 +65,7 @@
 	$effect(() => {
 		if (!browser) return;
 
-		const params = $page.url.searchParams;
+		const params = page.url.searchParams;
 		const statusParam = params.getAll('status');
 		const severityParam = params.getAll('severity');
 		const serviceParam = params.get('service');

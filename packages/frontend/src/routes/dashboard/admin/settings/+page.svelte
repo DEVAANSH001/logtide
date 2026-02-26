@@ -25,7 +25,7 @@
         User,
         Search,
         ArrowUpCircle,
-    } from "lucide-svelte";
+    } from "@lucide/svelte";
     import { browser } from "$app/environment";
     import { untrack } from "svelte";
     import { UsersAPI } from "$lib/api/users";

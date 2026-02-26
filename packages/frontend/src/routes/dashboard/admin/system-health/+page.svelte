@@ -26,7 +26,7 @@
         Activity,
         Clock,
         Zap,
-    } from "lucide-svelte";
+    } from "@lucide/svelte";
     import * as Table from "$lib/components/ui/table";
     import { Button } from "$lib/components/ui/button";
     import { browser } from "$app/environment";

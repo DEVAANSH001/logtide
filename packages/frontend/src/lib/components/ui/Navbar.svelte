@@ -1,6 +1,6 @@
 <script lang="ts">
     import { page } from "$app/state";
-    import { Menu, X, Github } from "lucide-svelte";
+    import { Menu, X, Github } from "@lucide/svelte";
     import ThemeToggle from "$lib/components/ThemeToggle.svelte";
     import { logoPath } from "$lib/utils/theme";
 

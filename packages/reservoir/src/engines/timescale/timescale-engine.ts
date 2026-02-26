@@ -905,6 +905,7 @@ export class TimescaleEngine extends StorageEngine {
       // Insert exemplars if any metrics have them
       const exemplarTimes: Date[] = [];
       const exemplarMetricIds: string[] = [];
+      const exemplarOrgIds: string[] = [];
       const exemplarProjectIds: string[] = [];
       const exemplarValues: number[] = [];
       const exemplarTimesReal: (Date | null)[] = [];
@@ -922,6 +923,7 @@ export class TimescaleEngine extends StorageEngine {
           for (const ex of m.exemplars) {
             exemplarTimes.push(metricTime);
             exemplarMetricIds.push(metricId);
+            exemplarOrgIds.push(sanitizeNull(m.organizationId));
             exemplarProjectIds.push(sanitizeNull(m.projectId));
             exemplarValues.push(ex.exemplarValue);
             exemplarTimesReal.push(ex.exemplarTime ?? null);
@@ -935,14 +937,14 @@ export class TimescaleEngine extends StorageEngine {
       if (exemplarTimes.length > 0) {
         await pool.query(
           `INSERT INTO ${s}.metric_exemplars (
-            time, metric_id, project_id,
+            time, metric_id, organization_id, project_id,
             exemplar_value, exemplar_time, trace_id, span_id, attributes
           )
           SELECT * FROM UNNEST(
-            $1::timestamptz[], $2::uuid[], $3::uuid[],
-            $4::double precision[], $5::timestamptz[], $6::text[], $7::text[], $8::jsonb[]
+            $1::timestamptz[], $2::uuid[], $3::uuid[], $4::uuid[],
+            $5::double precision[], $6::timestamptz[], $7::text[], $8::text[], $9::jsonb[]
           )`,
-          [exemplarTimes, exemplarMetricIds, exemplarProjectIds,
+          [exemplarTimes, exemplarMetricIds, exemplarOrgIds, exemplarProjectIds,
            exemplarValues, exemplarTimesReal, exemplarTraceIds, exemplarSpanIds, exemplarAttrsJsons],
         );
       }

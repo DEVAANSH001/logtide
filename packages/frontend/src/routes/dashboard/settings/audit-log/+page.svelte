@@ -364,10 +364,12 @@
 								{#each entries as entry (entry.id)}
 									{@const catInfo = getCategoryInfo(entry.category)}
 									{@const isExpanded = expandedId === entry.id}
-									<!-- svelte-ignore a11y_click_events_have_key_events -->
 									<TableRow
 										class="cursor-pointer hover:bg-muted/50"
+										role="button"
+										tabindex={0}
 										onclick={() => toggleExpand(entry.id)}
+										onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleExpand(entry.id); } }}
 									>
 										<TableCell class="pr-0">
 											<ChevronDown

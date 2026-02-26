@@ -20,7 +20,7 @@
     AlertDialogHeader,
     AlertDialogTitle,
   } from '$lib/components/ui/alert-dialog';
-  import { Plus, Settings, Trash2, Pencil, Building2, Server, Mail, Check, X } from 'lucide-svelte';
+  import { Plus, Settings, Trash2, Pencil, Building2, Server, Mail, Check, X } from '@lucide/svelte';
   import { goto } from '$app/navigation';
   import { browser } from '$app/environment';
   import { untrack } from 'svelte';

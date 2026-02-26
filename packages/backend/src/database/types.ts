@@ -779,6 +779,7 @@ export interface MetricExemplarsTable {
   time: Timestamp;
   id: Generated<string>;
   metric_id: string;
+  organization_id: string;
   project_id: string;
   exemplar_value: number;
   exemplar_time: Timestamp | null;

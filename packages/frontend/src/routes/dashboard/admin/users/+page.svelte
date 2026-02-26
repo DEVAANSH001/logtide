@@ -25,7 +25,7 @@
         UserX,
         ChevronLeft,
         ChevronRight,
-    } from "lucide-svelte";
+    } from "@lucide/svelte";
     import { authStore } from "$lib/stores/auth";
     import { goto } from "$app/navigation";
     import { browser } from "$app/environment";

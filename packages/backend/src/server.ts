@@ -128,12 +128,17 @@ export async function build(opts = {}) {
     crossOriginEmbedderPolicy: false,
   });
 
+  const rateLimitKeyGenerator = (request: any) => {
+    const apiKey = request.headers['x-api-key'] || request.headers['authorization']?.replace('Bearer ', '');
+    return apiKey ? `key:${apiKey}` : request.ip;
+  };
+
   const redisConn = getConnection();
   if (isRedisConfigured() && redisConn) {
     await fastify.register(rateLimit, {
       max: config.RATE_LIMIT_MAX,
       timeWindow: config.RATE_LIMIT_WINDOW,
-      keyGenerator: (request) => request.ip,
+      keyGenerator: rateLimitKeyGenerator,
       redis: redisConn,
     });
     console.log('[RateLimit] Using Redis store (distributed rate limiting)');
@@ -141,7 +146,7 @@ export async function build(opts = {}) {
     await fastify.register(rateLimit, {
       max: config.RATE_LIMIT_MAX,
       timeWindow: config.RATE_LIMIT_WINDOW,
-      keyGenerator: (request) => request.ip,
+      keyGenerator: rateLimitKeyGenerator,
     });
     console.log('[RateLimit] Using in-memory store (single instance only)');
   }

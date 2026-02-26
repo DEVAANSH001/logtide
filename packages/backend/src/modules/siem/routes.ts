@@ -7,6 +7,7 @@ import { enrichmentService } from './enrichment-service.js';
 import { authenticate } from '../auth/middleware.js';
 import { OrganizationsService } from '../organizations/service.js';
 import { db } from '../../database/index.js';
+import { auditLogService } from '../audit-log/service.js';
 
 const siemService = new SiemService(db);
 const dashboardService = new SiemDashboardService(db);
@@ -592,6 +593,19 @@ export async function siemRoutes(fastify: FastifyInstance) {
           }
         );
 
+        auditLogService.log({
+          organizationId: body.organizationId,
+          userId: request.user.id,
+          userEmail: request.user.email,
+          action: body.status ? `incident_status_${body.status}` : 'update_incident',
+          category: 'config_change',
+          resourceType: 'incident',
+          resourceId: params.id,
+          ipAddress: request.ip,
+          userAgent: request.headers['user-agent'],
+          metadata: { status: body.status, severity: body.severity, assigneeId: body.assigneeId },
+        });
+
         return reply.send(incident);
       } catch (error: any) {
         if (error instanceof z.ZodError) {
@@ -665,6 +679,18 @@ export async function siemRoutes(fastify: FastifyInstance) {
         }
 
         await siemService.deleteIncident(params.id, query.organizationId);
+
+        auditLogService.log({
+          organizationId: query.organizationId,
+          userId: request.user.id,
+          userEmail: request.user.email,
+          action: 'delete_incident',
+          category: 'data_modification',
+          resourceType: 'incident',
+          resourceId: params.id,
+          ipAddress: request.ip,
+          userAgent: request.headers['user-agent'],
+        });
 
         return reply.status(204).send();
       } catch (error: any) {

@@ -292,6 +292,7 @@ export class ClickHouseEngine extends StorageEngine {
           time            DateTime64(3) NOT NULL,
           id              UUID DEFAULT generateUUIDv4(),
           metric_id       String NOT NULL,
+          organization_id Nullable(String) DEFAULT NULL,
           project_id      String NOT NULL,
           exemplar_value  Float64 NOT NULL,
           exemplar_time   Nullable(DateTime64(3)) DEFAULT NULL,
@@ -974,6 +975,7 @@ export class ClickHouseEngine extends StorageEngine {
             exemplarRows.push({
               time: metric.time.getTime(),
               metric_id: metricId,
+              organization_id: metric.organizationId ?? null,
               project_id: metric.projectId,
               exemplar_value: ex.exemplarValue,
               exemplar_time: ex.exemplarTime ? ex.exemplarTime.getTime() : null,

@@ -12,6 +12,7 @@ import type { FastifyInstance } from 'fastify';
 import { authenticate } from '../auth/middleware.js';
 import { OrganizationsService } from '../organizations/service.js';
 import { piiMaskingService } from './service.js';
+import { auditLogService } from '../audit-log/service.js';
 import type { PiiAction, PiiPatternType } from '../../database/types.js';
 
 const organizationsService = new OrganizationsService();
@@ -160,6 +161,19 @@ export default async function piiMaskingRoutes(fastify: FastifyInstance) {
           projectId: request.body.projectId,
         });
 
+        auditLogService.log({
+          organizationId,
+          userId: request.user.id,
+          userEmail: request.user.email,
+          action: 'create_pii_rule',
+          category: 'config_change',
+          resourceType: 'pii_masking_rule',
+          resourceId: rule.id,
+          ipAddress: request.ip,
+          userAgent: request.headers['user-agent'],
+          metadata: { name: request.body.name, action: request.body.action },
+        });
+
         return reply.status(201).send({ success: true, data: rule });
       } catch (error) {
         const msg = error instanceof Error ? error.message : 'Failed to create rule';
@@ -223,6 +237,21 @@ export default async function piiMaskingRoutes(fastify: FastifyInstance) {
           request.body
         );
 
+        auditLogService.log({
+          organizationId,
+          userId: request.user.id,
+          userEmail: request.user.email,
+          action: request.body.enabled !== undefined
+            ? (request.body.enabled ? 'enable_pii_rule' : 'disable_pii_rule')
+            : 'update_pii_rule',
+          category: 'config_change',
+          resourceType: 'pii_masking_rule',
+          resourceId: request.params.id,
+          ipAddress: request.ip,
+          userAgent: request.headers['user-agent'],
+          metadata: request.body,
+        });
+
         return reply.send({ success: true, data: rule });
       } catch (error) {
         const msg = error instanceof Error ? error.message : 'Failed to update rule';
@@ -265,6 +294,19 @@ export default async function piiMaskingRoutes(fastify: FastifyInstance) {
 
       try {
         await piiMaskingService.deleteRule(request.params.id, organizationId);
+
+        auditLogService.log({
+          organizationId,
+          userId: request.user.id,
+          userEmail: request.user.email,
+          action: 'delete_pii_rule',
+          category: 'config_change',
+          resourceType: 'pii_masking_rule',
+          resourceId: request.params.id,
+          ipAddress: request.ip,
+          userAgent: request.headers['user-agent'],
+        });
+
         return reply.send({ success: true, message: 'Rule deleted' });
       } catch (error) {
         const msg = error instanceof Error ? error.message : 'Failed to delete rule';

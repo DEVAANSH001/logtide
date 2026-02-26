@@ -26,11 +26,10 @@
     "canvas-confetti": "^1.9.4",
     "echarts": "^6.0.0",
     "leaflet": "^1.9.4",
-    "lucide-svelte": "^0.553.0",
+    "@lucide/svelte": "^0.482.0",
     "shiki": "^3.18.0"
   },
   "devDependencies": {
-    "@lucide/svelte": "^0.482.0",
     "@playwright/test": "^1.57.0",
     "@prgm/sveltekit-progress-bar": "^3.0.2",
     "@sveltejs/adapter-node": "^5.4.0",

@@ -1,12 +1,12 @@
 <script lang="ts">
-  import { page } from '$app/stores';
+  import { page } from '$app/state';
   
   interface Props {
     children: import('svelte').Snippet;
   }
   let { children }: Props = $props();
   
-  const currentPath = $derived($page.url.pathname);
+  const currentPath = $derived(page.url.pathname);
   
   const tabs = [
     { label: 'Dashboard', href: '/dashboard/security' },

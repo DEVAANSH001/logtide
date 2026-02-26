@@ -142,23 +142,13 @@ export async function auditLogRoutes(fastify: FastifyInstance) {
           });
         }
 
-        const result = await auditLogService.query({
-          organizationId: params.organizationId,
-          category: params.category as AuditCategory | undefined,
-          action: params.action,
-          from: params.from ? new Date(params.from) : undefined,
-          to: params.to ? new Date(params.to) : undefined,
-          limit: 10000,
-          offset: 0,
-        });
+        const escape = (v: string | null) => {
+          if (v == null) return '';
+          const s = String(v).replace(/"/g, '""');
+          return s.includes(',') || s.includes('"') || s.includes('\n') ? `"${s}"` : s;
+        };
 
-        const csvHeader = 'Time,User,Category,Action,Resource Type,Resource ID,IP Address,User Agent,Details';
-        const csvRows = result.entries.map((e: any) => {
-          const escape = (v: string | null) => {
-            if (v == null) return '';
-            const s = String(v).replace(/"/g, '""');
-            return s.includes(',') || s.includes('"') || s.includes('\n') ? `"${s}"` : s;
-          };
+        const formatRow = (e: any) => {
           const meta = e.metadata ? JSON.stringify(e.metadata) : '';
           return [
             escape(e.time?.toISOString?.() ?? String(e.time)),
@@ -171,9 +161,39 @@ export async function auditLogRoutes(fastify: FastifyInstance) {
             escape(e.user_agent),
             escape(meta),
           ].join(',');
-        });
+        };
 
-        const csv = [csvHeader, ...csvRows].join('\n');
+        reply
+          .header('Content-Type', 'text/csv')
+          .header('Content-Disposition', `attachment; filename="audit-log-${new Date().toISOString().slice(0, 10)}.csv"`);
+
+        const csvHeader = 'Time,User,Category,Action,Resource Type,Resource ID,IP Address,User Agent,Details\n';
+        reply.raw.write(csvHeader);
+
+        const CHUNK_SIZE = 200;
+        let offset = 0;
+        let totalRows = 0;
+
+        while (true) {
+          const result = await auditLogService.query({
+            organizationId: params.organizationId,
+            category: params.category as AuditCategory | undefined,
+            action: params.action,
+            from: params.from ? new Date(params.from) : undefined,
+            to: params.to ? new Date(params.to) : undefined,
+            limit: CHUNK_SIZE,
+            offset,
+          });
+
+          for (const entry of result.entries) {
+            reply.raw.write(formatRow(entry) + '\n');
+          }
+
+          totalRows += result.entries.length;
+          offset += CHUNK_SIZE;
+
+          if (result.entries.length < CHUNK_SIZE || totalRows >= 10000) break;
+        }
 
         auditLogService.log({
           organizationId: params.organizationId,
@@ -185,15 +205,13 @@ export async function auditLogRoutes(fastify: FastifyInstance) {
           userAgent: request.headers['user-agent'],
           metadata: {
             format: 'csv',
-            rowCount: result.entries.length,
+            rowCount: totalRows,
             filters: { category: params.category, action: params.action, from: params.from, to: params.to },
           },
         });
 
-        return reply
-          .header('Content-Type', 'text/csv')
-          .header('Content-Disposition', `attachment; filename="audit-log-${new Date().toISOString().slice(0, 10)}.csv"`)
-          .send(csv);
+        reply.raw.end();
+        return;
       } catch (error) {
         if (error instanceof z.ZodError) {
           return reply.status(400).send({

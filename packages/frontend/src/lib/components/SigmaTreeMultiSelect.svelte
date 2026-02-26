@@ -10,7 +10,7 @@
     FileText,
     Loader2,
     Search,
-  } from 'lucide-svelte';
+  } from '@lucide/svelte';
 
   interface Props {
     onSelectionChange: (selection: { categories: string[]; rules: string[] }) => void;

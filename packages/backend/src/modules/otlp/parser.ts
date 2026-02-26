@@ -178,10 +178,8 @@ export async function parseOtlpProtobuf(buffer: Buffer): Promise<OtlpExportLogsR
   // Auto-detect gzip compression by magic bytes (0x1f 0x8b)
   // This handles cases where Content-Encoding header is not set
   if (isGzipCompressed(buffer)) {
-    console.log('[OTLP] Auto-detected gzip compression by magic bytes, decompressing...');
     try {
       buffer = await decompressGzip(buffer);
-      console.log(`[OTLP] Decompressed protobuf data to ${buffer.length} bytes`);
     } catch (error) {
       const errMsg = error instanceof Error ? error.message : 'Unknown error';
       console.error('[OTLP] Gzip decompression failed:', errMsg);
@@ -193,7 +191,6 @@ export async function parseOtlpProtobuf(buffer: Buffer): Promise<OtlpExportLogsR
   try {
     const jsonString = buffer.toString('utf-8');
     if (jsonString.startsWith('{') || jsonString.startsWith('[')) {
-      console.log('[OTLP] Protobuf content-type but JSON payload detected, parsing as JSON');
       return parseOtlpJson(jsonString);
     }
   } catch {
@@ -220,9 +217,6 @@ export async function parseOtlpProtobuf(buffer: Buffer): Promise<OtlpExportLogsR
       arrays: true,   // Always return arrays even if empty
       objects: true,  // Always return nested objects
     });
-
-    console.log('[OTLP] Successfully decoded protobuf message with',
-      message.resourceLogs?.length || 0, 'resourceLogs');
 
     // Normalize the decoded message to match our OtlpExportLogsRequest interface
     return normalizeDecodedProtobuf(message);

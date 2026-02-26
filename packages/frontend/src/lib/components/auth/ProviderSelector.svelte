@@ -2,7 +2,7 @@
   import { authAPI, type AuthProvider } from '$lib/api/auth';
   import Button from '$lib/components/ui/button/button.svelte';
   import Spinner from '$lib/components/Spinner.svelte';
-  import { KeyRound, Building2, Server } from 'lucide-svelte';
+  import { KeyRound, Building2, Server } from '@lucide/svelte';
 
   interface Props {
     onSelectLocal?: () => void;

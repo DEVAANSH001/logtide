@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { browser } from '$app/environment';
 	import { goto } from '$app/navigation';
-	import { page } from '$app/stores';
+	import { page } from '$app/state';
 	import { currentOrganization } from '$lib/stores/organization';
 	import {
 		getErrorGroupById,
@@ -36,7 +36,7 @@
 	import { layoutStore } from '$lib/stores/layout';
 
 	// Get group ID from URL
-	const groupId = $derived($page.params.id);
+	const groupId = $derived(page.params.id);
 
 	// State
 	let group = $state<ErrorGroup | null>(null);
@@ -71,7 +71,7 @@
 	let logsPerPage = 10;
 
 	// Get organizationId from URL or store
-	const organizationId = $derived($page.url.searchParams.get('organizationId') || $currentOrganization?.id || '');
+	const organizationId = $derived(page.url.searchParams.get('organizationId') || $currentOrganization?.id || '');
 
 	$effect(() => {
 		if (!browser) return;
