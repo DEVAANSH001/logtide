@@ -5,18 +5,29 @@ All notable changes to LogTide will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.7.0] - Unreleased
+## [0.7.0] - 2026-02-26
 
 ### Added
 
-- **Service Dependency Graph & Correlation Analysis** (#40): dedicated `/dashboard/service-map` page visualizing microservice interactions
+- **OTLP Metrics Ingestion** (#4): complete OpenTelemetry metrics support, closing the observability stack (logs + traces + metrics)
+  - `POST /v1/otlp/metrics` endpoint with protobuf and JSON support (gzip compression on both)
+  - All 5 OTLP metric types: gauge, sum, histogram, exponential histogram, summary
+  - Exemplar support with trace/span correlation (click metric → see related traces)
+  - `metrics` + `metric_exemplars` TimescaleDB hypertables with compression (7d) and retention (90d)
+  - Full ClickHouse support via reservoir abstraction
+  - Query API: `GET /api/v1/metrics/names`, `/labels/keys`, `/labels/values`, `/data`, `/aggregate`
+  - 7 aggregation intervals (1m–1w) and 6 aggregation functions (avg, sum, min, max, count, last)
+  - Group-by label support for multi-series visualization
+  - Svelte store + API client ready for frontend integration
+  - 118+ tests covering ingestion, transformation, query, and both storage engines
+
+- **Service Dependency Graph & Correlation Analysis** (#40): dedicated service map visualizing microservice interactions
   - Force-directed graph (ECharts) built from span parent-child relationships + log co-occurrence analysis
   - Enriched backend endpoint `GET /api/v1/traces/service-map` runs 3 parallel queries: span deps (reservoir), per-service health stats (continuous aggregates), log co-occurrence (trace_id self-join)
   - Health color-coding on nodes: green (<1% errors), amber (1-10%), red (>10%)
   - Click-to-inspect side panel showing error rate, avg/p95 latency, total calls, upstream/downstream edges
   - Dashed edges for log correlation, solid for span-based dependencies
   - PNG export, time range filtering, project picker
-  - New "Service Map" nav item in sidebar
 
 - **Audit Log**: comprehensive audit trail tracking all user actions across the platform for compliance and security (SOC 2, ISO 27001, HIPAA)
   - Tracks 4 event categories: log access, config changes, user management, data modifications
@@ -28,6 +39,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Category and action filters
   - CSV export with current filters applied (up to 10k rows)
   - Export actions are themselves audit-logged (meta-meta logging)
+
+### Changed
+
+- **UX Restructuring**: major navigation and page layout overhaul for better discoverability
+  - **Sidebar grouped into sections**: Observe (Logs, Traces, Metrics, Errors), Detect (Alerts, Security), Manage (Projects, Settings) — replaces flat 11-item list
+  - **Service Map merged into Traces**: list/map view toggle on the Traces page instead of a separate route
+  - **Sigma Rules moved to Security**: Security page now has sub-nav with Dashboard, Rules, Incidents tabs — Alerts page simplified to just Alert Rules and History
+  - **Project pages simplified**: removed duplicate log viewer (937 LOC deleted), added "View Logs" button that navigates to global search with project pre-filtered
+  - **Settings restructured**: sub-navigation with General, Security & Data, Notifications, Team, Administration sections
+  - **Command palette updated**: all 9 main pages accessible with keyboard shortcuts (`g d`, `g s`, `g t`, `g m`, etc.)
+
+### Fixed
+
+- **Chart locale**: timestamps no longer hardcoded to Italian locale — charts now respect user's system language
+- **Silent API errors**: search and traces pages now show error toasts when data loading fails
+- **Empty states**: added "No services yet" and "No errors yet" empty states to dashboard widgets
+- **Docker initialization**: database is now auto-created if it doesn't exist during startup
+
+### Removed
+
+- Dead code cleanup: unused `Navigation.svelte` component, duplicate log viewer in project pages, unreachable code paths
 
 ---
 
