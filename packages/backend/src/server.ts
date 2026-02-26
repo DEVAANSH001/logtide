@@ -228,6 +228,14 @@ async function start() {
 
   try {
     await app.listen({ port: PORT, host: HOST });
+
+    // Print startup banner
+    try {
+      const bannerPath = path.resolve(__serverDirname, '../ascii.txt');
+      const banner = readFileSync(bannerPath, 'utf-8');
+      console.log(banner);
+    } catch { /* ascii art file missing, skip */ }
+    console.log(`  LogTide v${packageJson.version} running on ${HOST}:${PORT}\n`);
   } catch (err) {
     (app.log as any).error(err as Error);
     await shutdownInternalLogging();
