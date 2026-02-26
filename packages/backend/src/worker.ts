@@ -1,3 +1,6 @@
+import { readFileSync } from 'fs';
+import { fileURLToPath } from 'url';
+import path from 'path';
 import { createWorker, startQueueWorkers, shutdownQueueSystem, getQueueBackend } from './queue/connection.js';
 import { processAlertNotification, type AlertNotificationData } from './queue/jobs/alert-notification.js';
 import { processSigmaDetection, type SigmaDetectionData } from './queue/jobs/sigma-detection.js';
@@ -60,6 +63,16 @@ const errorNotificationWorker = createWorker<ErrorNotificationJobData>('error-no
 // Start workers (required for graphile-worker backend, no-op for BullMQ)
 console.log(`[Worker] Using queue backend: ${getQueueBackend()}`);
 await startQueueWorkers();
+
+// Print startup banner
+try {
+  const __workerDirname = path.dirname(fileURLToPath(import.meta.url));
+  const banner = readFileSync(path.resolve(__workerDirname, '../ascii.txt'), 'utf-8');
+  console.log(banner);
+} catch { /* ascii art file missing, skip */ }
+
+const workerPkg = JSON.parse(readFileSync(path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../package.json'), 'utf-8'));
+console.log(`  LogTide Worker v${workerPkg.version} started\n`);
 console.log('[Worker] All workers started');
 
 alertWorker.on('completed', (job) => {
