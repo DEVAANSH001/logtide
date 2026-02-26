@@ -5,7 +5,7 @@ import path from 'path';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: path.join(__dirname, '../../../../.env') });
 
-import type { EngineType, StoredLogRecord, TraceRecord } from '@logtide/reservoir';
+import type { EngineType, TraceRecord, LogRecord } from '@logtide/reservoir';
 import { Reservoir } from '@logtide/reservoir';
 import pg from 'pg';
 
@@ -190,73 +190,70 @@ async function countTraces(reservoir: Reservoir, projectId: string): Promise<num
 }
 
 async function migrateLogs(
-  source: Reservoir,
+  _source: Reservoir,
   dest: Reservoir,
   projectId: string,
   batchSize: number,
   sourceCount: number,
-  destCount: number,
+  _destCount: number,
+  pgPool?: pg.Pool,
 ): Promise<{ migrated: number; errors: number }> {
-  const toMigrate = sourceCount - destCount;
-  if (toMigrate <= 0) return { migrated: 0, errors: 0 };
+  if (sourceCount <= 0 || !pgPool) return { migrated: 0, errors: 0 };
 
   let migrated = 0;
   let errors = 0;
-  let offset = destCount;
   const startMs = Date.now();
 
-  while (migrated < toMigrate) {
-    const result = await source.query({
-      projectId,
-      from: new Date('2000-01-01'),
-      to: new Date('2100-01-01'),
-      limit: batchSize,
-      offset,
-      sortBy: 'time',
-      sortOrder: 'asc',
-    });
+  // Use a PostgreSQL server-side cursor to stream rows without ORDER BY or OFFSET
+  // This is the fastest way to read a large table sequentially
+  const client = await pgPool.connect();
+  try {
+    await client.query('BEGIN');
+    await client.query(
+      `DECLARE migrate_cursor CURSOR FOR
+       SELECT id, time, project_id, service, level, message, metadata, trace_id, span_id
+       FROM logs WHERE project_id = $1`,
+      [projectId],
+    );
 
-    if (result.logs.length === 0) break;
+    while (migrated < sourceCount) {
+      const result = await client.query(`FETCH ${batchSize} FROM migrate_cursor`);
+      if (result.rows.length === 0) break;
 
-    // Convert StoredLogRecord back to LogRecord with id preserved
-    const logsWithIds = result.logs.map((log: StoredLogRecord) => ({
-      id: log.id,
-      time: log.time,
-      organizationId: log.organizationId,
-      projectId: log.projectId,
-      service: log.service,
-      level: log.level,
-      message: log.message,
-      metadata: log.metadata,
-      traceId: log.traceId,
-      spanId: log.spanId,
-      hostname: log.hostname,
-    }));
+      const logs: LogRecord[] = result.rows.map((row: Record<string, unknown>) => ({
+        id: row.id as string,
+        time: row.time as Date,
+        projectId: row.project_id as string,
+        service: row.service as string,
+        level: row.level as LogRecord['level'],
+        message: row.message as string,
+        metadata: typeof row.metadata === 'string' ? JSON.parse(row.metadata as string) : (row.metadata ?? {}),
+        traceId: (row.trace_id as string) || undefined,
+        spanId: (row.span_id as string) || undefined,
+      }));
 
-    try {
-      const ingestResult = await dest.ingest(logsWithIds);
-      if (ingestResult.failed > 0) {
-        errors += ingestResult.failed;
-        // Retry once
-        const retryResult = await dest.ingest(logsWithIds);
-        if (retryResult.failed > 0) {
-          console.error(`\n    Batch at offset ${offset} failed after retry: ${retryResult.errors?.[0]?.error}`);
-        } else {
-          errors -= ingestResult.failed;
+      try {
+        const ingestResult = await dest.ingest(logs);
+        if (ingestResult.failed > 0) {
+          errors += ingestResult.failed;
         }
+      } catch (err) {
+        errors += logs.length;
+        console.error(`\n    Batch error: ${err instanceof Error ? err.message : err}`);
       }
-    } catch (err) {
-      errors += result.logs.length;
-      console.error(`\n    Batch at offset ${offset} error: ${err instanceof Error ? err.message : err}`);
+
+      migrated += result.rows.length;
+      printProgress('Logs:', migrated, sourceCount, startMs);
     }
 
-    migrated += result.logs.length;
-    offset += result.logs.length;
-    printProgress('Logs:', migrated, toMigrate, startMs);
+    await client.query('CLOSE migrate_cursor');
+    await client.query('COMMIT');
+  } finally {
+    client.release();
   }
 
   const elapsed = Date.now() - startMs;
-  process.stdout.write(`\r  Logs: 100.0% | ${fmt(migrated)}/${fmt(toMigrate)} | done in ${fmtDuration(elapsed)}   \n`);
+  process.stdout.write(`\r  Logs: 100.0% | ${fmt(migrated)}/${fmt(sourceCount)} | done in ${fmtDuration(elapsed)}   \n`);
 
   return { migrated, errors };
 }
@@ -319,7 +316,7 @@ async function migrateSpans(
 
 async function migrateTraces(
   source: Reservoir,
-  dest: Reservoir,
+  _dest: Reservoir,
   projectId: string,
   sourceCount: number,
   destCount: number,
@@ -331,25 +328,24 @@ async function migrateTraces(
   let errors = 0;
   let offset = destCount;
   const startMs = Date.now();
-  const concurrency = 10;
+  const concurrency = 200;
 
-  // Traces don't have a batch ingest — use upsertTrace with concurrency
   while (migrated < toMigrate) {
     const result = await source.queryTraces({
       projectId,
       from: new Date('2000-01-01'),
       to: new Date('2100-01-01'),
-      limit: 100,
+      limit: 2000,
       offset,
     });
 
     if (result.traces.length === 0) break;
 
-    // Process in groups of `concurrency`
+    // Fire all upserts with high concurrency
     for (let i = 0; i < result.traces.length; i += concurrency) {
       const group = result.traces.slice(i, i + concurrency);
       const results = await Promise.allSettled(
-        group.map((trace: TraceRecord) => dest.upsertTrace(trace)),
+        group.map((trace: TraceRecord) => _dest.upsertTrace(trace)),
       );
 
       for (const r of results) {
@@ -491,7 +487,7 @@ async function main(): Promise<void> {
 
     // Migrate logs
     if (logsToMigrate > 0) {
-      const logResult = await migrateLogs(source, dest, project.id, opts.batchSize, srcLogs, dstLogs);
+      const logResult = await migrateLogs(source, dest, project.id, opts.batchSize, srcLogs, dstLogs, pgPool);
       summary.logs += logResult.migrated;
       summary.errors += logResult.errors;
     }
