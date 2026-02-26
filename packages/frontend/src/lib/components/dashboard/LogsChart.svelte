@@ -30,7 +30,7 @@
   let chart: echarts.ECharts | null = null;
 
   function formatTimeLabel(time: string): string {
-    return new Date(time).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit', hour12: false });
+    return new Date(time).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', hour12: false });
   }
 
   function buildEventSeries(): echarts.SeriesOption[] {

@@ -462,6 +462,7 @@
       hasMoreLogs = response.hasMore ?? (response.logs.length >= pageSize);
     } catch (e) {
       console.error("Failed to load logs:", e);
+      toastStore.error("Failed to load logs. Please try again.");
       logs = [];
       hasMoreLogs = false;
     } finally {
@@ -569,8 +570,6 @@
   });
 
   let paginatedLogs = $derived(logs);
-  let filteredLogs = $derived(logs);
-
   let effectiveTotalLogs = $derived(logs.length);
 
   // Track when live tail is activated for checklist

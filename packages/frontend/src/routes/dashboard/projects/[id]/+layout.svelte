@@ -43,8 +43,7 @@
 	const currentPath = $derived($page.url.pathname);
 	const currentTab = $derived(() => {
 		if (currentPath.endsWith('/alerts')) return 'alerts';
-		if (currentPath.endsWith('/settings')) return 'settings';
-		return 'logs';
+		return 'settings';
 	});
 
 	async function loadProject(orgId: string, projId: string) {
@@ -88,7 +87,7 @@
 	// Handle tab change
 	function handleTabChange(tab: string) {
 		const basePath = `/dashboard/projects/${projectId}`;
-		if (tab === 'logs') {
+		if (tab === 'settings') {
 			goto(basePath);
 		} else {
 			goto(`${basePath}/${tab}`);
@@ -112,10 +111,9 @@
 		</div>
 
 		<Tabs.Root value={currentTab()} onValueChange={handleTabChange}>
-			<Tabs.List class="grid w-full grid-cols-3">
-				<Tabs.Trigger value="logs">Logs</Tabs.Trigger>
+			<Tabs.List class="grid w-full grid-cols-2">
+				<Tabs.Trigger value="settings">API Keys & Settings</Tabs.Trigger>
 				<Tabs.Trigger value="alerts">Alerts</Tabs.Trigger>
-				<Tabs.Trigger value="settings">Settings</Tabs.Trigger>
 			</Tabs.List>
 		</Tabs.Root>
 

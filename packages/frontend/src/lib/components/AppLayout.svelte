@@ -38,7 +38,6 @@
   import LogOut from "@lucide/svelte/icons/log-out";
   import Menu from "@lucide/svelte/icons/menu";
   import Shield from "@lucide/svelte/icons/shield";
-  import Network from "@lucide/svelte/icons/network";
   import Book from "@lucide/svelte/icons/book";
   import Github from "@lucide/svelte/icons/github";
   import X from "@lucide/svelte/icons/x";
@@ -54,6 +53,7 @@
   import FeatureBadge from "$lib/components/FeatureBadge.svelte";
   import ThemeToggle from "$lib/components/ThemeToggle.svelte";
   import { logoPath } from "$lib/utils/theme";
+
 
   interface Props {
     children?: import("svelte").Snippet;
@@ -230,42 +230,45 @@
     };
   }
 
-  const navigationItems: NavItem[] = [
-    { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-    { label: "Projects", href: "/dashboard/projects", icon: FolderKanban },
-    { label: "Logs", href: "/dashboard/search", icon: FileText },
+  interface NavSection {
+    label?: string;
+    items: NavItem[];
+  }
+
+  const navigationSections: NavSection[] = [
     {
-      label: "Traces",
-      href: "/dashboard/traces",
-      icon: GitBranch,
-      badge: { id: 'traces-feature', type: 'new', showUntil: '2025-03-01' }
+      items: [
+        { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
+      ],
     },
     {
-      label: "Metrics",
-      href: "/dashboard/metrics",
-      icon: BarChart3,
-      badge: { id: 'metrics-feature', type: 'new', showUntil: '2026-09-01' }
+      label: "Observe",
+      items: [
+        { label: "Logs", href: "/dashboard/search", icon: FileText },
+        { label: "Traces", href: "/dashboard/traces", icon: GitBranch },
+        {
+          label: "Metrics",
+          href: "/dashboard/metrics",
+          icon: BarChart3,
+          badge: { id: 'metrics-feature', type: 'new', showUntil: '2026-09-01' }
+        },
+        { label: "Errors", href: "/dashboard/errors", icon: Bug },
+      ],
     },
     {
-      label: "Service Map",
-      href: "/dashboard/service-map",
-      icon: Network,
-    },
-    { label: "Alerts", href: "/dashboard/alerts", icon: AlertTriangle },
-    {
-      label: "Errors",
-      href: "/dashboard/errors",
-      icon: Bug,
-      badge: { id: 'errors-feature', type: 'new', showUntil: '2025-06-01' }
+      label: "Detect",
+      items: [
+        { label: "Alerts", href: "/dashboard/alerts", icon: AlertTriangle },
+        { label: "Security", href: "/dashboard/security", icon: Shield },
+      ],
     },
     {
-      label: "Security",
-      href: "/dashboard/security",
-      icon: Shield,
-      badge: { id: 'security-feature', type: 'new', showUntil: '2025-06-01' }
+      label: "Manage",
+      items: [
+        { label: "Projects", href: "/dashboard/projects", icon: FolderKanban },
+        { label: "Settings", href: "/dashboard/settings", icon: Settings },
+      ],
     },
-    { label: "Docs", href: "https://logtide.dev/docs", icon: Book, external: true },
-    { label: "Settings", href: "/dashboard/settings", icon: Settings },
   ];
 
   function isActive(href: string): boolean {
@@ -325,29 +328,37 @@
     <Separator />
 
     <nav class="flex-1 p-4 space-y-1 overflow-y-auto">
-      {#each navigationItems as item}
-        {@const Icon = item.icon}
-        <a
-          href={item.href}
-          target={item.external ? '_blank' : undefined}
-          rel={item.external ? 'noopener noreferrer' : undefined}
-          data-nav-item={item.label.toLowerCase()}
-          class="flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors {item.external
-            ? 'text-muted-foreground hover:bg-accent/50 hover:text-accent-foreground'
-            : isActive(item.href)
-            ? 'bg-accent text-accent-foreground'
-            : 'text-muted-foreground hover:bg-accent/50 hover:text-accent-foreground'}"
-        >
-          <Icon class="w-4 h-4" />
-          <span class="flex-1">{item.label}</span>
-          {#if item.badge}
-            <FeatureBadge
-              id={item.badge.id}
-              type={item.badge.type}
-              showUntil={item.badge.showUntil}
-            />
-          {/if}
-        </a>
+      {#each navigationSections as section, sectionIdx}
+        {#if sectionIdx > 0}
+          <Separator class="my-2" />
+        {/if}
+        {#if section.label}
+          <p class="px-3 py-1 text-xs font-semibold text-muted-foreground uppercase tracking-wider">{section.label}</p>
+        {/if}
+        {#each section.items as item}
+          {@const Icon = item.icon}
+          <a
+            href={item.href}
+            target={item.external ? '_blank' : undefined}
+            rel={item.external ? 'noopener noreferrer' : undefined}
+            data-nav-item={item.label.toLowerCase()}
+            class="flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors {item.external
+              ? 'text-muted-foreground hover:bg-accent/50 hover:text-accent-foreground'
+              : isActive(item.href)
+              ? 'bg-accent text-accent-foreground'
+              : 'text-muted-foreground hover:bg-accent/50 hover:text-accent-foreground'}"
+          >
+            <Icon class="w-4 h-4" />
+            <span class="flex-1">{item.label}</span>
+            {#if item.badge}
+              <FeatureBadge
+                id={item.badge.id}
+                type={item.badge.type}
+                showUntil={item.badge.showUntil}
+              />
+            {/if}
+          </a>
+        {/each}
       {/each}
 
       {#if user?.is_admin}
@@ -366,6 +377,15 @@
       {/if}
 
       <Separator class="my-2" />
+      <a
+        href="https://logtide.dev/docs"
+        target="_blank"
+        rel="noopener noreferrer"
+        class="flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors text-muted-foreground hover:bg-accent/50 hover:text-accent-foreground"
+      >
+        <Book class="w-4 h-4" />
+        <span>Docs</span>
+      </a>
       <a
         href="https://github.com/logtide-dev/logtide"
         target="_blank"
@@ -421,30 +441,38 @@
     <Separator />
 
     <nav class="flex-1 p-4 space-y-1 overflow-y-auto">
-      {#each navigationItems as item}
-        {@const Icon = item.icon}
-        <a
-          href={item.href}
-          target={item.external ? '_blank' : undefined}
-          rel={item.external ? 'noopener noreferrer' : undefined}
-          onclick={() => mobileMenuOpen = false}
-          data-nav-item={item.label.toLowerCase()}
-          class="flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors {item.external
-            ? 'text-muted-foreground hover:bg-accent/50 hover:text-accent-foreground'
-            : isActive(item.href)
-            ? 'bg-accent text-accent-foreground'
-            : 'text-muted-foreground hover:bg-accent/50 hover:text-accent-foreground'}"
-        >
-          <Icon class="w-4 h-4" />
-          <span class="flex-1">{item.label}</span>
-          {#if item.badge}
-            <FeatureBadge
-              id={item.badge.id}
-              type={item.badge.type}
-              showUntil={item.badge.showUntil}
-            />
-          {/if}
-        </a>
+      {#each navigationSections as section, sectionIdx}
+        {#if sectionIdx > 0}
+          <Separator class="my-2" />
+        {/if}
+        {#if section.label}
+          <p class="px-3 py-1 text-xs font-semibold text-muted-foreground uppercase tracking-wider">{section.label}</p>
+        {/if}
+        {#each section.items as item}
+          {@const Icon = item.icon}
+          <a
+            href={item.href}
+            target={item.external ? '_blank' : undefined}
+            rel={item.external ? 'noopener noreferrer' : undefined}
+            onclick={() => mobileMenuOpen = false}
+            data-nav-item={item.label.toLowerCase()}
+            class="flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors {item.external
+              ? 'text-muted-foreground hover:bg-accent/50 hover:text-accent-foreground'
+              : isActive(item.href)
+              ? 'bg-accent text-accent-foreground'
+              : 'text-muted-foreground hover:bg-accent/50 hover:text-accent-foreground'}"
+          >
+            <Icon class="w-4 h-4" />
+            <span class="flex-1">{item.label}</span>
+            {#if item.badge}
+              <FeatureBadge
+                id={item.badge.id}
+                type={item.badge.type}
+                showUntil={item.badge.showUntil}
+              />
+            {/if}
+          </a>
+        {/each}
       {/each}
 
       {#if user?.is_admin}
@@ -462,6 +490,16 @@
       {/if}
 
       <Separator class="my-2" />
+      <a
+        href="https://logtide.dev/docs"
+        target="_blank"
+        rel="noopener noreferrer"
+        onclick={() => mobileMenuOpen = false}
+        class="flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors text-muted-foreground hover:bg-accent/50 hover:text-accent-foreground"
+      >
+        <Book class="w-4 h-4" />
+        <span>Docs</span>
+      </a>
       <a
         href="https://github.com/logtide-dev/logtide"
         target="_blank"

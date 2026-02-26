@@ -1,5 +1,6 @@
 <script lang="ts">
   import { browser } from "$app/environment";
+  import { goto } from "$app/navigation";
   import {
     organizationStore,
     currentOrganization,
@@ -37,6 +38,7 @@
   import Plus from "@lucide/svelte/icons/plus";
   import SearchIcon from "@lucide/svelte/icons/search";
   import Trash2 from "@lucide/svelte/icons/trash-2";
+  import FileText from "@lucide/svelte/icons/file-text";
   import { layoutStore } from "$lib/stores/layout";
 
   let projects = $state<Project[]>([]);
@@ -299,7 +301,7 @@
                 </div>
                 <div class="flex gap-2">
                   <a
-                    href="/dashboard/projects/{project.id}"
+                    href="/dashboard/projects/{project.id}/settings"
                     class={buttonVariants({
                       variant: "outline",
                       size: "sm",
@@ -308,6 +310,15 @@
                   >
                     View Project
                   </a>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onclick={() => goto(`/dashboard/search?project=${project.id}`)}
+                    class="gap-1"
+                  >
+                    <FileText class="w-4 h-4" />
+                    Logs
+                  </Button>
                   <AlertDialog>
                     <AlertDialogTrigger>
                       {#snippet child({ props })}

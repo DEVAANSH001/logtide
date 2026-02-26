@@ -49,27 +49,9 @@
   import Pencil from '@lucide/svelte/icons/pencil';
   import Trash2 from '@lucide/svelte/icons/trash-2';
   import FlaskConical from '@lucide/svelte/icons/flask-conical';
-  import ArrowLeft from '@lucide/svelte/icons/arrow-left';
   import Lock from '@lucide/svelte/icons/lock';
-  import { layoutStore } from '$lib/stores/layout';
 
   let token: string | null = null;
-  let maxWidthClass = $state("max-w-7xl");
-  let containerPadding = $state("px-6 py-8");
-
-  $effect(() => {
-    const unsubscribe = layoutStore.maxWidthClass.subscribe((value) => {
-      maxWidthClass = value;
-    });
-    return unsubscribe;
-  });
-
-  $effect(() => {
-    const unsubscribe = layoutStore.containerPadding.subscribe((value) => {
-      containerPadding = value;
-    });
-    return unsubscribe;
-  });
 
   let loading = $state(true);
   let rules = $state<PiiMaskingRule[]>([]);
@@ -383,23 +365,8 @@
   <title>PII Masking - LogTide</title>
 </svelte:head>
 
-<div class="container mx-auto space-y-6 {containerPadding} {maxWidthClass}">
-  <div class="flex items-center gap-4">
-    <Button variant="ghost" size="icon" onclick={() => goto('/dashboard/settings')}>
-      <ArrowLeft class="w-4 h-4" />
-    </Button>
-    <div>
-      <h1 class="text-3xl font-bold tracking-tight">PII Masking</h1>
-      <div class="flex items-center gap-2 mt-1">
-        <ShieldAlert class="w-4 h-4 text-muted-foreground" />
-        <p class="text-muted-foreground">
-          Automatically detect and mask sensitive data before storage
-        </p>
-      </div>
-    </div>
-  </div>
-
-  <!-- Content Patterns (Phase 1) -->
+<div class="space-y-6">
+  <!-- Content Patterns -->
   <Card>
     <CardHeader>
       <div class="flex items-center justify-between">
