@@ -1,18 +1,27 @@
 # Build stage
 FROM node:20-alpine AS builder
 
-# Install pnpm
-RUN npm install -g pnpm
+# Install pnpm and build dependencies
+RUN apk add --no-cache python3 make g++ && \
+    npm install -g pnpm
 
 WORKDIR /app
 
 # Copy workspace files
 COPY pnpm-workspace.yaml package.json pnpm-lock.yaml* tsconfig.base.json ./
-COPY packages/shared ./packages/shared
-COPY packages/frontend ./packages/frontend
+
+# Copy all package.json files first to satisfy pnpm workspace requirements
+COPY packages/shared/package.json ./packages/shared/
+COPY packages/reservoir/package.json ./packages/reservoir/
+COPY packages/backend/package.json ./packages/backend/
+COPY packages/frontend/package.json ./packages/frontend/
 
 # Install dependencies
 RUN pnpm install --frozen-lockfile
+
+# Now copy the source for the packages we need to build
+COPY packages/shared ./packages/shared
+COPY packages/frontend ./packages/frontend
 
 # Build shared package first
 RUN pnpm --filter '@logtide/shared' build
@@ -34,6 +43,8 @@ WORKDIR /app
 # Copy workspace files
 COPY pnpm-workspace.yaml package.json pnpm-lock.yaml ./
 COPY packages/shared/package.json ./packages/shared/
+COPY packages/reservoir/package.json ./packages/reservoir/
+COPY packages/backend/package.json ./packages/backend/
 COPY packages/frontend/package.json ./packages/frontend/
 
 # Install production dependencies only

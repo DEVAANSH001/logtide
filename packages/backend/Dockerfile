@@ -1,19 +1,29 @@
 # Build stage
 FROM node:20-alpine AS builder
 
-# Install pnpm
-RUN npm install -g pnpm
+# Install pnpm and build dependencies for native modules (like bcrypt)
+RUN apk add --no-cache python3 make g++ && \
+    npm install -g pnpm
 
 WORKDIR /app
 
 # Copy workspace files
 COPY pnpm-workspace.yaml package.json pnpm-lock.yaml* tsconfig.base.json ./
-COPY packages/shared ./packages/shared
-COPY packages/reservoir ./packages/reservoir
-COPY packages/backend ./packages/backend
+
+# Copy all package.json files first to satisfy pnpm workspace requirements
+# and allow for better caching of the install step
+COPY packages/shared/package.json ./packages/shared/
+COPY packages/reservoir/package.json ./packages/reservoir/
+COPY packages/backend/package.json ./packages/backend/
+COPY packages/frontend/package.json ./packages/frontend/
 
 # Install dependencies
 RUN pnpm install --frozen-lockfile
+
+# Now copy the rest of the source for the packages we need to build
+COPY packages/shared ./packages/shared
+COPY packages/reservoir ./packages/reservoir
+COPY packages/backend ./packages/backend
 
 # Build packages in order
 RUN pnpm --filter '@logtide/shared' build
@@ -23,8 +33,9 @@ RUN pnpm --filter '@logtide/backend' build
 # Production stage
 FROM node:20-alpine
 
-# Install pnpm
-RUN npm install -g pnpm
+# Install pnpm and runtime dependencies (nc for entrypoint)
+RUN apk add --no-cache netcat-openbsd && \
+    npm install -g pnpm
 
 WORKDIR /app
 
@@ -33,8 +44,9 @@ COPY pnpm-workspace.yaml package.json pnpm-lock.yaml ./
 COPY packages/shared/package.json ./packages/shared/
 COPY packages/reservoir/package.json ./packages/reservoir/
 COPY packages/backend/package.json ./packages/backend/
+COPY packages/frontend/package.json ./packages/frontend/
 
-# Install production dependencies (tsx is in dependencies for runtime scripts)
+# Install production dependencies
 RUN pnpm install --frozen-lockfile --prod
 
 # Copy built files
