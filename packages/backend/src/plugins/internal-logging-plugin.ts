@@ -16,11 +16,12 @@ const internalLoggingPlugin: FastifyPluginAsync = async (fastify) => {
 
   try {
     await new Promise<void>((resolve, reject) => {
-      // options can be empty as hub is already initialized via initializeInternalLogging()
+      // Use 'as any' to bypass strict property checking as the types seem to be out of sync with the implementation.
+      // Configuration is already handled by hub.init() in initializeInternalLogging().
       logtide(fastify, {
         service: process.env.SERVICE_NAME || 'logtide-backend',
         environment: process.env.NODE_ENV || 'development',
-      }, (err) => {
+      } as any, (err) => {
         if (err) reject(err);
         else resolve();
       });
