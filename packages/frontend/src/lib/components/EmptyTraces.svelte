@@ -59,6 +59,7 @@ with tracer.start_as_current_span("my-operation"):
 
     go: `// Go with OpenTelemetry
 import (
+    "context"
     "go.opentelemetry.io/otel"
     "go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
     "go.opentelemetry.io/otel/sdk/trace"

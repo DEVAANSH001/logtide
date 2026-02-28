@@ -410,6 +410,13 @@
       yAxis: {
         type: "value",
         ...axisStyle,
+        axisLabel: {
+          ...axisStyle.axisLabel,
+          formatter: (value: number) => {
+            if (Number.isInteger(value)) return value.toString();
+            return value.toFixed(2);
+          }
+        },
       },
       series,
     };
@@ -797,7 +804,7 @@
                     </TableCell>
                     <TableCell class="font-mono text-sm font-medium">
                       {typeof point.value === "number"
-                        ? point.value.toFixed(4)
+                        ? point.value.toFixed(2)
                         : point.value}
                     </TableCell>
                     <TableCell>

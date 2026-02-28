@@ -62,6 +62,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **OTLP Authentication**: fixed `authPlugin` to correctly handle `/v1/otlp` routes, allowing API Key authentication without requiring a valid user session.
 - **LogTide JavaScript SDKs**: updated `@logtide/core`, `@logtide/fastify`, and `@logtide/sveltekit` to version `0.6.1` for improved OTLP compatibility and TraceID/SpanID serialization.
 - **Frontend Environment Loading**: fixed DSN loading in SvelteKit by using `$env/dynamic/public` and added Vite proxy for `/v1/otlp` to avoid CORS issues in development.
+- **LogTide SDK patterns update**: Updated all code examples in the dashboard, empty states, and onboarding flow to use the latest patterns from the `logtide-javascript` and `logtide-sdk-python` repositories.
+  - Node.js examples now use `@logtide/core` with `hub.init()` and `hub.captureLog()` pattern.
+  - Python examples now use the `logtide` package with `LogTideClient` and `client.info()` / `client.error()` methods.
+  - Added correct Go OpenTelemetry examples in the Traces empty state.
 - **Frontend warning cleanup**: eliminated all 46 TypeScript and Svelte compiler warnings across the codebase (26 unused imports/variables, 4 deprecated `<svelte:component>` usages, 7 a11y label warnings, 2 non-reactive bindings, and miscellaneous Svelte 5 migration issues)
 - **Pagination total count**: search and incidents pages now show total count ("Showing 1 to 25 of ~1,234 logs") instead of incrementing per-page — logs use fast approximate count via EXPLAIN planner estimates (no full table scan), incidents use exact COUNT(*); stale cache entries with missing totals are automatically invalidated
 - **Admin dashboard timeline gaps (ClickHouse)**: periodic drops to zero in Platform Activity chart caused by bucket key format mismatch — ClickHouse produced ISO timestamps (`2026-02-26T13:00:00.000Z`) while PostgreSQL produced text format (`2026-02-26 13:00:00+00`), preventing merge; now all bucket keys are normalized to ISO format and all 24 hourly buckets are pre-filled to eliminate gaps

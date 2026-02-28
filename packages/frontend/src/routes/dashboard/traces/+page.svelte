@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from "svelte";
+  import { onMount, untrack } from "svelte";
   import { page } from "$app/state";
   import { goto } from "$app/navigation";
   import { currentOrganization } from "$lib/stores/organization";
@@ -163,25 +163,28 @@
 
   // React to project or time range changes
   $effect(() => {
-    const _proj = selectedProject;
-    const _tr = timeRangeType;
+    // track
+    selectedProject;
+    timeRangeType;
 
-    if (!selectedProject) {
-      traces = [];
-      totalTraces = 0;
-      stats = null;
-      availableServices = [];
-      mapData = null;
-      return;
-    }
+    untrack(() => {
+      if (!selectedProject) {
+        traces = [];
+        totalTraces = 0;
+        stats = null;
+        availableServices = [];
+        mapData = null;
+        return;
+      }
 
-    currentPage = 1;
-    loadTraces();
-    loadServices();
+      currentPage = 1;
+      loadTraces();
+      loadServices();
 
-    if (activeView === 'map') {
-      loadMap();
-    }
+      if (activeView === 'map') {
+        loadMap();
+      }
+    });
   });
 
   async function loadTraces() {
@@ -760,7 +763,7 @@
                   variant="outline"
                   size="sm"
                   onclick={nextPage}
-                  disabled={currentPage === totalPages || isLoading}
+                  disabled={currentPage >= totalPages || isLoading}
                 >
                   Next
                   <ChevronRight class="w-4 h-4" />
