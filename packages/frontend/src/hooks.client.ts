@@ -1,14 +1,14 @@
 import { hub } from '@logtide/core';
 import { initLogtide, logtideHandleError } from '@logtide/sveltekit';
+import { env } from '$env/dynamic/public';
 
 // Initialize client-side logging
-// import.meta.env is replaced at build time by Vite; for Docker runtime use $env/dynamic/public in components
-const dsn = import.meta.env.PUBLIC_LOGTIDE_DSN || '';
+const dsn = env.PUBLIC_LOGTIDE_DSN || '';
 if (dsn) {
   initLogtide({
     dsn,
     service: 'logtide-frontend-client',
-    environment: import.meta.env.MODE,
+    environment: 'development',
   });
 
   // Capture initial page load
