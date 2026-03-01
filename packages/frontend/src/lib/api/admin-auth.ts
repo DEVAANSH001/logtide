@@ -56,7 +56,7 @@ export class AdminAuthAPI {
     const response = await fetch(`${getApiBaseUrl()}${path}`, {
       ...options,
       headers: {
-        'Content-Type': 'application/json',
+        ...(options.body ? { 'Content-Type': 'application/json' } : {}),
         Authorization: `Bearer ${token}`,
         ...options.headers,
       },

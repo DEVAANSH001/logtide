@@ -186,7 +186,7 @@ export class AlertsAPI {
     const response = await fetch(`${getApiUrl()}${endpoint}`, {
       ...options,
       headers: {
-        'Content-Type': 'application/json',
+        ...(options.body ? { 'Content-Type': 'application/json' } : {}),
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
         ...options.headers,
       },

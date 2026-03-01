@@ -46,7 +46,7 @@ export interface TestChannelResult {
 async function fetchWithAuth(url: string, options: RequestInit = {}): Promise<Response> {
   const token = getAuthToken();
   const headers: HeadersInit = {
-    'Content-Type': 'application/json',
+    ...(options.body ? { 'Content-Type': 'application/json' } : {}),
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
     ...(options.headers || {}),
   };
