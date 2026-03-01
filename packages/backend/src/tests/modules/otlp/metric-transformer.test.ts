@@ -1488,7 +1488,7 @@ describe('OTLP Metric Transformer', () => {
       expect(result[0].exemplars![0].spanId).toBe(spanIdHex);
     });
 
-    it('should return raw ID if it contains non-hex chars but is not valid base64', () => {
+    it('should return undefined if traceId contains non-hex chars and is not valid base64', () => {
       const request = singleMetricRequest({
         name: 'g',
         gauge: {
@@ -1502,7 +1502,7 @@ describe('OTLP Metric Transformer', () => {
         },
       });
       const result = transformOtlpToMetrics(request);
-      expect(result[0].exemplars![0].traceId).toBe('not-hex-and-not-base64!!!');
+      expect(result[0].exemplars![0].traceId).toBeUndefined();
     });
 
     it('should return undefined for all-zeros traceId even if base64 encoded', () => {

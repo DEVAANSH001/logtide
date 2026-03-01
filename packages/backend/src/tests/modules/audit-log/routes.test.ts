@@ -502,7 +502,7 @@ describe('Audit Log Routes', () => {
       expect(lines[1]).toContain('test@example.com');
       expect(lines[1]).toContain('test_action');
       expect(lines[1]).toContain('config_change');
-      expect(lines[1]).toContain('{"foo":"bar"}');
+      expect(lines[1]).toContain('"{""foo"":""bar""}"');
     });
 
     it('should filter export by category', async () => {

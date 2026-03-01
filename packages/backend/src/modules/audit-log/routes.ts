@@ -150,8 +150,9 @@ export async function auditLogRoutes(fastify: FastifyInstance) {
 
         const formatRow = (e: any) => {
           const meta = e.metadata ? JSON.stringify(e.metadata) : '';
+          const timeStr = e.time instanceof Date ? e.time.toISOString() : new Date(e.time).toISOString();
           return [
-            escape(e.time?.toISOString?.() ?? String(e.time)),
+            escape(timeStr),
             escape(e.user_email),
             escape(e.category),
             escape(e.action),
@@ -163,9 +164,8 @@ export async function auditLogRoutes(fastify: FastifyInstance) {
           ].join(',');
         };
 
-        reply
-          .header('Content-Type', 'text/csv')
-          .header('Content-Disposition', `attachment; filename="audit-log-${new Date().toISOString().slice(0, 10)}.csv"`);
+        reply.raw.setHeader('Content-Type', 'text/csv');
+        reply.raw.setHeader('Content-Disposition', `attachment; filename="audit-log-${new Date().toISOString().slice(0, 10)}.csv"`);
 
         const csvHeader = 'Time,User,Category,Action,Resource Type,Resource ID,IP Address,User Agent,Details\n';
         reply.raw.write(csvHeader);

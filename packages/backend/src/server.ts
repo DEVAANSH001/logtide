@@ -67,10 +67,9 @@ export async function build(opts = {}) {
       const bodyStr = body?.toString()?.trim() || '';
       if (!bodyStr) {
         // Empty body - return empty object
-        done(null, {});
-      } else {
-        done(null, JSON.parse(bodyStr));
+        return done(null, {});
       }
+      return done(null, JSON.parse(bodyStr));
     } catch (err: any) {
       const error = new Error(`Invalid JSON: ${err.message}`);
       (error as any).statusCode = 400;

@@ -506,15 +506,26 @@ function normalizeHexId(id?: string): string | undefined {
   if (/^0+$/.test(id)) return undefined;
 
   // Check if it's base64 encoded (from protobuf toObject with bytes: String)
-  if (id.length > 0 && !/^[0-9a-fA-F]+$/.test(id)) {
+  // Base64 strings are multiples of 4 and contain only valid base64 characters
+  const isBase64 = id.length > 0 && 
+                  id.length % 4 === 0 && 
+                  /^[A-Za-z0-9+/]+={0,2}$/.test(id) &&
+                  !/^[0-9a-fA-F]+$/.test(id);
+
+  if (isBase64) {
     try {
       const buffer = Buffer.from(id, 'base64');
       const hex = buffer.toString('hex');
       if (/^0+$/.test(hex)) return undefined;
       return hex;
     } catch {
-      return id;
+      return undefined;
     }
+  }
+
+  // If it's not hex, it's invalid
+  if (!/^[0-9a-fA-F]+$/.test(id)) {
+    return undefined;
   }
 
   return id;

@@ -50,7 +50,7 @@ const priorityToLevel = (priority: number | string): string => {
 };
 
 // Extract hostname from various log formats
-const extractHostname = (data: any): string | undefined => {
+export const extractHostname = (data: any): string | undefined => {
   // Direct hostname field (most explicit)
   if (data.hostname) return data.hostname;
   // Journald format
