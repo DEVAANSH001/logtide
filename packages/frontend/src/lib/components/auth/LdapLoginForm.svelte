@@ -5,7 +5,7 @@
   import Label from '$lib/components/ui/label/label.svelte';
   import { Alert, AlertDescription } from '$lib/components/ui/alert';
   import Spinner from '$lib/components/Spinner.svelte';
-  import { ArrowLeft } from 'lucide-svelte';
+  import { ArrowLeft } from '@lucide/svelte';
 
   interface Props {
     provider: AuthProvider;

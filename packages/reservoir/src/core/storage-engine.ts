@@ -30,6 +30,17 @@ import type {
   IngestSpansResult,
   ServiceDependencyResult,
   DeleteSpansByTimeRangeParams,
+  MetricRecord,
+  MetricQueryParams,
+  MetricQueryResult,
+  MetricAggregateParams,
+  MetricAggregateResult,
+  MetricNamesParams,
+  MetricNamesResult,
+  MetricLabelParams,
+  MetricLabelResult,
+  IngestMetricsResult,
+  DeleteMetricsByTimeRangeParams,
 } from './types.js';
 
 /**
@@ -87,6 +98,9 @@ export abstract class StorageEngine {
   /** Count logs matching filters */
   abstract count(params: CountParams): Promise<CountResult>;
 
+  /** Estimate count using query planner (fast, approximate) */
+  abstract countEstimate(params: CountParams): Promise<CountResult>;
+
   /** Get distinct values for a field */
   abstract distinct(params: DistinctParams): Promise<DistinctResult>;
 
@@ -127,4 +141,29 @@ export abstract class StorageEngine {
 
   /** Delete spans by time range */
   abstract deleteSpansByTimeRange(params: DeleteSpansByTimeRangeParams): Promise<DeleteResult>;
+
+  // =========================================================================
+  // Metric Operations
+  // =========================================================================
+
+  /** Ingest a batch of metric data points */
+  abstract ingestMetrics(metrics: MetricRecord[]): Promise<IngestMetricsResult>;
+
+  /** Query raw metric data points */
+  abstract queryMetrics(params: MetricQueryParams): Promise<MetricQueryResult>;
+
+  /** Aggregate metrics into time buckets */
+  abstract aggregateMetrics(params: MetricAggregateParams): Promise<MetricAggregateResult>;
+
+  /** List distinct metric names for a project */
+  abstract getMetricNames(params: MetricNamesParams): Promise<MetricNamesResult>;
+
+  /** Get distinct label keys for a specific metric */
+  abstract getMetricLabelKeys(params: MetricLabelParams): Promise<MetricLabelResult>;
+
+  /** Get distinct label values for a specific metric + label key */
+  abstract getMetricLabelValues(params: MetricLabelParams, labelKey: string): Promise<MetricLabelResult>;
+
+  /** Delete metrics by time range */
+  abstract deleteMetricsByTimeRange(params: DeleteMetricsByTimeRangeParams): Promise<DeleteResult>;
 }

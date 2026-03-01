@@ -44,29 +44,11 @@
   import Pencil from '@lucide/svelte/icons/pencil';
   import Trash2 from '@lucide/svelte/icons/trash-2';
   import FlaskConical from '@lucide/svelte/icons/flask-conical';
-  import ArrowLeft from '@lucide/svelte/icons/arrow-left';
   import Lock from '@lucide/svelte/icons/lock';
   import Check from '@lucide/svelte/icons/check';
   import X from '@lucide/svelte/icons/x';
-  import { layoutStore } from '$lib/stores/layout';
 
   let token: string | null = null;
-  let maxWidthClass = $state("max-w-7xl");
-  let containerPadding = $state("px-6 py-8");
-
-  $effect(() => {
-    const unsubscribe = layoutStore.maxWidthClass.subscribe((value) => {
-      maxWidthClass = value;
-    });
-    return unsubscribe;
-  });
-
-  $effect(() => {
-    const unsubscribe = layoutStore.containerPadding.subscribe((value) => {
-      containerPadding = value;
-    });
-    return unsubscribe;
-  });
   let currentOrg = $state<any>(null);
 
   let loading = $state(true);
@@ -278,22 +260,7 @@
   <title>Identifier Patterns - LogTide</title>
 </svelte:head>
 
-<div class="container mx-auto space-y-6 {containerPadding} {maxWidthClass}">
-  <div class="flex items-center gap-4">
-    <Button variant="ghost" size="icon" onclick={() => goto('/dashboard/settings')}>
-      <ArrowLeft class="w-4 h-4" />
-    </Button>
-    <div>
-      <h1 class="text-3xl font-bold tracking-tight">Identifier Patterns</h1>
-      <div class="flex items-center gap-2 mt-1">
-        <Fingerprint class="w-4 h-4 text-muted-foreground" />
-        <p class="text-muted-foreground">
-          Configure patterns for extracting identifiers from logs
-        </p>
-      </div>
-    </div>
-  </div>
-
+<div class="space-y-6">
   <!-- Custom Patterns -->
   <Card>
     <CardHeader>

@@ -288,7 +288,7 @@ function createSiemStore() {
 					break;
 
 				default:
-					console.log('Unknown SSE event type:', event.type);
+					break;
 			}
 		},
 

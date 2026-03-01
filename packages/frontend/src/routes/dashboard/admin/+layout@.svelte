@@ -8,7 +8,7 @@
         Settings,
         KeyRound,
         HeartPulse,
-    } from "lucide-svelte";
+    } from "@lucide/svelte";
     import { cn } from "$lib/utils";
     import Footer from "$lib/components/Footer.svelte";
     import type { Snippet } from "svelte";

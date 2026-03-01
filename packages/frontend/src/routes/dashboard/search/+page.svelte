@@ -68,6 +68,7 @@
   let token = $state<string | null>(null);
   let projects = $state<Project[]>([]);
   let logs = $state<LogEntry[]>([]);
+  let totalLogs = $state(0);
   let hasMoreLogs = $state(false);
   let expandedRows = $state(new Set<number>());
   let isLoading = $state(false);
@@ -459,9 +460,11 @@
       });
 
       logs = response.logs;
+      totalLogs = response.total;
       hasMoreLogs = response.hasMore ?? (response.logs.length >= pageSize);
     } catch (e) {
       console.error("Failed to load logs:", e);
+      toastStore.error("Failed to load logs. Please try again.");
       logs = [];
       hasMoreLogs = false;
     } finally {
@@ -569,9 +572,8 @@
   });
 
   let paginatedLogs = $derived(logs);
-  let filteredLogs = $derived(logs);
-
-  let effectiveTotalLogs = $derived(logs.length);
+  let effectiveTotalLogs = $derived(totalLogs > 0 ? totalLogs : logs.length);
+  let totalPages = $derived(totalLogs > 0 ? Math.ceil(totalLogs / pageSize) : 0);
 
   // Track when live tail is activated for checklist
   let hasActivatedLiveTail = $state(false);
@@ -723,11 +725,9 @@
     // Mark as loading
     toLoad.forEach(id => loadingLogIds.add(id));
 
-    console.log("[Correlation] Loading identifiers for", toLoad.length, "logs");
     loadingIdentifiers = true;
     try {
       const result = await correlationAPI.getLogIdentifiersBatch(toLoad);
-      console.log("[Correlation] Got result:", Object.keys(result).length, "logs with identifiers");
       const newMap = new Map(logIdentifiers);
       for (const [logId, identifiers] of Object.entries(result)) {
         newMap.set(logId, identifiers);
@@ -1459,7 +1459,7 @@
                 <TableBody>
                   {#each paginatedLogs as log, i}
                     {@const globalIndex = i}
-                    <TableRow data-log-row class="{selectedLogIndex === globalIndex ? 'bg-accent/50 ring-1 ring-primary/30' : ''}">
+                    <TableRow data-log-row class={selectedLogIndex === globalIndex ? 'bg-accent/50 ring-1 ring-primary/30' : ''}>
                       <TableCell class="font-mono text-xs">
                         {formatDateTime(log.time)}
                       </TableCell>
@@ -1630,7 +1630,11 @@
             {#if !liveTail && logs.length > 0}
               <div class="flex items-center justify-between mt-6 px-2">
                 <div class="text-sm text-muted-foreground">
-                  Showing {(currentPage - 1) * pageSize + 1} to {(currentPage - 1) * pageSize + logs.length} logs
+                  {#if totalLogs > 0}
+                    Showing {(currentPage - 1) * pageSize + 1} to {Math.min(currentPage * pageSize, totalLogs)} of {totalLogs.toLocaleString()} logs
+                  {:else}
+                    Showing {(currentPage - 1) * pageSize + 1} to {(currentPage - 1) * pageSize + logs.length} logs
+                  {/if}
                 </div>
                 <div class="flex items-center gap-2">
                   <Button
@@ -1643,7 +1647,7 @@
                     Previous
                   </Button>
                   <span class="text-sm text-muted-foreground px-3">
-                    Page {currentPage}
+                    Page {currentPage}{#if totalPages > 0} of {totalPages}{/if}
                   </span>
                   <Button
                     variant="outline"
@@ -1680,7 +1684,7 @@
 
 <ExportLogsDialog
   bind:open={exportDialogOpen}
-  totalLogs={logs.length}
+  totalLogs={totalLogs}
   filters={exportFilters}
 />
 

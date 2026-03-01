@@ -1,6 +1,6 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
-  import { page } from '$app/stores';
+  import { page } from '$app/state';
   import { onMount } from 'svelte';
   import { authStore } from '$lib/stores/auth';
   import { organizationStore } from '$lib/stores/organization';
@@ -20,9 +20,9 @@
   onMount(async () => {
     try {
       // Get token from URL params (set by backend callback redirect)
-      const token = $page.url.searchParams.get('token');
-      const expires = $page.url.searchParams.get('expires');
-      const isNewUser = $page.url.searchParams.get('new_user') === 'true';
+      const token = page.url.searchParams.get('token');
+      const expires = page.url.searchParams.get('expires');
+      const isNewUser = page.url.searchParams.get('new_user') === 'true';
 
       if (!token) {
         error = 'No authentication token received. Please try logging in again.';

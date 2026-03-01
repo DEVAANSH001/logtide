@@ -41,6 +41,9 @@
   </CardHeader>
   <CardContent>
     <div class="space-y-3">
+      {#if errors.length === 0}
+        <p class="text-sm text-muted-foreground text-center py-4">No recent errors</p>
+      {/if}
       {#each errors as error, index (`${error.time}-${error.service}-${index}`)}
         <button
           type="button"

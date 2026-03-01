@@ -6,6 +6,7 @@ import { MITREMapper } from './mitre-mapper.js';
 import { authenticate } from '../auth/middleware.js';
 import { OrganizationsService } from '../organizations/service.js';
 import { notificationChannelsService } from '../notification-channels/index.js';
+import { auditLogService } from '../audit-log/service.js';
 
 const sigmaService = new SigmaService();
 const organizationsService = new OrganizationsService();
@@ -99,6 +100,19 @@ export async function sigmaRoutes(fastify: FastifyInstance) {
         if (result.errors.length > 0) {
           return reply.code(400).send(result);
         }
+
+        auditLogService.log({
+          organizationId: body.organizationId,
+          userId: request.user.id,
+          userEmail: request.user.email,
+          action: 'import_sigma_rule',
+          category: 'config_change',
+          resourceType: 'sigma_rule',
+          resourceId: result.sigmaRule?.id,
+          ipAddress: request.ip,
+          userAgent: request.headers['user-agent'],
+          metadata: { title: result.sigmaRule?.title },
+        });
 
         return reply.send(result);
       } catch (error) {
@@ -319,6 +333,20 @@ export async function sigmaRoutes(fastify: FastifyInstance) {
 
       // Fetch updated rule to return
       const updatedRule = await sigmaService.getSigmaRuleById(params.id, body.organizationId);
+
+      auditLogService.log({
+        organizationId: body.organizationId,
+        userId: request.user.id,
+        userEmail: request.user.email,
+        action: body.enabled !== undefined ? (body.enabled ? 'enable_sigma_rule' : 'disable_sigma_rule') : 'update_sigma_rule',
+        category: 'config_change',
+        resourceType: 'sigma_rule',
+        resourceId: params.id,
+        ipAddress: request.ip,
+        userAgent: request.headers['user-agent'],
+        metadata: { enabled: body.enabled, channelIds: body.channelIds },
+      });
+
       return reply.send({ rule: updatedRule });
     }
   );
@@ -392,6 +420,18 @@ export async function sigmaRoutes(fastify: FastifyInstance) {
         query.organizationId,
         query.deleteAlertRule
       );
+
+      auditLogService.log({
+        organizationId: query.organizationId,
+        userId: request.user.id,
+        userEmail: request.user.email,
+        action: 'delete_sigma_rule',
+        category: 'config_change',
+        resourceType: 'sigma_rule',
+        resourceId: params.id,
+        ipAddress: request.ip,
+        userAgent: request.headers['user-agent'],
+      });
 
       return reply.send({ success: true });
     }

@@ -191,8 +191,9 @@
                   </div>
                   <p class="text-sm truncate">{log.message}</p>
                   {#if log.metadata && Object.keys(log.metadata).length > 0}
-                    <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_noninteractive_element_interactions -->
-                    <details class="text-xs mt-2" onclick={(e) => e.stopPropagation()}>
+                    <!-- svelte-ignore a11y_click_events_have_key_events -->
+                    <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+                    <details class="text-xs mt-2" onclick={(e: MouseEvent) => e.stopPropagation()}>
                       <summary class="cursor-pointer text-muted-foreground hover:text-foreground">
                         View metadata
                       </summary>

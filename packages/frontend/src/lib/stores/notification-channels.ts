@@ -4,7 +4,6 @@ import {
   type NotificationChannel,
   type CreateNotificationChannelInput,
   type UpdateNotificationChannelInput,
-  type NotificationChannelType,
   type NotificationEventType,
 } from '$lib/api/notification-channels';
 

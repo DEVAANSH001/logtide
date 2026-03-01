@@ -71,9 +71,16 @@
 			},
 			yAxis: {
 				type: 'value',
-				...axisStyle
-			},
-			series: [
+				minInterval: 1,
+				...axisStyle,
+				axisLabel: {
+					...axisStyle.axisLabel,
+					formatter: (value: number) => {
+						if (value % 1 !== 0) return '';
+						return value.toLocaleString();
+					}
+				}
+			},			series: [
 				{
 					name: 'Detections',
 					type: 'line',

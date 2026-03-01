@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { projectsService } from './service.js';
 import { authenticate } from '../auth/middleware.js';
+import { auditLogService } from '../audit-log/index.js';
 
 const createProjectSchema = z.object({
   organizationId: z.string().uuid('Invalid organization ID'),
@@ -82,6 +83,19 @@ export async function projectsRoutes(fastify: FastifyInstance) {
         description: body.description,
       });
 
+      auditLogService.log({
+        organizationId: body.organizationId,
+        userId: request.user.id,
+        userEmail: request.user.email,
+        action: 'create_project',
+        category: 'config_change',
+        resourceType: 'project',
+        resourceId: project.id,
+        ipAddress: request.ip,
+        userAgent: request.headers['user-agent'],
+        metadata: { name: project.name },
+      });
+
       return reply.status(201).send({ project });
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -122,6 +136,19 @@ export async function projectsRoutes(fastify: FastifyInstance) {
         });
       }
 
+      auditLogService.log({
+        organizationId: project.organizationId,
+        userId: request.user.id,
+        userEmail: request.user.email,
+        action: 'update_project',
+        category: 'config_change',
+        resourceType: 'project',
+        resourceId: id,
+        ipAddress: request.ip,
+        userAgent: request.headers['user-agent'],
+        metadata: body,
+      });
+
       return reply.send({ project });
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -155,6 +182,13 @@ export async function projectsRoutes(fastify: FastifyInstance) {
     try {
       const { id } = projectIdSchema.parse(request.params);
 
+      const project = await projectsService.getProjectById(id, request.user.id);
+      if (!project) {
+        return reply.status(404).send({
+          error: 'Project not found',
+        });
+      }
+
       const deleted = await projectsService.deleteProject(id, request.user.id);
 
       if (!deleted) {
@@ -162,6 +196,18 @@ export async function projectsRoutes(fastify: FastifyInstance) {
           error: 'Project not found',
         });
       }
+
+      auditLogService.log({
+        organizationId: project.organizationId,
+        userId: request.user.id,
+        userEmail: request.user.email,
+        action: 'delete_project',
+        category: 'data_modification',
+        resourceType: 'project',
+        resourceId: id,
+        ipAddress: request.ip,
+        userAgent: request.headers['user-agent'],
+      });
 
       return reply.status(204).send();
     } catch (error) {

@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { page } from '$app/stores';
+	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
 	import { browser } from '$app/environment';
 	import { currentOrganization } from '$lib/stores/organization';
@@ -38,14 +38,12 @@
 		return unsubscribe;
 	});
 
-	const projectId = $derived($page.params.id);
+	const projectId = $derived(page.params.id);
 
-	const currentPath = $derived($page.url.pathname);
-	const currentTab = $derived(() => {
-		if (currentPath.endsWith('/alerts')) return 'alerts';
-		if (currentPath.endsWith('/settings')) return 'settings';
-		return 'logs';
-	});
+	const currentPath = $derived(page.url.pathname);
+	const currentTab = $derived(
+		currentPath.endsWith('/alerts') ? 'alerts' : 'settings'
+	);
 
 	async function loadProject(orgId: string, projId: string) {
 		loading = true;
@@ -88,7 +86,7 @@
 	// Handle tab change
 	function handleTabChange(tab: string) {
 		const basePath = `/dashboard/projects/${projectId}`;
-		if (tab === 'logs') {
+		if (tab === 'settings') {
 			goto(basePath);
 		} else {
 			goto(`${basePath}/${tab}`);
@@ -111,11 +109,10 @@
 			{/if}
 		</div>
 
-		<Tabs.Root value={currentTab()} onValueChange={handleTabChange}>
-			<Tabs.List class="grid w-full grid-cols-3">
-				<Tabs.Trigger value="logs">Logs</Tabs.Trigger>
+		<Tabs.Root value={currentTab} onValueChange={handleTabChange}>
+			<Tabs.List class="grid w-full grid-cols-2">
+				<Tabs.Trigger value="settings">API Keys & Settings</Tabs.Trigger>
 				<Tabs.Trigger value="alerts">Alerts</Tabs.Trigger>
-				<Tabs.Trigger value="settings">Settings</Tabs.Trigger>
 			</Tabs.List>
 		</Tabs.Root>
 

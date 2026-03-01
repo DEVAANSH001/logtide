@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { page } from '$app/stores';
+  import { page } from '$app/state';
   import { goto } from '$app/navigation';
   import { authStore } from '$lib/stores/auth';
   import { organizationStore } from '$lib/stores/organization';
@@ -27,7 +27,7 @@
     expiresAt: Date;
   }
 
-  let token = $derived($page.params.token);
+  let token = $derived(page.params.token);
   let user = $state<any>(null);
   let authToken = $state<string | null>(null);
 

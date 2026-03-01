@@ -8,7 +8,7 @@ test.describe('Empty States', () => {
   test.beforeAll(async () => {
     // Create a fresh user with no data
     const email = generateTestEmail();
-    const { user, token } = await registerUser(generateTestName('Empty'), email, 'TestPassword123!');
+    const { token } = await registerUser(generateTestName('Empty'), email, 'TestPassword123!');
     userToken = token;
 
     // Create org and project for some tests

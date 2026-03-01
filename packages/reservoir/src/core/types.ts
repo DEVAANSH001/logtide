@@ -402,3 +402,172 @@ export interface DeleteSpansByTimeRangeParams {
   to: Date;
   serviceName?: string | string[];
 }
+
+// ============================================================================
+// Metric Types
+// ============================================================================
+
+/** OTLP metric types */
+export type MetricType = 'gauge' | 'sum' | 'histogram' | 'exp_histogram' | 'summary';
+
+/** Histogram/summary bucket data stored in JSONB */
+export interface HistogramData {
+  sum?: number;
+  count?: number;
+  min?: number;
+  max?: number;
+  /** Histogram: bucket counts per explicit bound */
+  bucket_counts?: number[];
+  explicit_bounds?: number[];
+  /** ExponentialHistogram fields */
+  scale?: number;
+  zero_count?: number;
+  positive?: { offset: number; bucket_counts: number[] };
+  negative?: { offset: number; bucket_counts: number[] };
+  /** Summary: quantile values */
+  quantile_values?: Array<{ quantile: number; value: number }>;
+}
+
+/** A single metric exemplar with trace correlation */
+export interface MetricExemplar {
+  exemplarValue: number;
+  exemplarTime?: Date;
+  traceId?: string;
+  spanId?: string;
+  attributes?: Record<string, unknown>;
+}
+
+/** A metric data point record for ingestion */
+export interface MetricRecord {
+  time: Date;
+  organizationId: string;
+  projectId: string;
+  metricName: string;
+  metricType: MetricType;
+  value: number;
+  isMonotonic?: boolean;
+  serviceName: string;
+  attributes?: Record<string, unknown>;
+  resourceAttributes?: Record<string, unknown>;
+  histogramData?: HistogramData;
+  exemplars?: MetricExemplar[];
+}
+
+/** A stored metric record (includes DB-generated id) */
+export interface StoredMetricRecord extends MetricRecord {
+  id: string;
+  hasExemplars: boolean;
+}
+
+/** Parameters for querying raw metric data points */
+export interface MetricQueryParams {
+  organizationId?: string | string[];
+  projectId: string | string[];
+  metricName?: string | string[];
+  metricType?: MetricType | MetricType[];
+  serviceName?: string | string[];
+  from: Date;
+  to: Date;
+  fromExclusive?: boolean;
+  toExclusive?: boolean;
+  /** Filter by label key-value pairs */
+  attributes?: Record<string, string>;
+  limit?: number;
+  offset?: number;
+  sortOrder?: 'asc' | 'desc';
+  includeExemplars?: boolean;
+}
+
+/** Result of a raw metric query */
+export interface MetricQueryResult {
+  metrics: StoredMetricRecord[];
+  total: number;
+  hasMore: boolean;
+  limit: number;
+  offset: number;
+  executionTimeMs?: number;
+}
+
+/** Aggregation function for metric time-series */
+export type MetricAggregationFn = 'avg' | 'sum' | 'min' | 'max' | 'count' | 'last';
+
+/** Parameters for time-series aggregation of metrics */
+export interface MetricAggregateParams {
+  organizationId?: string | string[];
+  projectId: string | string[];
+  metricName: string;
+  metricType?: MetricType;
+  serviceName?: string | string[];
+  from: Date;
+  to: Date;
+  interval: AggregationInterval;
+  aggregation: MetricAggregationFn;
+  /** Group results by these label keys */
+  groupBy?: string[];
+  attributes?: Record<string, string>;
+}
+
+/** A single time bucket in a metric aggregation result */
+export interface MetricTimeBucket {
+  bucket: Date;
+  value: number;
+  labels?: Record<string, string>;
+}
+
+/** Result of a metric aggregation query */
+export interface MetricAggregateResult {
+  metricName: string;
+  metricType: MetricType;
+  timeseries: MetricTimeBucket[];
+  executionTimeMs?: number;
+}
+
+/** Parameters for listing distinct metric names */
+export interface MetricNamesParams {
+  organizationId?: string | string[];
+  projectId: string | string[];
+  metricType?: MetricType | MetricType[];
+  from?: Date;
+  to?: Date;
+  limit?: number;
+}
+
+/** Result of metric name listing */
+export interface MetricNamesResult {
+  names: Array<{ name: string; type: MetricType }>;
+  executionTimeMs?: number;
+}
+
+/** Parameters for label key/value discovery */
+export interface MetricLabelParams {
+  organizationId?: string | string[];
+  projectId: string | string[];
+  metricName: string;
+  from?: Date;
+  to?: Date;
+  limit?: number;
+}
+
+/** Result of metric label query */
+export interface MetricLabelResult {
+  keys?: string[];
+  values?: string[];
+  executionTimeMs?: number;
+}
+
+/** Result of batch metric ingestion */
+export interface IngestMetricsResult {
+  ingested: number;
+  failed: number;
+  durationMs: number;
+  errors?: Array<{ index: number; error: string }>;
+}
+
+/** Parameters for deleting metrics by time range */
+export interface DeleteMetricsByTimeRangeParams {
+  projectId: string | string[];
+  from: Date;
+  to: Date;
+  metricName?: string | string[];
+  serviceName?: string | string[];
+}

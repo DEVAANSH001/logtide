@@ -1,6 +1,6 @@
 import { writable } from 'svelte/store';
 import { browser } from '$app/environment';
-import { authAPI, type AuthConfig } from '$lib/api/auth';
+import { authAPI } from '$lib/api/auth';
 
 interface AuthConfigState {
     authMode: 'standard' | 'none';
@@ -15,7 +15,7 @@ const initialState: AuthConfigState = {
 };
 
 function createAuthConfigStore() {
-    const { subscribe, set, update } = writable<AuthConfigState>(initialState);
+    const { subscribe, set } = writable<AuthConfigState>(initialState);
 
     return {
         subscribe,

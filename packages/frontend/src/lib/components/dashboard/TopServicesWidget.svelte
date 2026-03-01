@@ -22,6 +22,9 @@
   </CardHeader>
   <CardContent>
     <div class="space-y-4">
+      {#if services.length === 0}
+        <p class="text-sm text-muted-foreground text-center py-4">No services yet</p>
+      {/if}
       {#each services as service, index (`${service.name}-${index}`)}
         <button
           type="button"

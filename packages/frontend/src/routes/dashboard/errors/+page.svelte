@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { browser } from '$app/environment';
 	import { goto } from '$app/navigation';
-	import { page } from '$app/stores';
+	import { page } from '$app/state';
 	import { currentOrganization } from '$lib/stores/organization';
 	import {
 		getErrorGroups,
@@ -67,7 +67,7 @@
 	$effect(() => {
 		if (!browser) return;
 
-		const params = $page.url.searchParams;
+		const params = page.url.searchParams;
 		const statusParam = params.get('status');
 		const languageParam = params.get('language');
 		const searchParam = params.get('search');

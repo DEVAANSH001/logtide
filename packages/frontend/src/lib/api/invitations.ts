@@ -33,7 +33,7 @@ export class InvitationsAPI {
     const token = this.getToken();
 
     const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
+      ...(options.body ? { 'Content-Type': 'application/json' } : {}),
     };
 
     if (token) {

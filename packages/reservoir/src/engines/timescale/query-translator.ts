@@ -221,6 +221,62 @@ export class TimescaleQueryTranslator extends QueryTranslator {
     return { query, parameters: values };
   }
 
+  translateCountEstimate(params: CountParams): NativeQuery {
+    const conditions: string[] = [];
+    const values: unknown[] = [];
+    let idx = 1;
+
+    if (params.organizationId !== undefined) {
+      idx = this.pushFilter(conditions, values, idx, 'organization_id', params.organizationId);
+    }
+    if (params.projectId !== undefined) {
+      idx = this.pushFilter(conditions, values, idx, 'project_id', params.projectId);
+    }
+    if (params.service !== undefined) {
+      idx = this.pushFilter(conditions, values, idx, 'service', params.service);
+    }
+    if (params.level !== undefined) {
+      idx = this.pushFilter(conditions, values, idx, 'level', params.level);
+    }
+    if (params.hostname !== undefined) {
+      this.validateArrayFilter('hostname', params.hostname);
+      if (Array.isArray(params.hostname)) {
+        conditions.push(`metadata->>'hostname' = ANY($${idx})`);
+        values.push(params.hostname);
+        idx++;
+      } else {
+        conditions.push(`metadata->>'hostname' = $${idx}`);
+        values.push(params.hostname);
+        idx++;
+      }
+    }
+    if (params.traceId !== undefined) {
+      conditions.push(`trace_id = $${idx}`);
+      values.push(params.traceId);
+      idx++;
+    }
+    conditions.push(`time ${params.fromExclusive ? '>' : '>='} $${idx}`);
+    values.push(params.from);
+    idx++;
+    conditions.push(`time ${params.toExclusive ? '<' : '<='} $${idx}`);
+    values.push(params.to);
+
+    if (params.search) {
+      idx++;
+      if (params.searchMode === 'substring') {
+        conditions.push(`message ILIKE $${idx}`);
+        values.push(`%${escapeIlike(params.search)}%`);
+      } else {
+        conditions.push(`to_tsvector('english', message) @@ plainto_tsquery('english', $${idx})`);
+        values.push(params.search);
+      }
+    }
+
+    const where = ` WHERE ${conditions.join(' AND ')}`;
+    const query = `SELECT 1 FROM ${this.table}${where}`;
+    return { query, parameters: values };
+  }
+
   translateDistinct(params: DistinctParams): NativeQuery {
     this.validateFieldName(params.field);
     this.validatePagination(params.limit);

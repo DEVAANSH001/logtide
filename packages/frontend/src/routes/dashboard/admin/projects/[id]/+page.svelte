@@ -20,7 +20,7 @@
         Shield,
         Trash2,
         Building2,
-    } from "lucide-svelte";
+    } from "@lucide/svelte";
     import { Badge } from "$lib/components/ui/badge";
     import {
         AlertDialog,

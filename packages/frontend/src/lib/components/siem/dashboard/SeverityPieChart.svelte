@@ -13,7 +13,7 @@
 
 	let { distribution }: Props = $props();
 
-	let chartContainer: HTMLDivElement;
+	let chartContainer = $state<HTMLDivElement>();
 	let chart: echarts.ECharts | null = null;
 
 	function getSeverityColor(severity: Severity): string {

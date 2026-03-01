@@ -42,6 +42,23 @@ export type {
   ServiceDependency,
   ServiceDependencyResult,
   DeleteSpansByTimeRangeParams,
+  MetricType,
+  HistogramData,
+  MetricExemplar,
+  MetricRecord,
+  StoredMetricRecord,
+  MetricQueryParams,
+  MetricQueryResult,
+  MetricAggregationFn,
+  MetricAggregateParams,
+  MetricTimeBucket,
+  MetricAggregateResult,
+  MetricNamesParams,
+  MetricNamesResult,
+  MetricLabelParams,
+  MetricLabelResult,
+  IngestMetricsResult,
+  DeleteMetricsByTimeRangeParams,
 } from './core/types.js';
 
 // Core abstractions

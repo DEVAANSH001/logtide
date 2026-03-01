@@ -4,6 +4,7 @@ import { API_KEY_TYPES } from '@logtide/shared';
 import { apiKeysService } from './service.js';
 import { authenticate } from '../auth/middleware.js';
 import { projectsService } from '../projects/service.js';
+import { auditLogService } from '../audit-log/index.js';
 
 const createApiKeySchema = z.object({
   name: z.string().min(1, 'Name is required').max(100, 'Name too long'),
@@ -75,6 +76,19 @@ export async function apiKeysRoutes(fastify: FastifyInstance) {
         allowedOrigins: body.allowedOrigins ?? null,
       });
 
+      auditLogService.log({
+        organizationId: project.organizationId,
+        userId: request.user.id,
+        userEmail: request.user.email,
+        action: 'create_api_key',
+        category: 'config_change',
+        resourceType: 'api_key',
+        resourceId: result.id,
+        ipAddress: request.ip,
+        userAgent: request.headers['user-agent'],
+        metadata: { name: body.name, type: body.type, projectId },
+      });
+
       return reply.status(201).send({
         id: result.id,
         apiKey: result.apiKey,
@@ -113,6 +127,19 @@ export async function apiKeysRoutes(fastify: FastifyInstance) {
           error: 'API key not found',
         });
       }
+
+      auditLogService.log({
+        organizationId: project.organizationId,
+        userId: request.user.id,
+        userEmail: request.user.email,
+        action: 'revoke_api_key',
+        category: 'config_change',
+        resourceType: 'api_key',
+        resourceId: id,
+        ipAddress: request.ip,
+        userAgent: request.headers['user-agent'],
+        metadata: { projectId },
+      });
 
       return reply.status(204).send();
     } catch (error) {

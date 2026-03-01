@@ -144,7 +144,7 @@ export async function registerSiemSseRoutes(fastify: FastifyInstance) {
 
             // Check for new/updated incidents (if not watching a specific incident)
             if (!query.incidentId) {
-              const incidents = await siemService.listIncidents({
+              const { incidents } = await siemService.listIncidents({
                 organizationId: query.organizationId,
                 projectId: query.projectId,
                 limit: 20,

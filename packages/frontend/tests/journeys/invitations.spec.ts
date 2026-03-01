@@ -9,7 +9,7 @@ test.describe('Invitations Journey', () => {
   test.beforeAll(async () => {
     // Create organization owner
     const ownerEmail = generateTestEmail();
-    const { user: owner, token } = await registerUser(generateTestName('Owner'), ownerEmail, 'TestPassword123!');
+    const { token } = await registerUser(generateTestName('Owner'), ownerEmail, 'TestPassword123!');
     ownerToken = token;
     ownerApiClient = new TestApiClient(token);
 
@@ -168,12 +168,9 @@ test.describe('Invitations Journey', () => {
   test('6. Owner can revoke a pending invitation', async ({ page }) => {
     // Create an invitation to revoke
     const inviteEmail = generateTestEmail();
-    let invitationId: string | undefined;
-
     try {
       await ownerApiClient.inviteUser(organizationId, inviteEmail, 'member');
-      const pendingResult = await ownerApiClient.getPendingInvitations(organizationId);
-      invitationId = pendingResult.invitations.find(i => i.email === inviteEmail)?.id;
+      await ownerApiClient.getPendingInvitations(organizationId);
     } catch (e) {
       console.warn('Could not create invitation via API:', e);
       return;

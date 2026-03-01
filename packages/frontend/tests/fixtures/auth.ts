@@ -262,7 +262,7 @@ export class TestApiClient {
     return this.request<{ logs: any[]; total: number }>(`/logs?${query}`);
   }
 
-  async createAlertRule(projectId: string, rule: any) {
+  async createAlertRule(_projectId: string, rule: any) {
     // Alerts API uses /alerts endpoint with organizationId and projectId in body
     return this.request<{ alertRule: any }>(`/alerts`, {
       method: 'POST',
@@ -448,7 +448,7 @@ export const test = base.extend<AuthFixtures>({
     const name = generateTestName();
     const password = 'TestPassword123!';
 
-    const { user, token } = await registerUser(name, email, password);
+    const { user, token: _token } = await registerUser(name, email, password);
     await use(user);
   },
 

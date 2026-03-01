@@ -30,6 +30,17 @@ import type {
   IngestSpansResult,
   ServiceDependencyResult,
   DeleteSpansByTimeRangeParams,
+  MetricRecord,
+  MetricQueryParams,
+  MetricQueryResult,
+  MetricAggregateParams,
+  MetricAggregateResult,
+  MetricNamesParams,
+  MetricNamesResult,
+  MetricLabelParams,
+  MetricLabelResult,
+  IngestMetricsResult,
+  DeleteMetricsByTimeRangeParams,
 } from './core/types.js';
 import type { StorageEngine } from './core/storage-engine.js';
 import { StorageEngineFactory } from './factory.js';
@@ -129,6 +140,11 @@ export class Reservoir {
     return this.engine.count(params);
   }
 
+  async countEstimate(params: CountParams): Promise<CountResult> {
+    this.ensureInitialized();
+    return this.engine.countEstimate(params);
+  }
+
   async distinct(params: DistinctParams): Promise<DistinctResult> {
     this.ensureInitialized();
     return this.engine.distinct(params);
@@ -190,6 +206,45 @@ export class Reservoir {
   async deleteSpansByTimeRange(params: DeleteSpansByTimeRangeParams): Promise<DeleteResult> {
     this.ensureInitialized();
     return this.engine.deleteSpansByTimeRange(params);
+  }
+
+  // =========================================================================
+  // Metric Operations
+  // =========================================================================
+
+  async ingestMetrics(metrics: MetricRecord[]): Promise<IngestMetricsResult> {
+    this.ensureInitialized();
+    return this.engine.ingestMetrics(metrics);
+  }
+
+  async queryMetrics(params: MetricQueryParams): Promise<MetricQueryResult> {
+    this.ensureInitialized();
+    return this.engine.queryMetrics(params);
+  }
+
+  async aggregateMetrics(params: MetricAggregateParams): Promise<MetricAggregateResult> {
+    this.ensureInitialized();
+    return this.engine.aggregateMetrics(params);
+  }
+
+  async getMetricNames(params: MetricNamesParams): Promise<MetricNamesResult> {
+    this.ensureInitialized();
+    return this.engine.getMetricNames(params);
+  }
+
+  async getMetricLabelKeys(params: MetricLabelParams): Promise<MetricLabelResult> {
+    this.ensureInitialized();
+    return this.engine.getMetricLabelKeys(params);
+  }
+
+  async getMetricLabelValues(params: MetricLabelParams, labelKey: string): Promise<MetricLabelResult> {
+    this.ensureInitialized();
+    return this.engine.getMetricLabelValues(params, labelKey);
+  }
+
+  async deleteMetricsByTimeRange(params: DeleteMetricsByTimeRangeParams): Promise<DeleteResult> {
+    this.ensureInitialized();
+    return this.engine.deleteMetricsByTimeRange(params);
   }
 
   getEngineType(): EngineType {

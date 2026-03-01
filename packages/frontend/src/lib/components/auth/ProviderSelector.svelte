@@ -2,7 +2,7 @@
   import { authAPI, type AuthProvider } from '$lib/api/auth';
   import Button from '$lib/components/ui/button/button.svelte';
   import Spinner from '$lib/components/Spinner.svelte';
-  import { KeyRound, Building2, Server } from 'lucide-svelte';
+  import { KeyRound, Building2, Server } from '@lucide/svelte';
 
   interface Props {
     onSelectLocal?: () => void;
@@ -79,12 +79,13 @@
 {:else if hasExternalProviders}
   <div class="space-y-3">
     {#each externalProviders as provider}
+      {@const ProviderIcon = getProviderIcon(provider)}
       <Button
         variant="outline"
         class="w-full gap-2"
         onclick={() => handleProviderClick(provider)}
       >
-        <svelte:component this={getProviderIcon(provider)} class="h-4 w-4" />
+        <ProviderIcon class="h-4 w-4" />
         {actionLabel} with {provider.name}
       </Button>
     {/each}

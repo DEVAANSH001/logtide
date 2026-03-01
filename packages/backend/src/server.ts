@@ -22,14 +22,16 @@ import { siemRoutes } from './modules/siem/routes.js';
 import { registerSiemSseRoutes } from './modules/siem/sse-events.js';
 import { adminRoutes } from './modules/admin/index.js';
 import { publicAuthRoutes, authenticatedAuthRoutes, adminAuthRoutes } from './modules/auth/external-routes.js';
-import { otlpRoutes, otlpTraceRoutes } from './modules/otlp/index.js';
+import { otlpRoutes, otlpTraceRoutes, otlpMetricRoutes } from './modules/otlp/index.js';
 import { tracesRoutes } from './modules/traces/index.js';
+import { metricsRoutes } from './modules/metrics/index.js';
 import { onboardingRoutes } from './modules/onboarding/index.js';
 import { exceptionsRoutes } from './modules/exceptions/index.js';
 import { settingsRoutes, publicSettingsRoutes, settingsService } from './modules/settings/index.js';
 import { retentionRoutes } from './modules/retention/index.js';
 import { correlationRoutes, patternRoutes } from './modules/correlation/index.js';
 import { piiMaskingRoutes } from './modules/pii-masking/index.js';
+import { auditLogRoutes, auditLogService } from './modules/audit-log/index.js';
 import { bootstrapService } from './modules/bootstrap/index.js';
 import { notificationChannelsRoutes } from './modules/notification-channels/index.js';
 import internalLoggingPlugin from './plugins/internal-logging-plugin.js';
@@ -54,26 +56,6 @@ export async function build(opts = {}) {
     bodyLimit: 10 * 1024 * 1024,
     trustProxy: config.TRUST_PROXY,
     ...opts,
-  });
-
-  // Override default JSON parser to allow empty bodies (Fastify 5 breaking change)
-  // This is needed because some routes may receive requests with Content-Type: application/json
-  // but empty body (e.g., POST requests without body from some clients)
-  fastify.removeContentTypeParser('application/json');
-  fastify.addContentTypeParser('application/json', { parseAs: 'string' }, (_req, body, done) => {
-    try {
-      const bodyStr = body?.toString()?.trim() || '';
-      if (!bodyStr) {
-        // Empty body - return empty object
-        done(null, {});
-      } else {
-        done(null, JSON.parse(bodyStr));
-      }
-    } catch (err: any) {
-      const error = new Error(`Invalid JSON: ${err.message}`);
-      (error as any).statusCode = 400;
-      done(error, undefined);
-    }
   });
 
   // Global error handler: ensure client errors return proper 4xx, not 500
@@ -126,12 +108,17 @@ export async function build(opts = {}) {
     crossOriginEmbedderPolicy: false,
   });
 
+  const rateLimitKeyGenerator = (request: any) => {
+    const apiKey = request.headers['x-api-key'] || request.headers['authorization']?.replace('Bearer ', '');
+    return apiKey ? `key:${apiKey}` : request.ip;
+  };
+
   const redisConn = getConnection();
   if (isRedisConfigured() && redisConn) {
     await fastify.register(rateLimit, {
       max: config.RATE_LIMIT_MAX,
       timeWindow: config.RATE_LIMIT_WINDOW,
-      keyGenerator: (request) => request.ip,
+      keyGenerator: rateLimitKeyGenerator,
       redis: redisConn,
     });
     console.log('[RateLimit] Using Redis store (distributed rate limiting)');
@@ -139,7 +126,7 @@ export async function build(opts = {}) {
     await fastify.register(rateLimit, {
       max: config.RATE_LIMIT_MAX,
       timeWindow: config.RATE_LIMIT_WINDOW,
-      keyGenerator: (request) => request.ip,
+      keyGenerator: rateLimitKeyGenerator,
     });
     console.log('[RateLimit] Using in-memory store (single instance only)');
   }
@@ -175,6 +162,7 @@ export async function build(opts = {}) {
   await fastify.register(dashboardRoutes);
   await fastify.register(adminRoutes, { prefix: '/api/v1/admin' });
   await fastify.register(settingsRoutes, { prefix: '/api/v1/admin/settings' });
+  await fastify.register(auditLogRoutes, { prefix: '/api/v1/audit-log' });
   await fastify.register(retentionRoutes, { prefix: '/api/v1/admin' });
 
   await fastify.register(authPlugin);
@@ -185,7 +173,9 @@ export async function build(opts = {}) {
   await fastify.register(piiMaskingRoutes, { prefix: '/api' });
   await fastify.register(otlpRoutes);
   await fastify.register(otlpTraceRoutes);
+  await fastify.register(otlpMetricRoutes);
   await fastify.register(tracesRoutes);
+  await fastify.register(metricsRoutes, { prefix: '/api/v1/metrics' });
   await fastify.register(websocketPlugin);
   await fastify.register(websocketRoutes);
 
@@ -197,6 +187,7 @@ async function start() {
 
   await bootstrapService.runInitialBootstrap();
   await initializeInternalLogging();
+  auditLogService.start();
   await enrichmentService.initialize();
   await notificationManager.initialize(config.DATABASE_URL);
 
@@ -210,6 +201,7 @@ async function start() {
 
   const shutdown = async () => {
     console.log('[Server] Shutting down gracefully...');
+    await auditLogService.shutdown();
     await notificationManager.shutdown();
     await shutdownInternalLogging();
     await app.close();
@@ -221,6 +213,14 @@ async function start() {
 
   try {
     await app.listen({ port: PORT, host: HOST });
+
+    // Print startup banner
+    try {
+      const bannerPath = path.resolve(__serverDirname, '../ascii.txt');
+      const banner = readFileSync(bannerPath, 'utf-8');
+      console.log(banner);
+    } catch { /* ascii art file missing, skip */ }
+    console.log(`  LogTide v${packageJson.version} running on ${HOST}:${PORT}\n`);
   } catch (err) {
     (app.log as any).error(err as Error);
     await shutdownInternalLogging();

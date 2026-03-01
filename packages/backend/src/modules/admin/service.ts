@@ -1858,7 +1858,11 @@ export class AdminService {
             }
         }
 
-        // Merge all timelines into a single array by bucket
+        // Normalize bucket key: parse any format to Date, then use ISO string
+        const normalizeBucket = (bucket: string): string =>
+            new Date(bucket).toISOString();
+
+        // Pre-fill all hourly buckets so there are no gaps in the chart
         const bucketMap = new Map<string, {
             bucket: string;
             logsCount: number;
@@ -1866,22 +1870,42 @@ export class AdminService {
             spansCount: number;
         }>();
 
-        for (const row of logsTimeline.rows) {
-            bucketMap.set(row.bucket, {
-                bucket: row.bucket,
-                logsCount: row.count,
+        for (let h = 0; h < hours; h++) {
+            const bucketDate = new Date(since.getTime() + h * 60 * 60 * 1000);
+            bucketDate.setMinutes(0, 0, 0);
+            bucketDate.setMilliseconds(0);
+            const key = bucketDate.toISOString();
+            bucketMap.set(key, {
+                bucket: key,
+                logsCount: 0,
                 detectionsCount: 0,
                 spansCount: 0,
             });
         }
 
-        for (const row of detectionsTimeline.rows) {
-            const existing = bucketMap.get(row.bucket);
+        for (const row of logsTimeline.rows) {
+            const key = normalizeBucket(row.bucket);
+            const existing = bucketMap.get(key);
             if (existing) {
-                existing.detectionsCount = row.count;
+                existing.logsCount += row.count;
             } else {
-                bucketMap.set(row.bucket, {
-                    bucket: row.bucket,
+                bucketMap.set(key, {
+                    bucket: key,
+                    logsCount: row.count,
+                    detectionsCount: 0,
+                    spansCount: 0,
+                });
+            }
+        }
+
+        for (const row of detectionsTimeline.rows) {
+            const key = normalizeBucket(row.bucket);
+            const existing = bucketMap.get(key);
+            if (existing) {
+                existing.detectionsCount += row.count;
+            } else {
+                bucketMap.set(key, {
+                    bucket: key,
                     logsCount: 0,
                     detectionsCount: row.count,
                     spansCount: 0,
@@ -1890,12 +1914,13 @@ export class AdminService {
         }
 
         for (const row of spansTimeline.rows) {
-            const existing = bucketMap.get(row.bucket);
+            const key = normalizeBucket(row.bucket);
+            const existing = bucketMap.get(key);
             if (existing) {
-                existing.spansCount = row.count;
+                existing.spansCount += row.count;
             } else {
-                bucketMap.set(row.bucket, {
-                    bucket: row.bucket,
+                bucketMap.set(key, {
+                    bucket: key,
                     logsCount: 0,
                     detectionsCount: 0,
                     spansCount: row.count,

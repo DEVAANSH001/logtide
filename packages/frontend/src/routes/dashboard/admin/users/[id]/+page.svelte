@@ -37,7 +37,7 @@
         Key,
         Ban,
         CheckCircle,
-    } from "lucide-svelte";
+    } from "@lucide/svelte";
     import { authStore } from "$lib/stores/auth";
 
     const userId = $derived(page.params.id);

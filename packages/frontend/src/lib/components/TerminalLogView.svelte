@@ -87,7 +87,7 @@
 	role="log"
 	aria-live={isLiveTail ? 'polite' : 'off'}
 	aria-label="Terminal log viewer"
-	tabindex="0"
+	tabindex="-1"
 >
 	{#if logs.length === 0}
 		<div class="terminal-empty">

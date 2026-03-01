@@ -420,17 +420,15 @@ describe('DashboardService - Fallback Paths', () => {
             const { organization, project } = await createTestContext();
 
             const now = new Date();
-            // Round to current hour
-            const thisHour = new Date(now.getFullYear(), now.getMonth(), now.getDate(), now.getHours());
 
-            // Create 3 logs in the same hour
+            // Create 3 logs a few seconds in the past (avoids future timestamps near hour start)
             for (let i = 0; i < 3; i++) {
                 await db.insertInto('logs').values({
                     project_id: project.id,
                     service: 'test',
                     level: 'info',
                     message: `Log ${i}`,
-                    time: new Date(thisHour.getTime() + i * 60000), // Each minute apart
+                    time: new Date(now.getTime() - (i + 1) * 1000),
                 }).execute();
             }
 

@@ -30,7 +30,7 @@
         AlertTriangle,
         Clock,
         Save,
-    } from "lucide-svelte";
+    } from "@lucide/svelte";
     import {
         AlertDialog,
         AlertDialogAction,

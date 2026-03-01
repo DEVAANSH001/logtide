@@ -20,7 +20,7 @@
 
 	let { incidents, threshold, timeRange }: Props = $props();
 
-	let chartContainer: HTMLDivElement;
+	let chartContainer = $state<HTMLDivElement>();
 	let chart: echarts.ECharts | null = null;
 	let cleanup: (() => void) | undefined;
 
@@ -133,7 +133,15 @@
 			yAxis: {
 				type: "value",
 				name: "Log Count",
+				minInterval: 1,
 				...axisStyle,
+				axisLabel: {
+					...axisStyle.axisLabel,
+					formatter: (val: number) => {
+						if (val % 1 !== 0) return '';
+						return val.toLocaleString();
+					}
+				},
 			},
 			series: [
 				{

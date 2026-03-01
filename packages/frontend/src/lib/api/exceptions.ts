@@ -14,10 +14,7 @@ export type {
 } from '@logtide/shared';
 
 import type {
-  ExceptionLanguage,
   ErrorGroupStatus,
-  StackFrameRecord,
-  ExceptionRecord,
   ErrorGroup,
   ExceptionWithFrames,
   ErrorGroupFilters,

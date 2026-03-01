@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { browser } from '$app/environment';
 	import { goto } from '$app/navigation';
-	import { page } from '$app/stores';
+	import { page } from '$app/state';
 	import { currentOrganization } from '$lib/stores/organization';
 	import { siemStore, realtimeEnabled, lastSseEvent } from '$lib/stores/siem';
 	import { listIncidents, type Incident, type IncidentStatus, type Severity } from '$lib/api/siem';
@@ -14,7 +14,6 @@
 	import IncidentFilters from '$lib/components/siem/incidents/IncidentFilters.svelte';
 	import EmptyStateSiem from '$lib/components/siem/shared/EmptyStateSiem.svelte';
 	import Shield from '@lucide/svelte/icons/shield';
-	import ArrowLeft from '@lucide/svelte/icons/arrow-left';
 	import RefreshCw from '@lucide/svelte/icons/refresh-cw';
 	import ChevronLeft from '@lucide/svelte/icons/chevron-left';
 	import ChevronRight from '@lucide/svelte/icons/chevron-right';
@@ -58,13 +57,15 @@
 	// Pagination
 	let currentPage = $state(1);
 	let pageSize = $state(20);
+	let totalIncidents = $state(0);
 	let hasMore = $state(false);
+	let totalPages = $derived(totalIncidents > 0 ? Math.ceil(totalIncidents / pageSize) : 0);
 
 	// Initialize filters from URL params
 	$effect(() => {
 		if (!browser) return;
 
-		const params = $page.url.searchParams;
+		const params = page.url.searchParams;
 		const statusParam = params.getAll('status');
 		const severityParam = params.getAll('severity');
 		const serviceParam = params.get('service');
@@ -102,7 +103,8 @@
 			});
 
 			incidents = response.incidents;
-			hasMore = response.incidents.length === pageSize;
+			totalIncidents = response.total;
+			hasMore = (currentPage - 1) * pageSize + response.incidents.length < response.total;
 			lastLoadedOrg = $currentOrganization.id;
 		} catch (e) {
 			error = e instanceof Error ? e.message : 'Failed to load incidents';
@@ -236,13 +238,10 @@
 	<div class="flex items-start justify-between mb-6">
 		<div>
 			<div class="flex items-center gap-3 mb-2">
-				<Button variant="ghost" size="icon" onclick={() => goto('/dashboard/security')}>
-					<ArrowLeft class="w-5 h-5" />
-				</Button>
 				<Shield class="w-8 h-8 text-primary" />
 				<h1 class="text-3xl font-bold tracking-tight">Security Incidents</h1>
 			</div>
-			<p class="text-muted-foreground ml-14">
+			<p class="text-muted-foreground">
 				View and manage security incidents across your organization
 			</p>
 		</div>
@@ -275,7 +274,7 @@
 		/>
 		{#if incidents.length > 0}
 			<p class="text-sm text-muted-foreground">
-				Showing {incidents.length} incident{incidents.length !== 1 ? 's' : ''}
+				Showing {(currentPage - 1) * pageSize + 1} to {Math.min(currentPage * pageSize, totalIncidents)} of {totalIncidents} incident{totalIncidents !== 1 ? 's' : ''}
 				{#if activeFiltersCount > 0}
 					(filtered)
 				{/if}
@@ -315,7 +314,7 @@
 		<!-- Pagination -->
 		<div class="mt-6 flex items-center justify-between">
 			<div class="text-sm text-muted-foreground">
-				Page {currentPage}
+				Page {currentPage}{#if totalPages > 0} of {totalPages}{/if}
 			</div>
 			<div class="flex items-center gap-2">
 				<Button

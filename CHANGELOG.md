@@ -5,6 +5,93 @@ All notable changes to LogTide will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.0] - 2026-02-26
+
+### Added
+
+- **OTLP Metrics Ingestion** (#4): complete OpenTelemetry metrics support, closing the observability stack (logs + traces + metrics)
+  - `POST /v1/otlp/metrics` endpoint with protobuf and JSON support (gzip compression on both)
+  - All 5 OTLP metric types: gauge, sum, histogram, exponential histogram, summary
+  - Exemplar support with trace/span correlation (click metric → see related traces)
+  - `metrics` + `metric_exemplars` TimescaleDB hypertables with compression (7d) and retention (90d)
+  - Full ClickHouse support via reservoir abstraction
+  - Query API: `GET /api/v1/metrics/names`, `/labels/keys`, `/labels/values`, `/data`, `/aggregate`
+  - 7 aggregation intervals (1m–1w) and 6 aggregation functions (avg, sum, min, max, count, last)
+  - Group-by label support for multi-series visualization
+  - Svelte store + API client ready for frontend integration
+  - 118+ tests covering ingestion, transformation, query, and both storage engines
+
+- **Service Dependency Graph & Correlation Analysis** (#40): dedicated service map visualizing microservice interactions
+  - Force-directed graph (ECharts) built from span parent-child relationships + log co-occurrence analysis
+  - Enriched backend endpoint `GET /api/v1/traces/service-map` runs 3 parallel queries: span deps (reservoir), per-service health stats (continuous aggregates), log co-occurrence (trace_id self-join)
+  - Health color-coding on nodes: green (<1% errors), amber (1-10%), red (>10%)
+  - Click-to-inspect side panel showing error rate, avg/p95 latency, total calls, upstream/downstream edges
+  - Dashed edges for log correlation, solid for span-based dependencies
+  - PNG export, time range filtering, project picker
+
+- **Audit Log**: comprehensive audit trail tracking all user actions across the platform for compliance and security (SOC 2, ISO 27001, HIPAA)
+  - Tracks 4 event categories: log access, config changes, user management, data modifications
+  - Logged actions: login, logout, register, create/update/delete organizations, create/update/delete projects, create/revoke API keys, member role changes, member removal, leave organization, admin operations
+  - TimescaleDB hypertable with 7-day chunks, automatic compression (30 days), and retention policy (365 days)
+  - High-performance in-memory buffer with periodic flush (50 entries or 1s interval) for non-blocking writes
+  - Accessible to organization owners and admins via Organization Settings
+  - Expandable table rows showing full event details: metadata, resource IDs, user agent, IP address
+  - Category and action filters
+  - CSV export with current filters applied (up to 10k rows)
+  - Export actions are themselves audit-logged (meta-meta logging)
+
+### Changed
+
+- **Batch ingestion endpoint**: `POST /api/v1/ingest` now accepts flexible payload formats for better collector compatibility (Vector, Fluent Bit, etc.)
+  - Standard format: `{"logs": [{...}]}` (unchanged)
+  - Direct array: `[{log1}, {log2}]` (Vector with `codec: json`)
+  - Wrapped array: `[{"logs": [{...}]}, ...]` (Vector with VRL wrapping)
+  - Array formats auto-normalize fields via `normalizeLogData` (auto-generates `time`, normalizes `level`, extracts `service`)
+
+- **UX Restructuring**: major navigation and page layout overhaul for better discoverability
+  - **Sidebar grouped into sections**: Observe (Logs, Traces, Metrics, Errors), Detect (Alerts, Security), Manage (Projects, Settings) — replaces flat 11-item list
+  - **Service Map merged into Traces**: list/map view toggle on the Traces page instead of a separate route
+  - **Sigma Rules moved to Security**: Security page now has sub-nav with Dashboard, Rules, Incidents tabs — Alerts page simplified to just Alert Rules and History
+  - **Project pages simplified**: removed duplicate log viewer (937 LOC deleted), added "View Logs" button that navigates to global search with project pre-filtered
+  - **Settings restructured**: sub-navigation with General, Security & Data, Notifications, Team, Administration sections
+  - **Command palette updated**: all 9 main pages accessible with keyboard shortcuts (`g d`, `g s`, `g t`, `g m`, etc.)
+
+### Fixed
+
+- **OTLP Traces Ingestion**: fixed a critical typo in trace transformation where `resource_logs` was used instead of `resource_spans`, preventing proper parsing of OTLP/JSON traces.
+- **OTLP Authentication**: fixed `authPlugin` to correctly handle `/v1/otlp` routes, allowing API Key authentication without requiring a valid user session.
+- **LogTide JavaScript SDKs**: updated `@logtide/core`, `@logtide/fastify`, and `@logtide/sveltekit` to version `0.6.1` for improved OTLP compatibility and TraceID/SpanID serialization.
+- **Frontend Environment Loading**: fixed DSN loading in SvelteKit by using `$env/dynamic/public` and added Vite proxy for `/v1/otlp` to avoid CORS issues in development.
+- **LogTide SDK patterns update**: Updated all code examples in the dashboard, empty states, and onboarding flow to use the latest patterns from the `logtide-javascript` and `logtide-sdk-python` repositories.
+  - Node.js examples now use `@logtide/core` with `hub.init()` and `hub.captureLog()` pattern.
+  - Python examples now use the `logtide` package with `LogTideClient` and `client.info()` / `client.error()` methods.
+  - Added correct Go OpenTelemetry examples in the Traces empty state.
+- **Frontend warning cleanup**: eliminated all 46 TypeScript and Svelte compiler warnings across the codebase (26 unused imports/variables, 4 deprecated `<svelte:component>` usages, 7 a11y label warnings, 2 non-reactive bindings, and miscellaneous Svelte 5 migration issues)
+- **Pagination total count**: search and incidents pages now show total count ("Showing 1 to 25 of ~1,234 logs") instead of incrementing per-page — logs use fast approximate count via EXPLAIN planner estimates (no full table scan), incidents use exact COUNT(*); stale cache entries with missing totals are automatically invalidated
+- **Admin dashboard timeline gaps (ClickHouse)**: periodic drops to zero in Platform Activity chart caused by bucket key format mismatch — ClickHouse produced ISO timestamps (`2026-02-26T13:00:00.000Z`) while PostgreSQL produced text format (`2026-02-26 13:00:00+00`), preventing merge; now all bucket keys are normalized to ISO format and all 24 hourly buckets are pre-filled to eliminate gaps
+- **Chart locale**: timestamps no longer hardcoded to Italian locale — charts now respect user's system language
+- **Silent API errors**: search and traces pages now show error toasts when data loading fails
+- **Empty states**: added "No services yet" and "No errors yet" empty states to dashboard widgets
+- **Docker initialization**: database is now auto-created if it doesn't exist during startup
+
+### Removed
+
+- Dead code cleanup: unused `Navigation.svelte` component, duplicate log viewer in project pages, unreachable code paths
+
+---
+
+## [0.6.4] - 2026-02-26
+
+### Changed
+
+- **Batch ingestion endpoint**: `POST /api/v1/ingest` now accepts flexible payload formats for better collector compatibility (Vector, Fluent Bit, etc.)
+  - Standard format: `{"logs": [{...}]}` (unchanged)
+  - Direct array: `[{log1}, {log2}]` (Vector with `codec: json`)
+  - Wrapped array: `[{"logs": [{...}]}, ...]` (Vector with VRL wrapping)
+  - Array formats auto-normalize fields via `normalizeLogData` (auto-generates `time`, normalizes `level`, extracts `service`)
+
+---
+
 ## [0.6.3] - 2026-02-22
 
 ### Fixed

@@ -100,25 +100,25 @@
     }]
   }'`,
 
-    nodejs: `import { LogTide } from '@logtide/sdk';
+    nodejs: `import { hub } from '@logtide/core';
 
-const logger = new LogTide({
-  apiKey: '${apiKey || 'YOUR_API_KEY'}',
+hub.init({
+  dsn: 'https://${apiKey || 'YOUR_API_KEY'}@${apiUrlValue.replace('https://', '').replace('http://', '')}',
   service: 'my-app'
 });
 
 // Send your first log!
-await logger.info('Hello from LogTide!');`,
+hub.captureLog('info', 'Hello from LogTide!');`,
 
-    python: `from logtide import LogTide
+    python: `from logtide import LogTideClient
 
-logger = LogTide(
-    api_key="${apiKey || 'YOUR_API_KEY'}",
-    service="my-app"
+client = LogTideClient(
+    api_url="${apiUrlValue}",
+    api_key="${apiKey || 'YOUR_API_KEY'}"
 )
 
 # Send your first log!
-logger.info("Hello from LogTide!")`,
+client.info("Hello from LogTide!", service="my-app")`,
 
     docker: `# docker-compose.yml
 services:

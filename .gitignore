@@ -52,3 +52,5 @@ claude.md
 /packages/backend/data/
 /GEMINI.md
 /packages/backend/coverage-output.txt
+/docs/plans/
+/test-vector/

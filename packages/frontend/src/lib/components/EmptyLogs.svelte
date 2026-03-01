@@ -22,7 +22,7 @@
   });
 
   let codeExamples: Record<string, string> = $derived({
-    curl: `curl -X POST ${apiUrlValue}/v1/ingest \\
+    curl: `curl -X POST ${apiUrlValue}/api/v1/ingest \\
   -H "Content-Type: application/json" \\
   -H "X-API-Key: YOUR_API_KEY" \\
   -d '{
@@ -33,25 +33,25 @@
     }]
   }'`,
 
-    nodejs: `import { LogTide } from '@logtide/sdk';
+    nodejs: `import { hub } from '@logtide/core';
 
-const logger = new LogTide({
-  apiKey: 'YOUR_API_KEY',
+hub.init({
+  dsn: 'https://YOUR_API_KEY@${apiUrlValue.replace('https://', '').replace('http://', '')}',
   service: 'my-app'
 });
 
-await logger.info('Hello from LogTide!');
-await logger.error('Something went wrong', { userId: 123 });`,
+hub.captureLog('info', 'Hello from LogTide!');
+hub.captureLog('error', 'Something went wrong', { userId: 123 });`,
 
-    python: `from logtide import LogTide
+    python: `from logtide import LogTideClient
 
-logger = LogTide(
-    api_key="YOUR_API_KEY",
-    service="my-app"
+client = LogTideClient(
+    api_url="${apiUrlValue}",
+    api_key="YOUR_API_KEY"
 )
 
-logger.info("Hello from LogTide!")
-logger.error("Something went wrong", metadata={"user_id": 123})`
+client.info("Hello from LogTide!", service="my-app")
+client.error("Something went wrong", user_id=123)`
   });
 
   async function copyCode(code: string) {

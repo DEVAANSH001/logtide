@@ -33,23 +33,23 @@
     }]
   }'`,
 
-    nodejs: `import { LogTide } from '@logtide/sdk';
+    nodejs: `import { hub } from '@logtide/core';
 
-const logger = new LogTide({
-  apiKey: 'YOUR_API_KEY',
+hub.init({
+  dsn: 'https://YOUR_API_KEY@${apiUrlValue.replace('https://', '').replace('http://', '')}',
   service: 'my-app'
 });
 
-await logger.info('Hello from LogTide!');`,
+hub.captureLog('info', 'Hello from LogTide!');`,
 
-    python: `from logtide import LogTide
+    python: `from logtide import LogTideClient
 
-logger = LogTide(
-    api_key="YOUR_API_KEY",
-    service="my-app"
+client = LogTideClient(
+    api_url="${apiUrlValue}",
+    api_key="YOUR_API_KEY"
 )
 
-logger.info("Hello from LogTide!")`,
+client.info("Hello from LogTide!", service="my-app")`,
 
     otel: `// OpenTelemetry (Node.js)
 import { OTLPLogExporter } from '@opentelemetry/exporter-logs-otlp-http';

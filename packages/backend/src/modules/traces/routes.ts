@@ -1,19 +1,7 @@
 import type { FastifyPluginAsync } from 'fastify';
 import { tracesService } from './service.js';
-import { db } from '../../database/index.js';
 import { requireFullAccess } from '../auth/guards.js';
-
-async function verifyProjectAccess(projectId: string, userId: string): Promise<boolean> {
-  const result = await db
-    .selectFrom('projects')
-    .innerJoin('organization_members', 'projects.organization_id', 'organization_members.organization_id')
-    .select(['projects.id'])
-    .where('projects.id', '=', projectId)
-    .where('organization_members.user_id', '=', userId)
-    .executeTakeFirst();
-
-  return !!result;
-}
+import { verifyProjectAccess } from '../auth/verify-project-access.js';
 
 const tracesRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.get('/api/v1/traces', {
@@ -75,6 +63,186 @@ const tracesRoutes: FastifyPluginAsync = async (fastify) => {
     },
   });
 
+  // Static routes MUST be registered before :traceId wildcard
+  fastify.get('/api/v1/traces/services', {
+    schema: {
+      querystring: {
+        type: 'object',
+        properties: {
+          projectId: { type: 'string' },
+        },
+      },
+    },
+    handler: async (request: any, reply) => {
+      if (!await requireFullAccess(request, reply)) return;
+
+      const { projectId: queryProjectId } = request.query as { projectId?: string };
+
+      const projectId = queryProjectId || request.projectId;
+
+      if (!projectId) {
+        return reply.code(400).send({
+          error: 'Project context missing - provide projectId query parameter',
+        });
+      }
+
+      if (request.user?.id) {
+        const hasAccess = await verifyProjectAccess(projectId, request.user.id);
+        if (!hasAccess) {
+          return reply.code(403).send({
+            error: 'Access denied - you do not have access to this project',
+          });
+        }
+      }
+
+      const services = await tracesService.getServices(projectId);
+
+      return { services };
+    },
+  });
+
+  fastify.get('/api/v1/traces/dependencies', {
+    schema: {
+      querystring: {
+        type: 'object',
+        properties: {
+          projectId: { type: 'string' },
+          from: { type: 'string', format: 'date-time' },
+          to: { type: 'string', format: 'date-time' },
+        },
+      },
+    },
+    handler: async (request: any, reply) => {
+      if (!await requireFullAccess(request, reply)) return;
+
+      const { projectId: queryProjectId, from, to } = request.query as {
+        projectId?: string;
+        from?: string;
+        to?: string;
+      };
+
+      const projectId = queryProjectId || request.projectId;
+
+      if (!projectId) {
+        return reply.code(400).send({
+          error: 'Project context missing - provide projectId query parameter',
+        });
+      }
+
+      if (request.user?.id) {
+        const hasAccess = await verifyProjectAccess(projectId, request.user.id);
+        if (!hasAccess) {
+          return reply.code(403).send({
+            error: 'Access denied - you do not have access to this project',
+          });
+        }
+      }
+
+      const dependencies = await tracesService.getServiceDependencies(
+        projectId,
+        from ? new Date(from) : undefined,
+        to ? new Date(to) : undefined
+      );
+
+      return dependencies;
+    },
+  });
+
+  fastify.get('/api/v1/traces/service-map', {
+    schema: {
+      querystring: {
+        type: 'object',
+        properties: {
+          projectId: { type: 'string' },
+          from: { type: 'string', format: 'date-time' },
+          to: { type: 'string', format: 'date-time' },
+        },
+      },
+    },
+    handler: async (request: any, reply) => {
+      if (!await requireFullAccess(request, reply)) return;
+
+      const { projectId: queryProjectId, from, to } = request.query as {
+        projectId?: string;
+        from?: string;
+        to?: string;
+      };
+
+      const projectId = queryProjectId || request.projectId;
+
+      if (!projectId) {
+        return reply.code(400).send({
+          error: 'Project context missing - provide projectId query parameter',
+        });
+      }
+
+      if (request.user?.id) {
+        const hasAccess = await verifyProjectAccess(projectId, request.user.id);
+        if (!hasAccess) {
+          return reply.code(403).send({
+            error: 'Access denied - you do not have access to this project',
+          });
+        }
+      }
+
+      const data = await tracesService.getEnrichedServiceDependencies(
+        projectId,
+        from ? new Date(from) : undefined,
+        to ? new Date(to) : undefined
+      );
+
+      return data;
+    },
+  });
+
+  fastify.get('/api/v1/traces/stats', {
+    schema: {
+      querystring: {
+        type: 'object',
+        properties: {
+          projectId: { type: 'string' },
+          from: { type: 'string', format: 'date-time' },
+          to: { type: 'string', format: 'date-time' },
+        },
+      },
+    },
+    handler: async (request: any, reply) => {
+      if (!await requireFullAccess(request, reply)) return;
+
+      const { projectId: queryProjectId, from, to } = request.query as {
+        projectId?: string;
+        from?: string;
+        to?: string;
+      };
+
+      const projectId = queryProjectId || request.projectId;
+
+      if (!projectId) {
+        return reply.code(400).send({
+          error: 'Project context missing - provide projectId query parameter',
+        });
+      }
+
+      if (request.user?.id) {
+        const hasAccess = await verifyProjectAccess(projectId, request.user.id);
+        if (!hasAccess) {
+          return reply.code(403).send({
+            error: 'Access denied - you do not have access to this project',
+          });
+        }
+      }
+
+      const stats = await tracesService.getStats(
+        projectId,
+        from ? new Date(from) : undefined,
+        to ? new Date(to) : undefined
+      );
+
+      return stats;
+    },
+  });
+
+  // Wildcard routes AFTER static routes
   fastify.get('/api/v1/traces/:traceId', {
     schema: {
       params: {
@@ -171,136 +339,6 @@ const tracesRoutes: FastifyPluginAsync = async (fastify) => {
     },
   });
 
-  fastify.get('/api/v1/traces/services', {
-    schema: {
-      querystring: {
-        type: 'object',
-        properties: {
-          projectId: { type: 'string' },
-        },
-      },
-    },
-    handler: async (request: any, reply) => {
-      if (!await requireFullAccess(request, reply)) return;
-
-      const { projectId: queryProjectId } = request.query as { projectId?: string };
-
-      const projectId = queryProjectId || request.projectId;
-
-      if (!projectId) {
-        return reply.code(400).send({
-          error: 'Project context missing - provide projectId query parameter',
-        });
-      }
-
-      if (request.user?.id) {
-        const hasAccess = await verifyProjectAccess(projectId, request.user.id);
-        if (!hasAccess) {
-          return reply.code(403).send({
-            error: 'Access denied - you do not have access to this project',
-          });
-        }
-      }
-
-      const services = await tracesService.getServices(projectId);
-
-      return { services };
-    },
-  });
-
-  fastify.get('/api/v1/traces/dependencies', {
-    schema: {
-      querystring: {
-        type: 'object',
-        properties: {
-          projectId: { type: 'string' },
-          from: { type: 'string', format: 'date-time' },
-          to: { type: 'string', format: 'date-time' },
-        },
-      },
-    },
-    handler: async (request: any, reply) => {
-      if (!await requireFullAccess(request, reply)) return;
-
-      const { projectId: queryProjectId, from, to } = request.query as {
-        projectId?: string;
-        from?: string;
-        to?: string;
-      };
-
-      const projectId = queryProjectId || request.projectId;
-
-      if (!projectId) {
-        return reply.code(400).send({
-          error: 'Project context missing - provide projectId query parameter',
-        });
-      }
-
-      if (request.user?.id) {
-        const hasAccess = await verifyProjectAccess(projectId, request.user.id);
-        if (!hasAccess) {
-          return reply.code(403).send({
-            error: 'Access denied - you do not have access to this project',
-          });
-        }
-      }
-
-      const dependencies = await tracesService.getServiceDependencies(
-        projectId,
-        from ? new Date(from) : undefined,
-        to ? new Date(to) : undefined
-      );
-
-      return dependencies;
-    },
-  });
-
-  fastify.get('/api/v1/traces/stats', {
-    schema: {
-      querystring: {
-        type: 'object',
-        properties: {
-          projectId: { type: 'string' },
-          from: { type: 'string', format: 'date-time' },
-          to: { type: 'string', format: 'date-time' },
-        },
-      },
-    },
-    handler: async (request: any, reply) => {
-      if (!await requireFullAccess(request, reply)) return;
-
-      const { projectId: queryProjectId, from, to } = request.query as {
-        projectId?: string;
-        from?: string;
-        to?: string;
-      };
-
-      const projectId = queryProjectId || request.projectId;
-
-      if (!projectId) {
-        return reply.code(400).send({
-          error: 'Project context missing - provide projectId query parameter',
-        });
-      }
-
-      if (request.user?.id) {
-        const hasAccess = await verifyProjectAccess(projectId, request.user.id);
-        if (!hasAccess) {
-          return reply.code(403).send({
-            error: 'Access denied - you do not have access to this project',
-          });
-        }
-      }
-
-      const stats = await tracesService.getStats(
-        projectId,
-        from ? new Date(from) : undefined,
-        to ? new Date(to) : undefined
-      );
-
-      return stats;
-    },
-  });
 };
 
 export default tracesRoutes;

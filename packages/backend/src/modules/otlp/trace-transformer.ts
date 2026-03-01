@@ -557,10 +557,8 @@ function normalizeSpans(spans: unknown): OtlpSpan[] | undefined {
 export async function parseOtlpTracesProtobuf(buffer: Buffer): Promise<OtlpExportTracesRequest> {
   // Auto-detect gzip compression by magic bytes (0x1f 0x8b)
   if (isGzipCompressed(buffer)) {
-    console.log('[OTLP Traces] Auto-detected gzip compression by magic bytes, decompressing...');
     try {
       buffer = await decompressGzip(buffer);
-      console.log(`[OTLP Traces] Decompressed protobuf data to ${buffer.length} bytes`);
     } catch (error) {
       const errMsg = error instanceof Error ? error.message : 'Unknown error';
       console.error('[OTLP Traces] Gzip decompression failed:', errMsg);
@@ -572,7 +570,6 @@ export async function parseOtlpTracesProtobuf(buffer: Buffer): Promise<OtlpExpor
   try {
     const jsonString = buffer.toString('utf-8');
     if (jsonString.startsWith('{') || jsonString.startsWith('[')) {
-      console.log('[OTLP Traces] Protobuf content-type but JSON payload detected, parsing as JSON');
       return parseOtlpTracesJson(jsonString);
     }
   } catch {
@@ -599,9 +596,6 @@ export async function parseOtlpTracesProtobuf(buffer: Buffer): Promise<OtlpExpor
       arrays: true,   // Always return arrays even if empty
       objects: true,  // Always return nested objects
     });
-
-    console.log('[OTLP Traces] Successfully decoded protobuf message with',
-      message.resourceSpans?.length || 0, 'resourceSpans');
 
     // Normalize the decoded message to match our OtlpExportTracesRequest interface
     return normalizeDecodedTracesProtobuf(message);

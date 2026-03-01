@@ -44,11 +44,8 @@ const otlpTraceRoutes: FastifyPluginAsync = async (fastify) => {
       // Handle gzip decompression - check header OR magic bytes
       const needsDecompression = contentEncoding?.toLowerCase() === 'gzip' || isGzipCompressed(buffer);
       if (needsDecompression) {
-        const detectedBy = isGzipCompressed(buffer) ? 'magic bytes' : 'Content-Encoding header';
-        console.log(`[OTLP Traces] Decompressing gzip JSON (detected by ${detectedBy})`);
         try {
           buffer = await decompressGzip(buffer);
-          console.log(`[OTLP Traces] Decompressed JSON to ${buffer.length} bytes`);
         } catch (error) {
           const errMsg = error instanceof Error ? error.message : 'Unknown error';
           console.error('[OTLP Traces] Gzip JSON decompression failed:', errMsg);
@@ -179,11 +176,8 @@ const otlpTraceRoutes: FastifyPluginAsync = async (fastify) => {
           if (Buffer.isBuffer(body)) {
             const needsDecompression = contentEncoding?.toLowerCase() === 'gzip' || isGzipCompressed(body);
             if (needsDecompression) {
-              const detectedBy = isGzipCompressed(body) ? 'magic bytes' : 'Content-Encoding header';
-              console.log(`[OTLP Traces] Decompressing gzip protobuf (detected by ${detectedBy})`);
               try {
                 body = await decompressGzip(body);
-                console.log(`[OTLP Traces] Decompressed protobuf to ${body.length} bytes`);
               } catch (decompressError) {
                 const errMsg = decompressError instanceof Error ? decompressError.message : 'Unknown error';
                 console.error('[OTLP Traces] Gzip decompression failed:', errMsg);
@@ -213,8 +207,6 @@ const otlpTraceRoutes: FastifyPluginAsync = async (fastify) => {
 
         // Ingest spans and trace aggregations
         await tracesService.ingestSpans(spans, traces, projectId, project.organization_id);
-
-        console.log(`[OTLP Traces] Ingested ${spans.length} spans for project ${projectId}`);
 
         return {
           partialSuccess: {

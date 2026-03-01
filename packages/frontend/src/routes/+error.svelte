@@ -15,7 +15,7 @@
         Search,
         ArrowLeft,
         FileQuestion,
-    } from "lucide-svelte";
+    } from "@lucide/svelte";
     import { fade, fly } from "svelte/transition";
 
     let status = $derived(page.status);

@@ -17,7 +17,7 @@ describe('Ingestion API', () => {
         }
 
         // Create fresh API key for each test (after global cleanup)
-        const testKey = await createTestApiKey({ name: 'Test Ingestion Key' });
+        const testKey = await createTestApiKey({name: 'Test Ingestion Key'});
         apiKey = testKey.plainKey;
         projectId = testKey.project_id;
     });
@@ -43,14 +43,14 @@ describe('Ingestion API', () => {
                     service: 'test-service',
                     level: 'error',
                     message: 'Test log message 2',
-                    metadata: { userId: '123' },
+                    metadata: {userId: '123'},
                 },
             ];
 
             const response = await request(app.server)
                 .post('/api/v1/ingest')
                 .set('x-api-key', apiKey)
-                .send({ logs })
+                .send({logs})
                 .expect(200);
 
             expect(response.body).toHaveProperty('received', 2);
@@ -61,7 +61,7 @@ describe('Ingestion API', () => {
             const response = await request(app.server)
                 .post('/api/v1/ingest')
                 .set('x-api-key', apiKey)
-                .send({ logs: [] })
+                .send({logs: []})
                 .expect(400);
 
             expect(response.body).toHaveProperty('error');
@@ -79,7 +79,7 @@ describe('Ingestion API', () => {
 
             await request(app.server)
                 .post('/api/v1/ingest')
-                .send({ logs })
+                .send({logs})
                 .expect(401);
         });
 
@@ -96,7 +96,7 @@ describe('Ingestion API', () => {
             await request(app.server)
                 .post('/api/v1/ingest')
                 .set('x-api-key', 'invalid_key_123')
-                .send({ logs })
+                .send({logs})
                 .expect(401);
         });
 
@@ -114,7 +114,7 @@ describe('Ingestion API', () => {
             const response = await request(app.server)
                 .post('/api/v1/ingest')
                 .set('x-api-key', apiKey)
-                .send({ logs: invalidLogs })
+                .send({logs: invalidLogs})
                 .expect(400);
 
             expect(response.body).toHaveProperty('error');
@@ -138,7 +138,7 @@ describe('Ingestion API', () => {
             const response = await request(app.server)
                 .post('/api/v1/ingest')
                 .set('x-api-key', apiKey)
-                .send({ logs })
+                .send({logs})
                 .expect(200);
 
             expect(response.body.received).toBe(1);
@@ -159,13 +159,13 @@ describe('Ingestion API', () => {
             await request(app.server)
                 .post('/api/v1/ingest')
                 .set('x-api-key', apiKey)
-                .send({ logs })
+                .send({logs})
                 .expect(200);
         });
 
         it('should handle large batch (100 logs)', async () => {
             const timestamp = Date.now();
-            const logs = Array.from({ length: 100 }, (_, i) => ({
+            const logs = Array.from({length: 100}, (_, i) => ({
                 time: new Date().toISOString(),
                 service: 'test-service',
                 level: 'info',
@@ -175,7 +175,7 @@ describe('Ingestion API', () => {
             const response = await request(app.server)
                 .post('/api/v1/ingest')
                 .set('x-api-key', apiKey)
-                .send({ logs })
+                .send({logs})
                 .expect(200);
 
             expect(response.body.received).toBe(100);
@@ -462,14 +462,14 @@ describe('Ingestion API', () => {
 
         it('should normalize numeric log levels (Pino format)', async () => {
             const testCases = [
-                { level: 60, expected: 'critical' },
-                { level: 50, expected: 'error' },
-                { level: 40, expected: 'warn' },
-                { level: 30, expected: 'info' },
-                { level: 20, expected: 'debug' },
+                {level: 60, expected: 'critical'},
+                {level: 50, expected: 'error'},
+                {level: 40, expected: 'warn'},
+                {level: 30, expected: 'info'},
+                {level: 20, expected: 'debug'},
             ];
 
-            for (const { level, expected } of testCases) {
+            for (const {level, expected} of testCases) {
                 const uniqueMsg = `Pino-test-${level}-${Date.now()}`;
 
                 await request(app.server)
@@ -496,24 +496,24 @@ describe('Ingestion API', () => {
         it('should normalize syslog levels to LogTide levels', async () => {
             const testCases = [
                 // Critical levels
-                { level: 'emergency', expected: 'critical' },
-                { level: 'emerg', expected: 'critical' },
-                { level: 'alert', expected: 'critical' },
-                { level: 'crit', expected: 'critical' },
-                { level: 'fatal', expected: 'critical' },
+                {level: 'emergency', expected: 'critical'},
+                {level: 'emerg', expected: 'critical'},
+                {level: 'alert', expected: 'critical'},
+                {level: 'crit', expected: 'critical'},
+                {level: 'fatal', expected: 'critical'},
                 // Error levels
-                { level: 'err', expected: 'error' },
+                {level: 'err', expected: 'error'},
                 // Warning levels
-                { level: 'warning', expected: 'warn' },
+                {level: 'warning', expected: 'warn'},
                 // Info levels (notice maps to info)
-                { level: 'notice', expected: 'info' },
-                { level: 'information', expected: 'info' },
+                {level: 'notice', expected: 'info'},
+                {level: 'information', expected: 'info'},
                 // Debug levels
-                { level: 'trace', expected: 'debug' },
-                { level: 'verbose', expected: 'debug' },
+                {level: 'trace', expected: 'debug'},
+                {level: 'verbose', expected: 'debug'},
             ];
 
-            for (const { level, expected } of testCases) {
+            for (const {level, expected} of testCases) {
                 const uniqueMsg = `Syslog-test-${level}-${Date.now()}-${Math.random()}`;
 
                 await request(app.server)
@@ -539,13 +539,13 @@ describe('Ingestion API', () => {
 
         it('should handle case-insensitive syslog levels', async () => {
             const testCases = [
-                { level: 'NOTICE', expected: 'info' },
-                { level: 'Warning', expected: 'warn' },
-                { level: 'ERROR', expected: 'error' },
-                { level: 'CRITICAL', expected: 'critical' },
+                {level: 'NOTICE', expected: 'info'},
+                {level: 'Warning', expected: 'warn'},
+                {level: 'ERROR', expected: 'error'},
+                {level: 'CRITICAL', expected: 'critical'},
             ];
 
-            for (const { level, expected } of testCases) {
+            for (const {level, expected} of testCases) {
                 const uniqueMsg = `Syslog-case-test-${level}-${Date.now()}-${Math.random()}`;
 
                 await request(app.server)
@@ -691,17 +691,17 @@ describe('Ingestion API', () => {
 
         it('should map journald PRIORITY levels correctly', async () => {
             const testCases = [
-                { priority: '0', expectedLevel: 'critical' }, // emerg
-                { priority: '1', expectedLevel: 'critical' }, // alert
-                { priority: '2', expectedLevel: 'critical' }, // crit
-                { priority: '3', expectedLevel: 'error' },    // err
-                { priority: '4', expectedLevel: 'warn' },     // warning
-                { priority: '5', expectedLevel: 'info' },     // notice
-                { priority: '6', expectedLevel: 'info' },     // info
-                { priority: '7', expectedLevel: 'debug' },    // debug
+                {priority: '0', expectedLevel: 'critical'}, // emerg
+                {priority: '1', expectedLevel: 'critical'}, // alert
+                {priority: '2', expectedLevel: 'critical'}, // crit
+                {priority: '3', expectedLevel: 'error'},    // err
+                {priority: '4', expectedLevel: 'warn'},     // warning
+                {priority: '5', expectedLevel: 'info'},     // notice
+                {priority: '6', expectedLevel: 'info'},     // info
+                {priority: '7', expectedLevel: 'debug'},    // debug
             ];
 
-            for (const { priority, expectedLevel } of testCases) {
+            for (const {priority, expectedLevel} of testCases) {
                 const uniqueMsg = `journald-priority-${priority}-${Date.now()}-${Math.random()}`;
                 const log = {
                     MESSAGE: uniqueMsg,
@@ -1099,7 +1099,7 @@ describe('Ingestion API', () => {
             const response = await request(app.server)
                 .post('/api/v1/ingest')
                 .set('x-api-key', apiKey)
-                .send({ logs })
+                .send({logs})
                 .expect(400);
 
             expect(response.body).toHaveProperty('error');
@@ -1118,7 +1118,7 @@ describe('Ingestion API', () => {
             const response = await request(app.server)
                 .post('/api/v1/ingest')
                 .set('x-api-key', apiKey)
-                .send({ logs })
+                .send({logs})
                 .expect(400);
 
             expect(response.body).toHaveProperty('error');
@@ -1146,8 +1146,8 @@ describe('Ingestion API', () => {
 
         it('should handle valid NDJSON with multiple logs', async () => {
             const ndjsonLogs = [
-                { time: new Date().toISOString(), service: 'test1', level: 'info', message: 'Log 1' },
-                { time: new Date().toISOString(), service: 'test2', level: 'warn', message: 'Log 2' },
+                {time: new Date().toISOString(), service: 'test1', level: 'info', message: 'Log 1'},
+                {time: new Date().toISOString(), service: 'test2', level: 'warn', message: 'Log 2'},
             ]
                 .map((l) => JSON.stringify(l))
                 .join('\n');
@@ -1172,14 +1172,14 @@ describe('Ingestion API', () => {
                     service: 'test\u0000service',
                     level: 'info',
                     message: uniqueMsg,
-                    metadata: { key: 'value\u0000test' },
+                    metadata: {key: 'value\u0000test'},
                 },
             ];
 
             const response = await request(app.server)
                 .post('/api/v1/ingest')
                 .set('x-api-key', apiKey)
-                .send({ logs })
+                .send({logs})
                 .expect(200);
 
             expect(response.body.received).toBe(1);
@@ -1209,22 +1209,132 @@ describe('Ingestion API', () => {
             const response = await request(app.server)
                 .post('/api/v1/ingest')
                 .set('x-api-key', apiKey)
-                .send({ logs })
+                .send({logs})
                 .expect(200);
 
             expect(response.body.received).toBe(1);
         });
 
-        it('should return 0 when ingesting empty logs array via service', async () => {
-            // This tests the early return in ingestLogs when logs.length === 0
-            // The API validates and rejects empty arrays, but let's verify behavior
+        it('should handle wrapped array of logs (Format 3)', async () => {
+            const body = [
+                {
+                    logs: [
+                        {time: new Date().toISOString(), service: 's1', level: 'info', message: 'm1'}
+                    ]
+                },
+                {
+                    logs: [
+                        {time: new Date().toISOString(), service: 's2', level: 'info', message: 'm2'}
+                    ]
+                }
+            ];
+
             const response = await request(app.server)
                 .post('/api/v1/ingest')
                 .set('x-api-key', apiKey)
-                .send({ logs: [] })
-                .expect(400);
+                .send(body)
+                .expect(200);
 
-            expect(response.body.error).toBeDefined();
+            expect(response.body.received).toBe(2);
+        });
+
+        it('should handle direct array of logs (Format 2)', async () => {
+            const body = [
+                {time: new Date().toISOString(), service: 's1', level: 'info', message: 'm1'},
+                {time: new Date().toISOString(), service: 's2', level: 'info', message: 'm2'}
+            ];
+
+            const response = await request(app.server)
+                .post('/api/v1/ingest')
+                .set('x-api-key', apiKey)
+                .send(body)
+                .expect(200);
+
+            expect(response.body.received).toBe(2);
+        });
+    });
+
+    describe('Ingestion routes - more normalization edge cases', () => {
+        it('should extract hostname from metadata.hostname or metadata.host', async () => {
+            const logs = [
+                {
+                    time: new Date().toISOString(),
+                    service: 'test',
+                    level: 'info',
+                    message: 'm1',
+                    metadata: {hostname: 'meta-hostname'}
+                },
+                {
+                    time: new Date().toISOString(),
+                    service: 'test',
+                    level: 'info',
+                    message: 'm2',
+                    metadata: {host: 'meta-host'}
+                }
+            ];
+
+            await request(app.server)
+                .post('/api/v1/ingest')
+                .set('x-api-key', apiKey)
+                .send({logs})
+                .expect(200);
+
+            const dbLog1 = await db.selectFrom('logs').selectAll().where('message', '=', 'm1').executeTakeFirst();
+            const dbLog2 = await db.selectFrom('logs').selectAll().where('message', '=', 'm2').executeTakeFirst();
+
+            expect(dbLog1?.metadata).toHaveProperty('hostname', 'meta-hostname');
+            expect(dbLog2?.metadata).toHaveProperty('hostname', 'meta-host');
+        });
+
+        it('should normalize very high numeric levels to critical', async () => {
+            const log = {
+                time: new Date().toISOString(),
+                service: 'test',
+                level: 70, // Above 60
+                message: 'high level',
+            };
+
+            await request(app.server)
+                .post('/api/v1/ingest/single')
+                .set('x-api-key', apiKey)
+                .send(log)
+                .expect(200);
+
+            const dbLog = await db.selectFrom('logs').selectAll().where('message', '=', 'high level').executeTakeFirst();
+            expect(dbLog?.level).toBe('critical');
+        });
+
+        it('should handle journald invalid timestamp gracefully', async () => {
+            const log = {
+                MESSAGE: 'bad timestamp',
+                SYSLOG_IDENTIFIER: 'test',
+                PRIORITY: '6',
+                __REALTIME_TIMESTAMP: 'not-a-number',
+            };
+
+            await request(app.server)
+                .post('/api/v1/ingest/single')
+                .set('x-api-key', apiKey)
+                .send(log)
+                .expect(200);
+
+            const dbLog = await db.selectFrom('logs').selectAll().where('message', '=', 'bad timestamp').executeTakeFirst();
+            expect(dbLog).toBeDefined();
+            // Should fallback to current time
+        });
+
+        it('should handle application/json that is actually NDJSON but with trailing spaces', async () => {
+            const ndjson = '{"service":"s1","level":"info","message":"m1"}\n  \n{"service":"s2","level":"info","message":"m2"}  ';
+
+            const response = await request(app.server)
+                .post('/api/v1/ingest/single')
+                .set('x-api-key', apiKey)
+                .set('Content-Type', 'application/json')
+                .send(ndjson)
+                .expect(200);
+
+            expect(response.body.received).toBe(2);
         });
     });
 });
+

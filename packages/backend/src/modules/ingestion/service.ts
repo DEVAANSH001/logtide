@@ -8,6 +8,7 @@ import { CacheManager } from '../../utils/cache.js';
 import { notificationPublisher } from '../streaming/index.js';
 import { correlationService, type IdentifierMatch } from '../correlation/service.js';
 import { piiMaskingService } from '../pii-masking/service.js';
+import { extractHostname } from './routes.js';
 
 /**
  * Remove null characters (\u0000) that PostgreSQL doesn't support in text fields.
@@ -77,16 +78,28 @@ export class IngestionService {
 
     // Convert logs to reservoir LogRecord format
     // Note: reservoir handles null byte sanitization internally
-    const records = logs.map((log) => ({
-      time: typeof log.time === 'string' ? new Date(log.time) : log.time,
-      projectId,
-      service: sanitizeForPostgres(log.service),
-      level: log.level as ReservoirLogLevel,
-      message: sanitizeForPostgres(log.message),
-      metadata: sanitizeForPostgres(log.metadata) || undefined,
-      traceId: sanitizeForPostgres(log.trace_id) || undefined,
-      spanId: sanitizeForPostgres((log as { span_id?: string }).span_id) || undefined,
-    }));
+    const records = logs.map((log) => {
+      // Extract hostname if not already set in metadata
+      const hostname = log.metadata?.hostname || extractHostname(log);
+      
+      const metadata = {
+        ...log.metadata,
+        ...(hostname && { hostname }),
+      };
+
+      const hasMetadata = Object.keys(metadata).length > 0;
+
+      return {
+        time: typeof log.time === 'string' ? new Date(log.time) : log.time,
+        projectId,
+        service: sanitizeForPostgres(log.service),
+        level: log.level as ReservoirLogLevel,
+        message: sanitizeForPostgres(log.message),
+        metadata: hasMetadata ? sanitizeForPostgres(metadata) : undefined,
+        traceId: sanitizeForPostgres(log.trace_id) || undefined,
+        spanId: sanitizeForPostgres((log as { span_id?: string }).span_id) || undefined,
+      };
+    });
 
     // Insert via reservoir (raw parametrized SQL with RETURNING *)
     const ingestResult = await reservoir.ingestReturning(records);

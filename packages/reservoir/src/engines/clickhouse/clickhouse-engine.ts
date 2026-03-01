@@ -38,6 +38,21 @@ import type {
   DeleteSpansByTimeRangeParams,
   SpanKind,
   SpanStatusCode,
+  AggregationInterval,
+  MetricRecord,
+  StoredMetricRecord,
+  MetricType,
+  MetricQueryParams,
+  MetricQueryResult,
+  MetricAggregateParams,
+  MetricAggregateResult,
+  MetricNamesParams,
+  MetricNamesResult,
+  MetricLabelParams,
+  MetricLabelResult,
+  IngestMetricsResult,
+  DeleteMetricsByTimeRangeParams,
+  MetricExemplar,
 } from '../../core/types.js';
 import { ClickHouseQueryTranslator } from './query-translator.js';
 
@@ -117,6 +132,20 @@ export class ClickHouseEngine extends StorageEngine {
 
   async initialize(): Promise<void> {
     if (this.options.skipInitialize) return;
+
+    // Create database if it doesn't exist (connect without specifying database)
+    const bootstrapClient = createClient({
+      url: `http://${this.config.host}:${this.config.port}`,
+      username: this.config.username,
+      password: this.config.password,
+    });
+    try {
+      await bootstrapClient.command({
+        query: `CREATE DATABASE IF NOT EXISTS ${this.config.database}`,
+      });
+    } finally {
+      await bootstrapClient.close();
+    }
 
     const client = this.getClient();
     const t = this.tableName;
@@ -227,6 +256,53 @@ export class ClickHouseEngine extends StorageEngine {
         )
         ENGINE = ReplacingMergeTree(updated_at)
         ORDER BY (project_id, trace_id)
+        SETTINGS index_granularity = 8192
+      `,
+    });
+
+    // Metrics table
+    await client.command({
+      query: `
+        CREATE TABLE IF NOT EXISTS metrics (
+          time            DateTime64(3) NOT NULL,
+          id              UUID DEFAULT generateUUIDv4(),
+          organization_id Nullable(String) DEFAULT NULL,
+          project_id      String NOT NULL,
+          metric_name     LowCardinality(String) NOT NULL,
+          metric_type     LowCardinality(String) NOT NULL,
+          value           Float64 NOT NULL DEFAULT 0,
+          is_monotonic    Nullable(UInt8) DEFAULT NULL,
+          service_name    LowCardinality(String) NOT NULL DEFAULT 'unknown',
+          attributes      String DEFAULT '{}',
+          resource_attributes String DEFAULT '{}',
+          histogram_data  Nullable(String) DEFAULT NULL,
+          has_exemplars   UInt8 NOT NULL DEFAULT 0
+        )
+        ENGINE = MergeTree()
+        PARTITION BY toYYYYMM(time)
+        ORDER BY (project_id, metric_name, time)
+        SETTINGS index_granularity = 8192
+      `,
+    });
+
+    // Metric exemplars table
+    await client.command({
+      query: `
+        CREATE TABLE IF NOT EXISTS metric_exemplars (
+          time            DateTime64(3) NOT NULL,
+          id              UUID DEFAULT generateUUIDv4(),
+          metric_id       String NOT NULL,
+          organization_id Nullable(String) DEFAULT NULL,
+          project_id      String NOT NULL,
+          exemplar_value  Float64 NOT NULL,
+          exemplar_time   Nullable(DateTime64(3)) DEFAULT NULL,
+          trace_id        Nullable(String) DEFAULT NULL,
+          span_id         Nullable(String) DEFAULT NULL,
+          attributes      String DEFAULT '{}'
+        )
+        ENGINE = MergeTree()
+        PARTITION BY toYYYYMM(time)
+        ORDER BY (project_id, metric_id, time)
         SETTINGS index_granularity = 8192
       `,
     });
@@ -413,6 +489,11 @@ export class ClickHouseEngine extends StorageEngine {
       count: Number(rows[0]?.count ?? 0),
       executionTimeMs: Date.now() - start,
     };
+  }
+
+  async countEstimate(params: CountParams): Promise<CountResult> {
+    // ClickHouse COUNT is already fast (columnar storage), use exact count
+    return this.count(params);
   }
 
   async distinct(params: DistinctParams): Promise<DistinctResult> {
@@ -854,6 +935,520 @@ export class ClickHouseEngine extends StorageEngine {
 
     return { deleted: 0, executionTimeMs: Date.now() - start };
   }
+
+  // =========================================================================
+  // Metric Operations
+  // =========================================================================
+
+  async ingestMetrics(metrics: MetricRecord[]): Promise<IngestMetricsResult> {
+    if (metrics.length === 0) return { ingested: 0, failed: 0, durationMs: 0 };
+
+    const start = Date.now();
+    const client = this.getClient();
+
+    try {
+      const metricRows: Record<string, unknown>[] = [];
+      const exemplarRows: Record<string, unknown>[] = [];
+
+      for (const metric of metrics) {
+        const metricId = randomUUID();
+        const hasExemplars = (metric.exemplars?.length ?? 0) > 0;
+
+        metricRows.push({
+          time: metric.time.getTime(),
+          id: metricId,
+          organization_id: metric.organizationId ?? null,
+          project_id: metric.projectId,
+          metric_name: metric.metricName,
+          metric_type: metric.metricType,
+          value: metric.value,
+          is_monotonic: metric.isMonotonic != null ? (metric.isMonotonic ? 1 : 0) : null,
+          service_name: metric.serviceName || 'unknown',
+          attributes: metric.attributes ? JSON.stringify(metric.attributes) : '{}',
+          resource_attributes: metric.resourceAttributes ? JSON.stringify(metric.resourceAttributes) : '{}',
+          histogram_data: metric.histogramData ? JSON.stringify(metric.histogramData) : null,
+          has_exemplars: hasExemplars ? 1 : 0,
+        });
+
+        if (hasExemplars && metric.exemplars) {
+          for (const ex of metric.exemplars) {
+            exemplarRows.push({
+              time: metric.time.getTime(),
+              metric_id: metricId,
+              organization_id: metric.organizationId ?? null,
+              project_id: metric.projectId,
+              exemplar_value: ex.exemplarValue,
+              exemplar_time: ex.exemplarTime ? ex.exemplarTime.getTime() : null,
+              trace_id: ex.traceId ?? null,
+              span_id: ex.spanId ?? null,
+              attributes: ex.attributes ? JSON.stringify(ex.attributes) : '{}',
+            });
+          }
+        }
+      }
+
+      await client.insert({ table: 'metrics', values: metricRows, format: 'JSONEachRow' });
+
+      if (exemplarRows.length > 0) {
+        await client.insert({ table: 'metric_exemplars', values: exemplarRows, format: 'JSONEachRow' });
+      }
+
+      return { ingested: metrics.length, failed: 0, durationMs: Date.now() - start };
+    } catch (err) {
+      return {
+        ingested: 0,
+        failed: metrics.length,
+        durationMs: Date.now() - start,
+        errors: [{ index: 0, error: err instanceof Error ? err.message : String(err) }],
+      };
+    }
+  }
+
+  async queryMetrics(params: MetricQueryParams): Promise<MetricQueryResult> {
+    const start = Date.now();
+    const client = this.getClient();
+    const limit = params.limit ?? 50;
+    const offset = params.offset ?? 0;
+
+    const conditions: string[] = [];
+    const queryParams: Record<string, unknown> = {};
+
+    // Project ID (required)
+    const pids = Array.isArray(params.projectId) ? params.projectId : [params.projectId];
+    conditions.push(`project_id IN {p_pids:Array(String)}`);
+    queryParams.p_pids = pids;
+
+    // Time range
+    conditions.push(`time ${params.fromExclusive ? '>' : '>='} {p_from:DateTime64(3)}`);
+    queryParams.p_from = Math.floor(params.from.getTime() / 1000);
+    conditions.push(`time ${params.toExclusive ? '<' : '<='} {p_to:DateTime64(3)}`);
+    queryParams.p_to = Math.floor(params.to.getTime() / 1000);
+
+    if (params.organizationId) {
+      const oids = Array.isArray(params.organizationId) ? params.organizationId : [params.organizationId];
+      conditions.push(`organization_id IN {p_oids:Array(String)}`);
+      queryParams.p_oids = oids;
+    }
+    if (params.metricName) {
+      const names = Array.isArray(params.metricName) ? params.metricName : [params.metricName];
+      conditions.push(`metric_name IN {p_names:Array(String)}`);
+      queryParams.p_names = names;
+    }
+    if (params.metricType) {
+      const types = Array.isArray(params.metricType) ? params.metricType : [params.metricType];
+      conditions.push(`metric_type IN {p_types:Array(String)}`);
+      queryParams.p_types = types;
+    }
+    if (params.serviceName) {
+      const svc = Array.isArray(params.serviceName) ? params.serviceName : [params.serviceName];
+      conditions.push(`service_name IN {p_svc:Array(String)}`);
+      queryParams.p_svc = svc;
+    }
+
+    // Attribute label filtering
+    if (params.attributes) {
+      let attrIdx = 0;
+      for (const [key, val] of Object.entries(params.attributes)) {
+        const keyParam = `p_attr_key_${attrIdx}`;
+        const valParam = `p_attr_val_${attrIdx}`;
+        conditions.push(`JSONExtractString(attributes, {${keyParam}:String}) = {${valParam}:String}`);
+        queryParams[keyParam] = key;
+        queryParams[valParam] = val;
+        attrIdx++;
+      }
+    }
+
+    const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+    const sortOrder = params.sortOrder ?? 'desc';
+
+    // Count total
+    const countResult = await client.query({
+      query: `SELECT count() AS count FROM metrics ${where}`,
+      query_params: queryParams,
+      format: 'JSONEachRow',
+    });
+    const total = Number((await countResult.json<{ count: string }>())[0]?.count ?? 0);
+
+    // Fetch rows
+    const resultSet = await client.query({
+      query: `SELECT * FROM metrics ${where} ORDER BY time ${sortOrder} LIMIT ${limit} OFFSET ${offset}`,
+      query_params: queryParams,
+      format: 'JSONEachRow',
+    });
+    const rows = await resultSet.json<Record<string, unknown>>();
+
+    let metricsResult = rows.map(mapClickHouseRowToMetricRecord);
+
+    // Fetch exemplars if requested
+    if (params.includeExemplars) {
+      const metricIds = metricsResult.filter(m => m.hasExemplars).map(m => m.id);
+      if (metricIds.length > 0) {
+        const exemplarResult = await client.query({
+          query: `SELECT * FROM metric_exemplars WHERE metric_id IN {p_mids:Array(String)} ORDER BY time ASC`,
+          query_params: { p_mids: metricIds },
+          format: 'JSONEachRow',
+        });
+        const exemplarRows = await exemplarResult.json<Record<string, unknown>>();
+
+        const exemplarsByMetricId = new Map<string, MetricExemplar[]>();
+        for (const row of exemplarRows) {
+          const metricId = String(row.metric_id);
+          if (!exemplarsByMetricId.has(metricId)) {
+            exemplarsByMetricId.set(metricId, []);
+          }
+          exemplarsByMetricId.get(metricId)!.push({
+            exemplarValue: Number(row.exemplar_value),
+            exemplarTime: row.exemplar_time ? parseClickHouseTime(row.exemplar_time) : undefined,
+            traceId: row.trace_id ? String(row.trace_id) : undefined,
+            spanId: row.span_id ? String(row.span_id) : undefined,
+            attributes: parseJsonField(row.attributes) as Record<string, unknown> | undefined,
+          });
+        }
+
+        metricsResult = metricsResult.map(m => ({
+          ...m,
+          exemplars: exemplarsByMetricId.get(m.id) ?? m.exemplars,
+        }));
+      }
+    }
+
+    return {
+      metrics: metricsResult,
+      total,
+      hasMore: offset + rows.length < total,
+      limit,
+      offset,
+      executionTimeMs: Date.now() - start,
+    };
+  }
+
+  async aggregateMetrics(params: MetricAggregateParams): Promise<MetricAggregateResult> {
+    const start = Date.now();
+    const client = this.getClient();
+
+    const intervalMap: Record<AggregationInterval, string> = {
+      '1m': '1 MINUTE',
+      '5m': '5 MINUTE',
+      '15m': '15 MINUTE',
+      '1h': '1 HOUR',
+      '6h': '6 HOUR',
+      '1d': '1 DAY',
+      '1w': '1 WEEK',
+    };
+    const interval = intervalMap[params.interval];
+
+    const aggFnMap: Record<string, string> = {
+      avg: 'avg(value)',
+      sum: 'sum(value)',
+      min: 'min(value)',
+      max: 'max(value)',
+      count: 'count()',
+      last: 'argMax(value, time)',
+    };
+    const aggExpr = aggFnMap[params.aggregation] ?? 'avg(value)';
+
+    const conditions: string[] = [];
+    const queryParams: Record<string, unknown> = {};
+
+    const pids = Array.isArray(params.projectId) ? params.projectId : [params.projectId];
+    conditions.push(`project_id IN {p_pids:Array(String)}`);
+    queryParams.p_pids = pids;
+
+    conditions.push(`time >= {p_from:DateTime64(3)}`);
+    queryParams.p_from = Math.floor(params.from.getTime() / 1000);
+    conditions.push(`time <= {p_to:DateTime64(3)}`);
+    queryParams.p_to = Math.floor(params.to.getTime() / 1000);
+
+    conditions.push(`metric_name = {p_name:String}`);
+    queryParams.p_name = params.metricName;
+
+    if (params.organizationId) {
+      const oids = Array.isArray(params.organizationId) ? params.organizationId : [params.organizationId];
+      conditions.push(`organization_id IN {p_oids:Array(String)}`);
+      queryParams.p_oids = oids;
+    }
+    if (params.metricType) {
+      conditions.push(`metric_type = {p_type:String}`);
+      queryParams.p_type = params.metricType;
+    }
+    if (params.serviceName) {
+      const svc = Array.isArray(params.serviceName) ? params.serviceName : [params.serviceName];
+      conditions.push(`service_name IN {p_svc:Array(String)}`);
+      queryParams.p_svc = svc;
+    }
+
+    // Attribute label filtering
+    if (params.attributes) {
+      let attrIdx = 0;
+      for (const [key, val] of Object.entries(params.attributes)) {
+        const keyParam = `p_attr_key_${attrIdx}`;
+        const valParam = `p_attr_val_${attrIdx}`;
+        conditions.push(`JSONExtractString(attributes, {${keyParam}:String}) = {${valParam}:String}`);
+        queryParams[keyParam] = key;
+        queryParams[valParam] = val;
+        attrIdx++;
+      }
+    }
+
+    const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+
+    // Build GROUP BY columns for groupBy label keys
+    const groupByColumns = ['bucket'];
+    const selectExtra: string[] = [];
+    if (params.groupBy && params.groupBy.length > 0) {
+      for (let i = 0; i < params.groupBy.length; i++) {
+        const labelKey = params.groupBy[i];
+        const alias = `label_${i}`;
+        const keyParam = `p_gb_key_${i}`;
+        selectExtra.push(`JSONExtractString(attributes, {${keyParam}:String}) AS ${alias}`);
+        queryParams[keyParam] = labelKey;
+        groupByColumns.push(alias);
+      }
+    }
+
+    const selectCols = [
+      `toStartOfInterval(time, INTERVAL ${interval}) AS bucket`,
+      `${aggExpr} AS agg_value`,
+      ...selectExtra,
+    ].join(', ');
+
+    const query = `SELECT ${selectCols} FROM metrics ${where} GROUP BY ${groupByColumns.join(', ')} ORDER BY bucket ASC`;
+
+    const resultSet = await client.query({
+      query,
+      query_params: queryParams,
+      format: 'JSONEachRow',
+    });
+    const rows = await resultSet.json<Record<string, unknown>>();
+
+    const timeseries = rows.map(row => {
+      const bucket: { bucket: Date; value: number; labels?: Record<string, string> } = {
+        bucket: parseClickHouseTime(row.bucket),
+        value: Number(row.agg_value),
+      };
+
+      if (params.groupBy && params.groupBy.length > 0) {
+        const labels: Record<string, string> = {};
+        for (let i = 0; i < params.groupBy.length; i++) {
+          labels[params.groupBy[i]] = String(row[`label_${i}`] ?? '');
+        }
+        bucket.labels = labels;
+      }
+
+      return bucket;
+    });
+
+    // Determine metricType: use param or query DB
+    let metricType: MetricType = params.metricType ?? 'gauge';
+    if (!params.metricType) {
+      const typeResult = await client.query({
+        query: `SELECT metric_type FROM metrics WHERE metric_name = {p_name:String} AND project_id IN {p_pids:Array(String)} LIMIT 1`,
+        query_params: { p_name: params.metricName, p_pids: pids },
+        format: 'JSONEachRow',
+      });
+      const typeRows = await typeResult.json<{ metric_type: string }>();
+      if (typeRows.length > 0) {
+        metricType = typeRows[0].metric_type as MetricType;
+      }
+    }
+
+    return {
+      metricName: params.metricName,
+      metricType,
+      timeseries,
+      executionTimeMs: Date.now() - start,
+    };
+  }
+
+  async getMetricNames(params: MetricNamesParams): Promise<MetricNamesResult> {
+    const start = Date.now();
+    const client = this.getClient();
+    const limit = params.limit ?? 1000;
+
+    const conditions: string[] = [];
+    const queryParams: Record<string, unknown> = {};
+
+    const pids = Array.isArray(params.projectId) ? params.projectId : [params.projectId];
+    conditions.push(`project_id IN {p_pids:Array(String)}`);
+    queryParams.p_pids = pids;
+
+    if (params.organizationId) {
+      const oids = Array.isArray(params.organizationId) ? params.organizationId : [params.organizationId];
+      conditions.push(`organization_id IN {p_oids:Array(String)}`);
+      queryParams.p_oids = oids;
+    }
+    if (params.metricType) {
+      const types = Array.isArray(params.metricType) ? params.metricType : [params.metricType];
+      conditions.push(`metric_type IN {p_types:Array(String)}`);
+      queryParams.p_types = types;
+    }
+    if (params.from) {
+      conditions.push(`time >= {p_from:DateTime64(3)}`);
+      queryParams.p_from = Math.floor(params.from.getTime() / 1000);
+    }
+    if (params.to) {
+      conditions.push(`time <= {p_to:DateTime64(3)}`);
+      queryParams.p_to = Math.floor(params.to.getTime() / 1000);
+    }
+
+    const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+
+    const resultSet = await client.query({
+      query: `SELECT metric_name, metric_type FROM metrics ${where} GROUP BY metric_name, metric_type ORDER BY metric_name ASC LIMIT ${limit}`,
+      query_params: queryParams,
+      format: 'JSONEachRow',
+    });
+    const rows = await resultSet.json<{ metric_name: string; metric_type: string }>();
+
+    return {
+      names: rows.map(row => ({
+        name: row.metric_name,
+        type: row.metric_type as MetricType,
+      })),
+      executionTimeMs: Date.now() - start,
+    };
+  }
+
+  async getMetricLabelKeys(params: MetricLabelParams): Promise<MetricLabelResult> {
+    const start = Date.now();
+    const client = this.getClient();
+    const limit = params.limit ?? 100;
+
+    const conditions: string[] = [];
+    const queryParams: Record<string, unknown> = {};
+
+    const pids = Array.isArray(params.projectId) ? params.projectId : [params.projectId];
+    conditions.push(`project_id IN {p_pids:Array(String)}`);
+    queryParams.p_pids = pids;
+
+    conditions.push(`metric_name = {p_name:String}`);
+    queryParams.p_name = params.metricName;
+
+    if (params.organizationId) {
+      const oids = Array.isArray(params.organizationId) ? params.organizationId : [params.organizationId];
+      conditions.push(`organization_id IN {p_oids:Array(String)}`);
+      queryParams.p_oids = oids;
+    }
+    if (params.from) {
+      conditions.push(`time >= {p_from:DateTime64(3)}`);
+      queryParams.p_from = Math.floor(params.from.getTime() / 1000);
+    }
+    if (params.to) {
+      conditions.push(`time <= {p_to:DateTime64(3)}`);
+      queryParams.p_to = Math.floor(params.to.getTime() / 1000);
+    }
+
+    const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+
+    // ClickHouse has no native JSONB keys function, so we sample rows
+    // and extract keys client-side using JSONExtractKeys
+    const resultSet = await client.query({
+      query: `SELECT DISTINCT arrayJoin(JSONExtractKeys(attributes)) AS key FROM metrics ${where} LIMIT ${limit}`,
+      query_params: queryParams,
+      format: 'JSONEachRow',
+    });
+    const rows = await resultSet.json<{ key: string }>();
+
+    return {
+      keys: rows.map(r => r.key),
+      executionTimeMs: Date.now() - start,
+    };
+  }
+
+  async getMetricLabelValues(params: MetricLabelParams, labelKey: string): Promise<MetricLabelResult> {
+    const start = Date.now();
+    const client = this.getClient();
+    const limit = params.limit ?? 100;
+
+    const conditions: string[] = [];
+    const queryParams: Record<string, unknown> = {};
+
+    const pids = Array.isArray(params.projectId) ? params.projectId : [params.projectId];
+    conditions.push(`project_id IN {p_pids:Array(String)}`);
+    queryParams.p_pids = pids;
+
+    conditions.push(`metric_name = {p_name:String}`);
+    queryParams.p_name = params.metricName;
+
+    if (params.organizationId) {
+      const oids = Array.isArray(params.organizationId) ? params.organizationId : [params.organizationId];
+      conditions.push(`organization_id IN {p_oids:Array(String)}`);
+      queryParams.p_oids = oids;
+    }
+    if (params.from) {
+      conditions.push(`time >= {p_from:DateTime64(3)}`);
+      queryParams.p_from = Math.floor(params.from.getTime() / 1000);
+    }
+    if (params.to) {
+      conditions.push(`time <= {p_to:DateTime64(3)}`);
+      queryParams.p_to = Math.floor(params.to.getTime() / 1000);
+    }
+
+    const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+
+    const resultSet = await client.query({
+      query: `SELECT DISTINCT JSONExtractString(attributes, {p_label_key:String}) AS val FROM metrics ${where} HAVING val != '' LIMIT ${limit}`,
+      query_params: { ...queryParams, p_label_key: labelKey },
+      format: 'JSONEachRow',
+    });
+    const rows = await resultSet.json<{ val: string }>();
+
+    return {
+      values: rows.map(r => r.val),
+      executionTimeMs: Date.now() - start,
+    };
+  }
+
+  async deleteMetricsByTimeRange(params: DeleteMetricsByTimeRangeParams): Promise<DeleteResult> {
+    const start = Date.now();
+    const client = this.getClient();
+    const pids = Array.isArray(params.projectId) ? params.projectId : [params.projectId];
+
+    const conditions = [
+      `project_id IN {p_pids:Array(String)}`,
+      `time >= {p_from:DateTime64(3)}`,
+      `time <= {p_to:DateTime64(3)}`,
+    ];
+    const queryParams: Record<string, unknown> = {
+      p_pids: pids,
+      p_from: Math.floor(params.from.getTime() / 1000),
+      p_to: Math.floor(params.to.getTime() / 1000),
+    };
+
+    if (params.metricName) {
+      const names = Array.isArray(params.metricName) ? params.metricName : [params.metricName];
+      conditions.push(`metric_name IN {p_names:Array(String)}`);
+      queryParams.p_names = names;
+    }
+    if (params.serviceName) {
+      const svc = Array.isArray(params.serviceName) ? params.serviceName : [params.serviceName];
+      conditions.push(`service_name IN {p_svc:Array(String)}`);
+      queryParams.p_svc = svc;
+    }
+
+    // Delete from metrics table (async mutation)
+    await client.command({
+      query: `ALTER TABLE metrics DELETE WHERE ${conditions.join(' AND ')}`,
+      query_params: queryParams,
+    });
+
+    // Also delete exemplars for the same time range / project
+    const exemplarConditions = [
+      `project_id IN {p_pids:Array(String)}`,
+      `time >= {p_from:DateTime64(3)}`,
+      `time <= {p_to:DateTime64(3)}`,
+    ];
+    await client.command({
+      query: `ALTER TABLE metric_exemplars DELETE WHERE ${exemplarConditions.join(' AND ')}`,
+      query_params: {
+        p_pids: pids,
+        p_from: Math.floor(params.from.getTime() / 1000),
+        p_to: Math.floor(params.to.getTime() / 1000),
+      },
+    });
+
+    return { deleted: 0, executionTimeMs: Date.now() - start };
+  }
 }
 
 function parseClickHouseTime(value: unknown): Date {
@@ -949,5 +1544,32 @@ function mapClickHouseRowToTraceRecord(row: Record<string, unknown>): TraceRecor
     durationMs: Number(row.duration_ms),
     spanCount: Number(row.span_count),
     error: !!Number(row.error),
+  };
+}
+
+function mapClickHouseRowToMetricRecord(row: Record<string, unknown>): StoredMetricRecord {
+  let histogramData: MetricRecord['histogramData'];
+  if (row.histogram_data && typeof row.histogram_data === 'string' && row.histogram_data !== 'null') {
+    try {
+      histogramData = JSON.parse(row.histogram_data as string);
+    } catch {
+      histogramData = undefined;
+    }
+  }
+
+  return {
+    id: String(row.id),
+    time: parseClickHouseTime(row.time),
+    organizationId: row.organization_id ? String(row.organization_id) : '',
+    projectId: String(row.project_id),
+    metricName: String(row.metric_name),
+    metricType: String(row.metric_type) as MetricType,
+    value: Number(row.value),
+    isMonotonic: row.is_monotonic != null ? !!Number(row.is_monotonic) : undefined,
+    serviceName: String(row.service_name),
+    attributes: parseJsonField(row.attributes) as Record<string, unknown> | undefined,
+    resourceAttributes: parseJsonField(row.resource_attributes) as Record<string, unknown> | undefined,
+    histogramData,
+    hasExemplars: !!Number(row.has_exemplars),
   };
 }

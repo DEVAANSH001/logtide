@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
-  import { page } from '$app/stores';
+  import { page } from '$app/state';
   import { authStore } from '$lib/stores/auth';
   import { organizationStore } from '$lib/stores/organization';
   import { toastStore } from '$lib/stores/toast';
@@ -19,8 +19,8 @@
   import { smallLogoPath } from '$lib/utils/theme';
 
   // Get redirect URL and error from query params
-  let redirectUrl = $derived($page.url.searchParams.get('redirect'));
-  let urlError = $derived($page.url.searchParams.get('error'));
+  let redirectUrl = $derived(page.url.searchParams.get('redirect'));
+  let urlError = $derived(page.url.searchParams.get('error'));
 
   // Login mode: 'select' (provider selection), 'local' (email/password), 'ldap' (LDAP form)
   type LoginMode = 'select' | 'local' | 'ldap';
@@ -29,6 +29,7 @@
 
   let email = $state('');
   let password = $state('');
+  // svelte-ignore state_referenced_locally
   let error = $state(urlError || '');
   let loading = $state(false);
   let emailError = $state('');

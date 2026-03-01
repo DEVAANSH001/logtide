@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { page } from '$app/stores';
+	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
 	import { browser } from '$app/environment';
 	import { currentOrganization } from '$lib/stores/organization';
@@ -36,7 +36,7 @@
 	let apiKeyToDelete = $state<ApiKey | null>(null);
 	let lastLoadedApiKeysKey = $state<string | null>(null);
 
-	const projectId = $derived($page.params.id);
+	const projectId = $derived(page.params.id);
 
 	async function loadProject() {
 		if (!$currentOrganization || !projectId) return;

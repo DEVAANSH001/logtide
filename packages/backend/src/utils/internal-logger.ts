@@ -48,6 +48,23 @@ export async function initializeInternalLogging(): Promise<string | null> {
 
     internalDsn = dsn;
     isEnabled = true;
+
+    // Initialize global hub
+    hub.init({
+      dsn,
+      service: process.env.SERVICE_NAME || 'logtide-backend',
+      environment: process.env.NODE_ENV || 'development',
+      release: process.env.npm_package_version || '0.7.0',
+      batchSize: 50,
+      flushInterval: 10000,
+      maxBufferSize: 5000,
+      maxRetries: 2,
+      retryDelayMs: 500,
+      circuitBreakerThreshold: 3,
+      circuitBreakerResetMs: 30000,
+      debug: process.env.NODE_ENV === 'development',
+    });
+
     return dsn;
   } catch (error) {
     console.error('[Internal Logging] Failed to initialize internal logging:', error);
@@ -59,23 +76,8 @@ export async function initializeInternalLogging(): Promise<string | null> {
  * Initialize hub directly (for worker process that doesn't use Fastify)
  */
 export async function initializeWorkerLogging(): Promise<void> {
-  const dsn = await initializeInternalLogging();
-  if (!dsn) return;
-
-  hub.init({
-    dsn,
-    service: process.env.SERVICE_NAME || 'logtide-worker',
-    environment: process.env.NODE_ENV || 'development',
-    release: process.env.npm_package_version || '0.6.3',
-    batchSize: 50,
-    flushInterval: 10000,
-    maxBufferSize: 5000,
-    maxRetries: 2,
-    retryDelayMs: 500,
-    circuitBreakerThreshold: 3,
-    circuitBreakerResetMs: 30000,
-    debug: process.env.NODE_ENV === 'development',
-  });
+  // initializeInternalLogging already calls hub.init()
+  await initializeInternalLogging();
 }
 
 /**

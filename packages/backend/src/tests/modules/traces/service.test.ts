@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { TracesService } from '../../../modules/traces/service.js';
-import { createTestContext, createTestTrace, createTestSpan } from '../../helpers/index.js';
+import { createTestContext, createTestTrace, createTestSpan, createTestLog } from '../../helpers/index.js';
 import { db } from '../../../database/index.js';
 import type { TransformedSpan, AggregatedTrace } from '../../../modules/otlp/trace-transformer.js';
 import crypto from 'crypto';
@@ -798,6 +798,427 @@ describe('TracesService', () => {
       );
 
       expect(result.total_traces).toBe(1);
+    });
+  });
+
+  // ==========================================================================
+  // getEnrichedServiceDependencies
+  // ==========================================================================
+  describe('getEnrichedServiceDependencies', () => {
+    it('should return empty graph when no data exists', async () => {
+      const result = await service.getEnrichedServiceDependencies(context.project.id);
+
+      expect(result.nodes).toEqual([]);
+      expect(result.edges).toEqual([]);
+    });
+
+    it('should return enriched nodes from span dependencies', async () => {
+      const traceId = crypto.randomBytes(16).toString('hex');
+      const now = new Date();
+
+      const parentSpan = await createTestSpan({
+        projectId: context.project.id,
+        organizationId: context.organization.id,
+        traceId,
+        spanId: 'enriched-parent',
+        serviceName: 'api-gateway',
+        startTime: now,
+      });
+
+      await createTestSpan({
+        projectId: context.project.id,
+        organizationId: context.organization.id,
+        traceId,
+        parentSpanId: parentSpan.span_id,
+        serviceName: 'user-service',
+        startTime: new Date(now.getTime() + 10),
+      });
+
+      const result = await service.getEnrichedServiceDependencies(
+        context.project.id,
+        new Date(now.getTime() - 5000),
+        new Date(now.getTime() + 5000),
+      );
+
+      expect(result.nodes).toHaveLength(2);
+      expect(result.edges).toHaveLength(1);
+
+      // Verify enriched node structure
+      const gatewayNode = result.nodes.find((n) => n.name === 'api-gateway');
+      expect(gatewayNode).toBeDefined();
+      expect(gatewayNode?.id).toBe('api-gateway');
+      expect(gatewayNode?.callCount).toBeGreaterThanOrEqual(0);
+      expect(typeof gatewayNode?.errorRate).toBe('number');
+      expect(typeof gatewayNode?.avgLatencyMs).toBe('number');
+      expect(typeof gatewayNode?.totalCalls).toBe('number');
+
+      // Verify edge has type 'span'
+      expect(result.edges[0].type).toBe('span');
+      expect(result.edges[0].source).toBe('api-gateway');
+      expect(result.edges[0].target).toBe('user-service');
+      expect(result.edges[0].callCount).toBe(1);
+    });
+
+    it('should include log co-occurrence edges when within 7-day range', async () => {
+      const traceId = crypto.randomBytes(16).toString('hex');
+      const now = new Date();
+
+      // Create 2+ log pairs with the same trace_id across different services
+      // (HAVING COUNT(*) >= 2 requires at least 2 co-occurrences)
+      for (let i = 0; i < 2; i++) {
+        await createTestLog({
+          projectId: context.project.id,
+          service: 'log-service-a',
+          trace_id: traceId,
+          time: new Date(now.getTime() + i),
+        });
+        await createTestLog({
+          projectId: context.project.id,
+          service: 'log-service-b',
+          trace_id: traceId,
+          time: new Date(now.getTime() + i + 1),
+        });
+      }
+
+      const result = await service.getEnrichedServiceDependencies(
+        context.project.id,
+        new Date(now.getTime() - 5000),
+        new Date(now.getTime() + 5000),
+      );
+
+      // Should have nodes for log-only services
+      const logServiceA = result.nodes.find((n) => n.name === 'log-service-a');
+      const logServiceB = result.nodes.find((n) => n.name === 'log-service-b');
+      expect(logServiceA).toBeDefined();
+      expect(logServiceB).toBeDefined();
+
+      // Log-only services should have callCount 0
+      expect(logServiceA?.callCount).toBe(0);
+
+      // Should have a log_correlation edge
+      const logEdge = result.edges.find((e) => e.type === 'log_correlation');
+      expect(logEdge).toBeDefined();
+      expect(logEdge?.callCount).toBeGreaterThanOrEqual(2);
+    });
+
+    it('should prioritize span edges over log co-occurrence edges', async () => {
+      const traceId = crypto.randomBytes(16).toString('hex');
+      const now = new Date();
+
+      // Create span-based dependency: gateway → backend
+      const parentSpan = await createTestSpan({
+        projectId: context.project.id,
+        organizationId: context.organization.id,
+        traceId,
+        spanId: 'prio-parent',
+        serviceName: 'gateway',
+        startTime: now,
+      });
+
+      await createTestSpan({
+        projectId: context.project.id,
+        organizationId: context.organization.id,
+        traceId,
+        parentSpanId: parentSpan.span_id,
+        serviceName: 'backend',
+        startTime: new Date(now.getTime() + 10),
+      });
+
+      // Also create log co-occurrence for same service pair
+      for (let i = 0; i < 3; i++) {
+        await createTestLog({
+          projectId: context.project.id,
+          service: 'backend',
+          trace_id: traceId,
+          time: new Date(now.getTime() + i),
+        });
+        await createTestLog({
+          projectId: context.project.id,
+          service: 'gateway',
+          trace_id: traceId,
+          time: new Date(now.getTime() + i + 1),
+        });
+      }
+
+      const result = await service.getEnrichedServiceDependencies(
+        context.project.id,
+        new Date(now.getTime() - 5000),
+        new Date(now.getTime() + 5000),
+      );
+
+      // Should only have span edge, not duplicate log_correlation edge
+      const edgesBetween = result.edges.filter(
+        (e) =>
+          (e.source === 'gateway' && e.target === 'backend') ||
+          (e.source === 'backend' && e.target === 'gateway'),
+      );
+      expect(edgesBetween).toHaveLength(1);
+      expect(edgesBetween[0].type).toBe('span');
+    });
+
+    it('should skip log correlation for ranges > 7 days', async () => {
+      const traceId = crypto.randomBytes(16).toString('hex');
+      const now = new Date();
+
+      // Create log co-occurrence data
+      for (let i = 0; i < 3; i++) {
+        await createTestLog({
+          projectId: context.project.id,
+          service: 'svc-x',
+          trace_id: traceId,
+          time: now,
+        });
+        await createTestLog({
+          projectId: context.project.id,
+          service: 'svc-y',
+          trace_id: traceId,
+          time: now,
+        });
+      }
+
+      // Query with > 7 day range (8 days)
+      const eightDaysAgo = new Date(now.getTime() - 8 * 24 * 60 * 60 * 1000);
+      const result = await service.getEnrichedServiceDependencies(
+        context.project.id,
+        eightDaysAgo,
+        new Date(now.getTime() + 5000),
+      );
+
+      // Should not have log_correlation edges
+      const logEdges = result.edges.filter((e) => e.type === 'log_correlation');
+      expect(logEdges).toHaveLength(0);
+    });
+
+    it('should use default time range when not provided', async () => {
+      const result = await service.getEnrichedServiceDependencies(context.project.id);
+
+      // Should not throw, default is last 24h
+      expect(result).toBeDefined();
+      expect(result.nodes).toBeDefined();
+      expect(result.edges).toBeDefined();
+    });
+
+    it('should set default values when health stats are empty', async () => {
+      const traceId = crypto.randomBytes(16).toString('hex');
+      const now = new Date();
+
+      const parentSpan = await createTestSpan({
+        projectId: context.project.id,
+        organizationId: context.organization.id,
+        traceId,
+        spanId: 'health-parent',
+        serviceName: 'svc-no-health',
+        startTime: now,
+      });
+
+      await createTestSpan({
+        projectId: context.project.id,
+        organizationId: context.organization.id,
+        traceId,
+        parentSpanId: parentSpan.span_id,
+        serviceName: 'svc-no-health-child',
+        startTime: new Date(now.getTime() + 10),
+      });
+
+      const result = await service.getEnrichedServiceDependencies(
+        context.project.id,
+        new Date(now.getTime() - 5000),
+        new Date(now.getTime() + 5000),
+      );
+
+      // Health stats won't be populated (continuous aggregates not refreshed in tests)
+      // So defaults should be applied
+      for (const node of result.nodes) {
+        expect(node.errorRate).toBe(0);
+        expect(node.avgLatencyMs).toBe(0);
+        expect(node.p95LatencyMs).toBeNull();
+      }
+    });
+
+    it('should handle multiple independent trace dependencies', async () => {
+      const now = new Date();
+
+      // Trace 1: A → B
+      const trace1 = crypto.randomBytes(16).toString('hex');
+      const parent1 = await createTestSpan({
+        projectId: context.project.id,
+        organizationId: context.organization.id,
+        traceId: trace1,
+        spanId: 'multi-parent-1',
+        serviceName: 'service-a',
+        startTime: now,
+      });
+      await createTestSpan({
+        projectId: context.project.id,
+        organizationId: context.organization.id,
+        traceId: trace1,
+        parentSpanId: parent1.span_id,
+        serviceName: 'service-b',
+        startTime: new Date(now.getTime() + 10),
+      });
+
+      // Trace 2: B → C
+      const trace2 = crypto.randomBytes(16).toString('hex');
+      const parent2 = await createTestSpan({
+        projectId: context.project.id,
+        organizationId: context.organization.id,
+        traceId: trace2,
+        spanId: 'multi-parent-2',
+        serviceName: 'service-b',
+        startTime: now,
+      });
+      await createTestSpan({
+        projectId: context.project.id,
+        organizationId: context.organization.id,
+        traceId: trace2,
+        parentSpanId: parent2.span_id,
+        serviceName: 'service-c',
+        startTime: new Date(now.getTime() + 10),
+      });
+
+      const result = await service.getEnrichedServiceDependencies(
+        context.project.id,
+        new Date(now.getTime() - 5000),
+        new Date(now.getTime() + 5000),
+      );
+
+      expect(result.nodes).toHaveLength(3);
+      expect(result.edges).toHaveLength(2);
+
+      const edgeAB = result.edges.find((e) => e.source === 'service-a' && e.target === 'service-b');
+      const edgeBC = result.edges.find((e) => e.source === 'service-b' && e.target === 'service-c');
+      expect(edgeAB).toBeDefined();
+      expect(edgeBC).toBeDefined();
+    });
+
+    it('should add log-only services as nodes with callCount 0', async () => {
+      const traceId = crypto.randomBytes(16).toString('hex');
+      const now = new Date();
+
+      // Only log co-occurrence, no spans
+      for (let i = 0; i < 3; i++) {
+        await createTestLog({
+          projectId: context.project.id,
+          service: 'log-only-a',
+          trace_id: traceId,
+          time: new Date(now.getTime() + i),
+        });
+        await createTestLog({
+          projectId: context.project.id,
+          service: 'log-only-b',
+          trace_id: traceId,
+          time: new Date(now.getTime() + i + 1),
+        });
+      }
+
+      const result = await service.getEnrichedServiceDependencies(
+        context.project.id,
+        new Date(now.getTime() - 5000),
+        new Date(now.getTime() + 5000),
+      );
+
+      const nodeA = result.nodes.find((n) => n.name === 'log-only-a');
+      const nodeB = result.nodes.find((n) => n.name === 'log-only-b');
+
+      expect(nodeA).toBeDefined();
+      expect(nodeA?.callCount).toBe(0);
+      expect(nodeA?.totalCalls).toBe(0);
+
+      expect(nodeB).toBeDefined();
+      expect(nodeB?.callCount).toBe(0);
+      expect(nodeB?.totalCalls).toBe(0);
+    });
+
+    it('should not add log edges below threshold (< 2 co-occurrences)', async () => {
+      const traceId = crypto.randomBytes(16).toString('hex');
+      const now = new Date();
+
+      // Only 1 co-occurrence (below HAVING COUNT(*) >= 2 threshold)
+      await createTestLog({
+        projectId: context.project.id,
+        service: 'below-thresh-a',
+        trace_id: traceId,
+        time: now,
+      });
+      await createTestLog({
+        projectId: context.project.id,
+        service: 'below-thresh-b',
+        trace_id: traceId,
+        time: new Date(now.getTime() + 1),
+      });
+
+      const result = await service.getEnrichedServiceDependencies(
+        context.project.id,
+        new Date(now.getTime() - 5000),
+        new Date(now.getTime() + 5000),
+      );
+
+      // Should not find edges for this pair
+      const edges = result.edges.filter(
+        (e) =>
+          (e.source === 'below-thresh-a' || e.target === 'below-thresh-a') &&
+          (e.source === 'below-thresh-b' || e.target === 'below-thresh-b'),
+      );
+      expect(edges).toHaveLength(0);
+    });
+
+    it('should filter span dependencies by time range', async () => {
+      const now = new Date();
+      const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+
+      // Old span dependency
+      const oldTraceId = crypto.randomBytes(16).toString('hex');
+      const oldParent = await createTestSpan({
+        projectId: context.project.id,
+        organizationId: context.organization.id,
+        traceId: oldTraceId,
+        spanId: 'old-enr-parent',
+        serviceName: 'old-svc-a',
+        startTime: yesterday,
+      });
+      await createTestSpan({
+        projectId: context.project.id,
+        organizationId: context.organization.id,
+        traceId: oldTraceId,
+        parentSpanId: oldParent.span_id,
+        serviceName: 'old-svc-b',
+        startTime: yesterday,
+      });
+
+      // Recent span dependency
+      const newTraceId = crypto.randomBytes(16).toString('hex');
+      const newParent = await createTestSpan({
+        projectId: context.project.id,
+        organizationId: context.organization.id,
+        traceId: newTraceId,
+        spanId: 'new-enr-parent',
+        serviceName: 'new-svc-a',
+        startTime: now,
+      });
+      await createTestSpan({
+        projectId: context.project.id,
+        organizationId: context.organization.id,
+        traceId: newTraceId,
+        parentSpanId: newParent.span_id,
+        serviceName: 'new-svc-b',
+        startTime: now,
+      });
+
+      const result = await service.getEnrichedServiceDependencies(
+        context.project.id,
+        new Date(now.getTime() - 1000),
+        new Date(now.getTime() + 1000),
+      );
+
+      // Should only include recent dependency
+      const oldEdge = result.edges.find(
+        (e) => e.source === 'old-svc-a' && e.target === 'old-svc-b',
+      );
+      const newEdge = result.edges.find(
+        (e) => e.source === 'new-svc-a' && e.target === 'new-svc-b',
+      );
+      expect(oldEdge).toBeUndefined();
+      expect(newEdge).toBeDefined();
     });
   });
 });

@@ -50,12 +50,12 @@
 
 <div class="space-y-2">
 	{#each suggestions as suggestion}
+		{@const SuggestionIcon = getSuggestionIcon(suggestion.type)}
 		<div
 			class="rounded-lg border p-3 {getSuggestionStyle(suggestion.severity)}"
 		>
 			<div class="flex items-start gap-2">
-				<svelte:component
-					this={getSuggestionIcon(suggestion.type)}
+				<SuggestionIcon
 					class="w-4 h-4 mt-0.5 flex-shrink-0 {getIconStyle(suggestion.severity)}"
 				/>
 				<div class="flex-1 min-w-0">

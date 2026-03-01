@@ -110,7 +110,7 @@ export async function createIncident(params: CreateIncidentParams): Promise<Inci
   return response.json();
 }
 
-export async function listIncidents(filters: IncidentFilters): Promise<{ incidents: Incident[] }> {
+export async function listIncidents(filters: IncidentFilters): Promise<{ incidents: Incident[]; total: number }> {
   const token = getAuthToken();
   const searchParams = new URLSearchParams({
     organizationId: filters.organizationId,
