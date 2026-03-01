@@ -82,16 +82,20 @@ export class IngestionService {
       // Extract hostname if not already set in metadata
       const hostname = log.metadata?.hostname || extractHostname(log);
       
+      const metadata = {
+        ...log.metadata,
+        ...(hostname && { hostname }),
+      };
+
+      const hasMetadata = Object.keys(metadata).length > 0;
+
       return {
         time: typeof log.time === 'string' ? new Date(log.time) : log.time,
         projectId,
         service: sanitizeForPostgres(log.service),
         level: log.level as ReservoirLogLevel,
         message: sanitizeForPostgres(log.message),
-        metadata: sanitizeForPostgres({
-          ...log.metadata,
-          ...(hostname && { hostname }),
-        }) || undefined,
+        metadata: hasMetadata ? sanitizeForPostgres(metadata) : undefined,
         traceId: sanitizeForPostgres(log.trace_id) || undefined,
         spanId: sanitizeForPostgres((log as { span_id?: string }).span_id) || undefined,
       };
