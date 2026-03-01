@@ -1446,5 +1446,81 @@ describe('OTLP Metric Transformer', () => {
       expect(records[0].value).toBe(77.7);
       expect(records[0].serviceName).toBe('gzip-svc');
     });
+
+    it('should throw error on invalid protobuf (not JSON, not Proto)', async () => {
+      const buffer = Buffer.from([0, 1, 2, 3, 4, 5]);
+      await expect(parseOtlpMetricsProtobuf(buffer)).rejects.toThrow('Failed to decode OTLP metrics protobuf');
+    });
+
+    it('should handle decompression failure', async () => {
+      const invalidGzip = Buffer.from([0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xff, 0xff]);
+      await expect(parseOtlpMetricsProtobuf(invalidGzip)).rejects.toThrow('Failed to decompress gzip data');
+    });
+  });
+
+  describe('ID normalization edge cases', () => {
+    it('should normalize traceId and spanId from base64 (protobuf format)', () => {
+      const traceIdHex = 'abcdef0123456789abcdef0123456789';
+      const spanIdHex = '0123456789abcdef';
+      const traceIdBase64 = Buffer.from(traceIdHex, 'hex').toString('base64');
+      const spanIdBase64 = Buffer.from(spanIdHex, 'hex').toString('base64');
+
+      const request = singleMetricRequest({
+        name: 'g',
+        gauge: {
+          dataPoints: [
+            {
+              timeUnixNano: FIXED_NANOS,
+              asDouble: 1,
+              exemplars: [
+                {
+                  asDouble: 10,
+                  traceId: traceIdBase64,
+                  spanId: spanIdBase64,
+                },
+              ],
+            },
+          ],
+        },
+      });
+      const result = transformOtlpToMetrics(request);
+      expect(result[0].exemplars![0].traceId).toBe(traceIdHex);
+      expect(result[0].exemplars![0].spanId).toBe(spanIdHex);
+    });
+
+    it('should return raw ID if it contains non-hex chars but is not valid base64', () => {
+      const request = singleMetricRequest({
+        name: 'g',
+        gauge: {
+          dataPoints: [
+            {
+              timeUnixNano: FIXED_NANOS,
+              asDouble: 1,
+              exemplars: [{ asDouble: 1, traceId: 'not-hex-and-not-base64!!!' }],
+            },
+          ],
+        },
+      });
+      const result = transformOtlpToMetrics(request);
+      expect(result[0].exemplars![0].traceId).toBe('not-hex-and-not-base64!!!');
+    });
+
+    it('should return undefined for all-zeros traceId even if base64 encoded', () => {
+      const allZerosBase64 = Buffer.alloc(16, 0).toString('base64');
+      const request = singleMetricRequest({
+        name: 'g',
+        gauge: {
+          dataPoints: [
+            {
+              timeUnixNano: FIXED_NANOS,
+              asDouble: 1,
+              exemplars: [{ asDouble: 1, traceId: allZerosBase64 }],
+            },
+          ],
+        },
+      });
+      const result = transformOtlpToMetrics(request);
+      expect(result[0].exemplars![0].traceId).toBeUndefined();
+    });
   });
 });

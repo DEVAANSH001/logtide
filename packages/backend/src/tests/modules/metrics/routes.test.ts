@@ -381,6 +381,7 @@ describe('Metrics Routes', () => {
           from,
           to,
           'attributes[method]': 'GET',
+          'attributes[status]': '200',
         });
 
       expect(response.status).toBe(200);

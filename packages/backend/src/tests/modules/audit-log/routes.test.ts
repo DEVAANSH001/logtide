@@ -474,4 +474,140 @@ describe('Audit Log Routes', () => {
       expect(response.statusCode).toBe(400);
     });
   });
+
+  describe('GET /api/v1/admin/audit-log/export', () => {
+    it('should export audit logs as CSV', async () => {
+      await insertAuditEntry({
+        organization_id: testOrg.id,
+        user_email: 'test@example.com',
+        action: 'test_action',
+        category: 'config_change',
+        metadata: { foo: 'bar' },
+      });
+
+      const response = await app.inject({
+        method: 'GET',
+        url: `/api/v1/admin/audit-log/export?organizationId=${testOrg.id}`,
+        headers: {
+          Authorization: `Bearer ${adminToken}`,
+        },
+      });
+
+      expect(response.statusCode).toBe(200);
+      expect(response.headers['content-type']).toBe('text/csv');
+      expect(response.headers['content-disposition']).toContain('attachment; filename="audit-log-');
+      
+      const lines = response.payload.split('\n');
+      expect(lines[0]).toBe('Time,User,Category,Action,Resource Type,Resource ID,IP Address,User Agent,Details');
+      expect(lines[1]).toContain('test@example.com');
+      expect(lines[1]).toContain('test_action');
+      expect(lines[1]).toContain('config_change');
+      expect(lines[1]).toContain('{"foo":"bar"}');
+    });
+
+    it('should filter export by category', async () => {
+      await insertAuditEntry({
+        organization_id: testOrg.id,
+        action: 'action1',
+        category: 'config_change',
+      });
+      await insertAuditEntry({
+        organization_id: testOrg.id,
+        action: 'action2',
+        category: 'user_management',
+      });
+
+      const response = await app.inject({
+        method: 'GET',
+        url: `/api/v1/admin/audit-log/export?organizationId=${testOrg.id}&category=config_change`,
+        headers: {
+          Authorization: `Bearer ${adminToken}`,
+        },
+      });
+
+      expect(response.statusCode).toBe(200);
+      const lines = response.payload.trim().split('\n');
+      expect(lines).toHaveLength(2); // Header + 1 row
+      expect(lines[1]).toContain('action1');
+      expect(lines[1]).not.toContain('action2');
+    });
+
+    it('should handle large exports with pagination', async () => {
+      // Insert 250 entries to trigger at least one loop (CHUNK_SIZE is 200)
+      const entries = Array.from({ length: 250 }).map((_, i) => ({
+        organization_id: testOrg.id,
+        action: `action_${i}`,
+        category: 'config_change',
+      }));
+
+      // Bulk insert for speed
+      for (const entry of entries) {
+        await insertAuditEntry(entry);
+      }
+
+      const response = await app.inject({
+        method: 'GET',
+        url: `/api/v1/admin/audit-log/export?organizationId=${testOrg.id}`,
+        headers: {
+          Authorization: `Bearer ${adminToken}`,
+        },
+      });
+
+      expect(response.statusCode).toBe(200);
+      const lines = response.payload.trim().split('\n');
+      expect(lines).toHaveLength(251); // Header + 250 rows
+    });
+
+    it('should return 401 without auth token', async () => {
+      const response = await app.inject({
+        method: 'GET',
+        url: `/api/v1/admin/audit-log/export?organizationId=${testOrg.id}`,
+      });
+
+      expect(response.statusCode).toBe(401);
+    });
+
+    it('should return 403 for non-admin users', async () => {
+      const response = await app.inject({
+        method: 'GET',
+        url: `/api/v1/admin/audit-log/export?organizationId=${testOrg.id}`,
+        headers: {
+          Authorization: `Bearer ${userToken}`,
+        },
+      });
+
+      expect(response.statusCode).toBe(403);
+    });
+
+    it('should return 400 for invalid query parameters', async () => {
+      const response = await app.inject({
+        method: 'GET',
+        url: `/api/v1/admin/audit-log/export?organizationId=${testOrg.id}&category=invalid`,
+        headers: {
+          Authorization: `Bearer ${adminToken}`,
+        },
+      });
+
+      expect(response.statusCode).toBe(400);
+    });
+
+    it('should escape CSV values correctly', async () => {
+      await insertAuditEntry({
+        organization_id: testOrg.id,
+        action: 'Action with, comma and "quotes"',
+        category: 'config_change',
+      });
+
+      const response = await app.inject({
+        method: 'GET',
+        url: `/api/v1/admin/audit-log/export?organizationId=${testOrg.id}`,
+        headers: {
+          Authorization: `Bearer ${adminToken}`,
+        },
+      });
+
+      expect(response.statusCode).toBe(200);
+      expect(response.payload).toContain('"Action with, comma and ""quotes"""');
+    });
+  });
 });

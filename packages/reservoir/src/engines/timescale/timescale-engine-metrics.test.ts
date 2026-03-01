@@ -163,25 +163,27 @@ describe('TimescaleEngine - Metrics', () => {
       expect(exSql).toContain('UNNEST');
 
       const exParams = mockQuery.mock.calls[1][1] as unknown[];
-      expect(exParams.length).toBe(8);
+      expect(exParams.length).toBe(9);
 
       // Verify exemplar data
       // $1: times (from metric row)
       expect((exParams[0] as Date[])[0]).toEqual(new Date('2024-01-01T00:00:00Z'));
       // $2: metricIds
       expect((exParams[1] as string[])[0]).toBe('metric-1');
-      // $3: projectIds
-      expect((exParams[2] as string[])[0]).toBe('proj-1');
-      // $4: exemplarValues
-      expect((exParams[3] as number[])[0]).toBe(1.5);
-      // $5: exemplarTimes
-      expect((exParams[4] as (Date | null)[])[0]).toEqual(new Date('2024-01-01T00:00:01Z'));
-      // $6: traceIds
-      expect((exParams[5] as (string | null)[])[0]).toBe('trace-1');
-      // $7: spanIds
-      expect((exParams[6] as (string | null)[])[0]).toBe('span-1');
-      // $8: attributes JSON
-      expect((exParams[7] as (string | null)[])[0]).toBe(JSON.stringify({ key: 'val' }));
+      // $3: orgIds
+      expect((exParams[2] as string[])[0]).toBe('org-1');
+      // $4: projectIds
+      expect((exParams[3] as string[])[0]).toBe('proj-1');
+      // $5: exemplarValues
+      expect((exParams[4] as number[])[0]).toBe(1.5);
+      // $6: exemplarTimes
+      expect((exParams[5] as (Date | null)[])[0]).toEqual(new Date('2024-01-01T00:00:01Z'));
+      // $7: traceIds
+      expect((exParams[6] as (string | null)[])[0]).toBe('trace-1');
+      // $8: spanIds
+      expect((exParams[7] as (string | null)[])[0]).toBe('span-1');
+      // $9: attributes JSON
+      expect((exParams[8] as (string | null)[])[0]).toBe(JSON.stringify({ key: 'val' }));
     });
 
     it('should not insert exemplars when none present (only 1 query call)', async () => {

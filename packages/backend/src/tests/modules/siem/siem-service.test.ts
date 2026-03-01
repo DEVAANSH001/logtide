@@ -132,6 +132,64 @@ describe('SIEM Service - Detection Events', () => {
 
         expect(allEvents).toHaveLength(2);
     });
+
+    it('should handle array of categories and endTime filter', async () => {
+        const { organization, project } = await createTestContext();
+
+        // Create Sigma rule
+        const sigmaRule = await db
+            .insertInto('sigma_rules')
+            .values({
+                organization_id: organization.id,
+                project_id: project.id,
+                title: 'Test Rule',
+                logsource: JSON.stringify({}),
+                detection: JSON.stringify({}),
+            })
+            .returningAll()
+            .executeTakeFirstOrThrow();
+
+        // Create test log
+        const log = await createTestLog({
+            projectId: project.id,
+        });
+
+        const now = new Date();
+
+        await siemService.createDetectionEvent({
+            organizationId: organization.id,
+            projectId: project.id,
+            sigmaRuleId: sigmaRule.id,
+            logId: log.id,
+            severity: 'medium',
+            ruleTitle: 'Security Event',
+            service: 'test',
+            logLevel: 'error',
+            logMessage: 'Security breach',
+            category: 'security',
+        });
+
+        await siemService.createDetectionEvent({
+            organizationId: organization.id,
+            projectId: project.id,
+            sigmaRuleId: sigmaRule.id,
+            logId: log.id,
+            severity: 'medium',
+            ruleTitle: 'App Event',
+            service: 'test',
+            logLevel: 'error',
+            logMessage: 'App error',
+            category: 'application',
+        });
+
+        const result = await siemService.getDetectionEvents({
+            organizationId: organization.id,
+            category: ['security', 'application'],
+            endTime: new Date(now.getTime() + 1000),
+        });
+
+        expect(result).toHaveLength(2);
+    });
 });
 
 describe('SIEM Service - Incidents', () => {
@@ -214,6 +272,20 @@ describe('SIEM Service - Incidents', () => {
 
         expect(openResult.incidents).toHaveLength(2);
         expect(openResult.total).toBe(2);
+
+        // Filter by single status string
+        const singleStatusResult = await siemService.listIncidents({
+            organizationId: organization.id,
+            status: 'resolved',
+        });
+        expect(singleStatusResult.incidents).toHaveLength(1);
+
+        // Filter by assignee
+        const assigneeResult = await siemService.listIncidents({
+            organizationId: organization.id,
+            assigneeId: crypto.randomUUID(), // non-existent
+        });
+        expect(assigneeResult.incidents).toHaveLength(0);
 
         // Filter by severity
         const criticalResult = await siemService.listIncidents({
@@ -350,6 +422,91 @@ describe('SIEM Service - Incidents', () => {
         // Verify detection count updated
         const updatedIncident = await siemService.getIncident(incident.id, organization.id);
         expect(updatedIncident?.detectionCount).toBe(2);
+    });
+
+    it('should enrich incident with IP data', async () => {
+        const { organization, project } = await createTestContext();
+
+        // Create incident
+        const incident = await siemService.createIncident({
+            organizationId: organization.id,
+            projectId: project.id,
+            title: 'Enrichment Test',
+            severity: 'medium',
+        });
+
+        // Create Sigma rule
+        const sigmaRule = await db
+            .insertInto('sigma_rules')
+            .values({
+                organization_id: organization.id,
+                project_id: project.id,
+                title: 'IP Test Rule',
+                logsource: JSON.stringify({}),
+                detection: JSON.stringify({}),
+            })
+            .returningAll()
+            .executeTakeFirstOrThrow();
+
+        const log = await createTestLog({
+            projectId: project.id,
+        });
+
+        const event = await siemService.createDetectionEvent({
+            organizationId: organization.id,
+            projectId: project.id,
+            sigmaRuleId: sigmaRule.id,
+            logId: log.id,
+            severity: 'medium',
+            ruleTitle: 'IP Test Rule',
+            service: 'test',
+            logLevel: 'error',
+            logMessage: 'Failed login from 8.8.8.8',
+            matchedFields: { source_ip: '1.1.1.1' },
+        });
+
+        await siemService.linkDetectionEventsToIncident(incident.id, [event.id]);
+
+        // Mock enrichment service
+        const mockEnrichmentService = {
+            extractIpAddresses: (text: string) => {
+                if (text.includes('8.8.8.8')) return ['8.8.8.8'];
+                if (text.includes('1.1.1.1')) return ['1.1.1.1'];
+                return [];
+            },
+            checkIpReputationBatch: (ips: string[]) => ({
+                '8.8.8.8': { score: 0, reports: 0, isWhitelisted: true, lastCheck: new Date() },
+            }),
+            getGeoIpDataBatch: (ips: string[]) => ({
+                '8.8.8.8': { country: 'US', city: 'Mountain View', lat: 0, lon: 0 },
+            }),
+        } as any;
+
+        await siemService.enrichIncidentIpData(incident.id, mockEnrichmentService);
+
+        const updated = await siemService.getIncident(incident.id, organization.id);
+        expect(updated?.ipReputation).toBeDefined();
+        expect(updated?.ipReputation).toHaveProperty('8.8.8.8');
+        expect(updated?.geoData).toBeDefined();
+        expect(updated?.geoData).toHaveProperty('8.8.8.8');
+    });
+
+    it('should handle enrichment when no IPs are found', async () => {
+        const { organization, project } = await createTestContext();
+        const incident = await siemService.createIncident({
+            organizationId: organization.id,
+            projectId: project.id,
+            title: 'No IP Test',
+            severity: 'low',
+        });
+
+        const mockEnrichmentService = {
+            extractIpAddresses: () => [],
+        } as any;
+
+        await siemService.enrichIncidentIpData(incident.id, mockEnrichmentService);
+        const updated = await siemService.getIncident(incident.id, organization.id);
+        expect(updated?.ipReputation).toBeNull();
     });
 });
 

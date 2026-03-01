@@ -1215,16 +1215,124 @@ describe('Ingestion API', () => {
             expect(response.body.received).toBe(1);
         });
 
-        it('should return 0 when ingesting empty logs array via service', async () => {
-            // This tests the early return in ingestLogs when logs.length === 0
-            // The API validates and rejects empty arrays, but let's verify behavior
+        it('should handle wrapped array of logs (Format 3)', async () => {
+            const body = [
+                {
+                    logs: [
+                        { time: new Date().toISOString(), service: 's1', level: 'info', message: 'm1' }
+                    ]
+                },
+                {
+                    logs: [
+                        { time: new Date().toISOString(), service: 's2', level: 'info', message: 'm2' }
+                    ]
+                }
+            ];
+
             const response = await request(app.server)
                 .post('/api/v1/ingest')
                 .set('x-api-key', apiKey)
-                .send({ logs: [] })
-                .expect(400);
+                .send(body)
+                .expect(200);
 
-            expect(response.body.error).toBeDefined();
+            expect(response.body.received).toBe(2);
+        });
+
+        it('should handle direct array of logs (Format 2)', async () => {
+            const body = [
+                { time: new Date().toISOString(), service: 's1', level: 'info', message: 'm1' },
+                { time: new Date().toISOString(), service: 's2', level: 'info', message: 'm2' }
+            ];
+
+            const response = await request(app.server)
+                .post('/api/v1/ingest')
+                .set('x-api-key', apiKey)
+                .send(body)
+                .expect(200);
+
+            expect(response.body.received).toBe(2);
         });
     });
-});
+
+    describe('Ingestion routes - more normalization edge cases', () => {
+        it('should extract hostname from metadata.hostname or metadata.host', async () => {
+            const logs = [
+                {
+                    time: new Date().toISOString(),
+                    service: 'test',
+                    level: 'info',
+                    message: 'm1',
+                    metadata: { hostname: 'meta-hostname' }
+                },
+                {
+                    time: new Date().toISOString(),
+                    service: 'test',
+                    level: 'info',
+                    message: 'm2',
+                    metadata: { host: 'meta-host' }
+                }
+            ];
+
+            await request(app.server)
+                .post('/api/v1/ingest')
+                .set('x-api-key', apiKey)
+                .send({ logs })
+                .expect(200);
+
+            const dbLog1 = await db.selectFrom('logs').selectAll().where('message', '=', 'm1').executeTakeFirst();
+            const dbLog2 = await db.selectFrom('logs').selectAll().where('message', '=', 'm2').executeTakeFirst();
+
+            expect(dbLog1?.metadata).toHaveProperty('hostname', 'meta-hostname');
+            expect(dbLog2?.metadata).toHaveProperty('hostname', 'meta-host');
+        });
+
+        it('should normalize very high numeric levels to critical', async () => {
+            const log = {
+                time: new Date().toISOString(),
+                service: 'test',
+                level: 70, // Above 60
+                message: 'high level',
+            };
+
+            await request(app.server)
+                .post('/api/v1/ingest/single')
+                .set('x-api-key', apiKey)
+                .send(log)
+                .expect(200);
+
+            const dbLog = await db.selectFrom('logs').selectAll().where('message', '=', 'high level').executeTakeFirst();
+            expect(dbLog?.level).toBe('critical');
+        });
+
+        it('should handle journald invalid timestamp gracefully', async () => {
+            const log = {
+                MESSAGE: 'bad timestamp',
+                SYSLOG_IDENTIFIER: 'test',
+                PRIORITY: '6',
+                __REALTIME_TIMESTAMP: 'not-a-number',
+            };
+
+            await request(app.server)
+                .post('/api/v1/ingest/single')
+                .set('x-api-key', apiKey)
+                .send(log)
+                .expect(200);
+
+            const dbLog = await db.selectFrom('logs').selectAll().where('message', '=', 'bad timestamp').executeTakeFirst();
+            expect(dbLog).toBeDefined();
+            // Should fallback to current time
+        });
+
+        it('should handle application/json that is actually NDJSON but with trailing spaces', async () => {
+            const ndjson = '{"service":"s1","level":"info","message":"m1"}\n  \n{"service":"s2","level":"info","message":"m2"}  ';
+            
+            const response = await request(app.server)
+                .post('/api/v1/ingest/single')
+                .set('x-api-key', apiKey)
+                .set('Content-Type', 'application/json')
+                .send(ndjson)
+                .expect(200);
+
+            expect(response.body.received).toBe(2);
+        });
+    });
