@@ -759,6 +759,36 @@ export interface AuditLogTable {
 // METRICS TABLES (OTLP Metrics Ingestion)
 // ============================================================================
 
+// ============================================================================
+// METRICS CONTINUOUS AGGREGATES
+// ============================================================================
+
+export interface MetricsHourlyStatsTable {
+  bucket: Timestamp;
+  project_id: string;
+  metric_name: string;
+  metric_type: string;
+  service_name: string;
+  point_count: number;
+  avg_value: number | null;
+  sum_value: number | null;
+  min_value: number | null;
+  max_value: number | null;
+}
+
+export interface MetricsDailyStatsTable {
+  bucket: Timestamp;
+  project_id: string;
+  metric_name: string;
+  metric_type: string;
+  service_name: string;
+  point_count: number;
+  avg_value: number | null;
+  sum_value: number | null;
+  min_value: number | null;
+  max_value: number | null;
+}
+
 export interface MetricsTable {
   time: Timestamp;
   id: Generated<string>;
@@ -818,6 +848,8 @@ export interface Database {
   detection_events_hourly_stats: DetectionEventsHourlyStatsTable;
   detection_events_daily_stats: DetectionEventsDailyStatsTable;
   detection_events_rule_stats: DetectionEventsRuleStatsTable;
+  metrics_hourly_stats: MetricsHourlyStatsTable;
+  metrics_daily_stats: MetricsDailyStatsTable;
   // Exception tracking tables
   exceptions: ExceptionsTable;
   stack_frames: StackFramesTable;
