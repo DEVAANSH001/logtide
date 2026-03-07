@@ -190,6 +190,17 @@
     if (chartContainer && !chart) {
       chart = echarts.init(chartContainer);
 
+      chart.on('click', (params: any) => {
+        if (!selectedProject || !storeState.selectedMetric) return;
+        const ts = storeState.timeseries?.timeseries?.[params.dataIndex];
+        if (!ts) return;
+        const bucketDate = typeof ts.bucket === 'string' ? new Date(ts.bucket) : ts.bucket;
+        const halfInterval = getIntervalMs(storeState.selectedInterval) / 2;
+        const from = new Date(bucketDate.getTime() - halfInterval).toISOString();
+        const to = new Date(bucketDate.getTime() + halfInterval).toISOString();
+        goto(`/dashboard/traces?from=${from}&to=${to}&projectId=${selectedProject}`);
+      });
+
       resizeObserver = new ResizeObserver(() => chart?.resize());
       resizeObserver.observe(chartContainer);
 
@@ -472,6 +483,7 @@
         name,
         type: "line",
         smooth: true,
+        cursor: 'pointer',
         data: allBuckets.map((b) => bucketMap.get(b) ?? null),
         lineStyle: { color: seriesColors[i % seriesColors.length] },
         itemStyle: { color: seriesColors[i % seriesColors.length] },
@@ -489,6 +501,22 @@
         trigger: "axis",
         axisPointer: { type: "cross" },
         ...tooltipStyle,
+        formatter: (params: any) => {
+          if (!Array.isArray(params) || params.length === 0) return '';
+          const lines = params.map((p: any) => {
+            const val = typeof p.value === 'number' ? p.value.toFixed(2) : p.value;
+            return `<div style="display:flex;align-items:center;gap:6px">
+              <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${p.color}"></span>
+              <span>${p.seriesName}:</span>
+              <strong>${val}</strong>
+            </div>`;
+          });
+          return `<div style="font-size:12px">
+            <div style="font-weight:600;margin-bottom:4px">${params[0].name}</div>
+            ${lines.join('')}
+            <div style="color:#888;font-size:11px;margin-top:6px;border-top:1px solid rgba(128,128,128,0.2);padding-top:4px">Click to view related traces</div>
+          </div>`;
+        },
       },
       legend: {
         data: seriesNames,
@@ -547,6 +575,14 @@
     const str = JSON.stringify(obj);
     if (str.length <= maxLen) return str;
     return str.slice(0, maxLen) + "...";
+  }
+
+  function getIntervalMs(interval: string): number {
+    const map: Record<string, number> = {
+      '1m': 60_000, '5m': 300_000, '15m': 900_000,
+      '1h': 3_600_000, '6h': 21_600_000, '1d': 86_400_000,
+    };
+    return map[interval] || 3_600_000;
   }
 
   function goToTrace(traceId: string) {
