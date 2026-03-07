@@ -128,6 +128,7 @@ services:
       MONGODB_DATABASE: ${MONGODB_DATABASE:-logtide}
       MONGODB_USERNAME: ${MONGODB_USERNAME:-}
       MONGODB_PASSWORD: ${MONGODB_PASSWORD:-}
+      MONGODB_AUTH_SOURCE: ${MONGODB_AUTH_SOURCE:-}
     depends_on:
       postgres:
         condition: service_healthy
@@ -175,6 +176,7 @@ services:
       MONGODB_DATABASE: ${MONGODB_DATABASE:-logtide}
       MONGODB_USERNAME: ${MONGODB_USERNAME:-}
       MONGODB_PASSWORD: ${MONGODB_PASSWORD:-}
+      MONGODB_AUTH_SOURCE: ${MONGODB_AUTH_SOURCE:-}
     depends_on:
       backend:
         condition: service_healthy

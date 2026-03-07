@@ -20,24 +20,28 @@ export function getMongoDBConfig(): StorageConfig {
     // Extract host/port/database from URI for StorageConfig compatibility
     try {
       const url = new URL(uri);
+      const uriAuthSource = url.searchParams.get('authSource');
       return {
         host: url.hostname || 'localhost',
         port: parseInt(url.port || '27017', 10),
         database: url.pathname.replace('/', '') || process.env.MONGODB_DATABASE || 'logtide',
         username: decodeURIComponent(url.username || ''),
         password: decodeURIComponent(url.password || ''),
+        ...(uriAuthSource ? { options: { authSource: uriAuthSource } } : {}),
       };
     } catch {
       // Fallback for non-standard URIs (e.g. replica set URIs)
     }
   }
 
+  const authSource = process.env.MONGODB_AUTH_SOURCE;
   return {
     host: process.env.MONGODB_HOST || 'localhost',
     port: parseInt(process.env.MONGODB_PORT || '27017', 10),
     database: process.env.MONGODB_DATABASE || 'logtide',
     username: process.env.MONGODB_USERNAME || '',
     password: process.env.MONGODB_PASSWORD || '',
+    ...(authSource ? { options: { authSource } } : {}),
   };
 }
 
