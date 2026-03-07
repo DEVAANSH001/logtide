@@ -352,9 +352,12 @@ function format_metrics(tag, timestamp, record)
     -- Build OTLP JSON payload
     local json = build_otlp_json(metrics, service_name, timestamp)
 
-    -- Replace the record with the OTLP payload
+    -- Replace the record with the OTLP payload + headers
     local new_record = {
-        otlp_payload = json
+        otlp_payload = json,
+        otlp_headers = {
+            ["Content-Type"] = "application/json"
+        }
     }
 
     return 1, timestamp, new_record
