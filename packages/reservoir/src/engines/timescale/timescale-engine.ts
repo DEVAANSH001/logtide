@@ -1070,6 +1070,12 @@ export class TimescaleEngine extends StorageEngine {
 
   async aggregateMetrics(params: MetricAggregateParams): Promise<MetricAggregateResult> {
     const start = Date.now();
+
+    // Use pre-aggregated rollups when eligible
+    if (this.canUseMetricRollup(params)) {
+      return this.aggregateMetricsFromRollup(params, start);
+    }
+
     const pool = this.getPool();
     const s = this.schema;
 
@@ -1188,6 +1194,77 @@ export class TimescaleEngine extends StorageEngine {
       metricName: params.metricName,
       metricType: params.metricType ?? 'gauge',
       timeseries,
+      executionTimeMs: Date.now() - start,
+    };
+  }
+
+  private canUseMetricRollup(params: MetricAggregateParams): boolean {
+    if (params.interval !== '1h' && params.interval !== '1d') return false;
+    if (params.aggregation === 'last') return false;
+    if (params.groupBy && params.groupBy.length > 0) return false;
+    if (params.attributes && Object.keys(params.attributes).length > 0) return false;
+    return true;
+  }
+
+  private async aggregateMetricsFromRollup(
+    params: MetricAggregateParams,
+    start: number,
+  ): Promise<MetricAggregateResult> {
+    const pool = this.getPool();
+    const s = this.schema;
+
+    const rollupTable = params.interval === '1d'
+      ? 'metrics_daily_stats'
+      : 'metrics_hourly_stats';
+
+    const aggColumn: Record<string, string> = {
+      avg: 'avg_value',
+      sum: 'sum_value',
+      min: 'min_value',
+      max: 'max_value',
+      count: 'point_count',
+    };
+    const col = aggColumn[params.aggregation] || 'avg_value';
+
+    const projectIds = Array.isArray(params.projectId) ? params.projectId : [params.projectId];
+    const placeholders: unknown[] = [params.from, params.to, projectIds, params.metricName];
+
+    let serviceFilter = '';
+    if (params.serviceName) {
+      const services = Array.isArray(params.serviceName) ? params.serviceName : [params.serviceName];
+      placeholders.push(services);
+      serviceFilter = ` AND service_name = ANY($${placeholders.length})`;
+    }
+
+    const sql = `
+      SELECT bucket, ${col} AS agg_value
+      FROM ${s}.${rollupTable}
+      WHERE bucket >= $1 AND bucket <= $2
+        AND project_id = ANY($3)
+        AND metric_name = $4
+        ${serviceFilter}
+      ORDER BY bucket ASC
+    `;
+
+    const { rows } = await pool.query(sql, placeholders);
+
+    // Resolve metric type
+    let metricType = params.metricType;
+    if (!metricType && rows.length > 0) {
+      const typeRes = await pool.query(
+        `SELECT metric_type FROM ${s}.${rollupTable} WHERE metric_name = $1 LIMIT 1`,
+        [params.metricName],
+      );
+      metricType = typeRes.rows[0]?.metric_type || 'gauge';
+    }
+
+    return {
+      metricName: params.metricName,
+      metricType: (metricType || 'gauge') as MetricType,
+      timeseries: rows.map((r: Record<string, unknown>) => ({
+        bucket: new Date(r.bucket as string),
+        value: Number(r.agg_value) || 0,
+      })),
       executionTimeMs: Date.now() - start,
     };
   }

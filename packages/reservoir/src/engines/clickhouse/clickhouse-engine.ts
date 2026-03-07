@@ -1204,6 +1204,12 @@ export class ClickHouseEngine extends StorageEngine {
 
   async aggregateMetrics(params: MetricAggregateParams): Promise<MetricAggregateResult> {
     const start = Date.now();
+
+    // Use pre-aggregated rollups when eligible
+    if (this.canUseMetricRollup(params)) {
+      return this.aggregateMetricsFromRollup(params, start);
+    }
+
     const client = this.getClient();
 
     const intervalMap: Record<AggregationInterval, string> = {
@@ -1336,6 +1342,85 @@ export class ClickHouseEngine extends StorageEngine {
       metricName: params.metricName,
       metricType,
       timeseries,
+      executionTimeMs: Date.now() - start,
+    };
+  }
+
+  private canUseMetricRollup(params: MetricAggregateParams): boolean {
+    if (params.interval !== '1h' && params.interval !== '1d') return false;
+    if (params.aggregation === 'last') return false;
+    if (params.groupBy && params.groupBy.length > 0) return false;
+    if (params.attributes && Object.keys(params.attributes).length > 0) return false;
+    return true;
+  }
+
+  private async aggregateMetricsFromRollup(
+    params: MetricAggregateParams,
+    start: number,
+  ): Promise<MetricAggregateResult> {
+    const client = this.getClient();
+
+    const rollupTable = params.interval === '1d'
+      ? 'metrics_daily_rollup'
+      : 'metrics_hourly_rollup';
+
+    // Re-aggregate from rollup (handles partial rows)
+    const aggExpr: Record<string, string> = {
+      avg: 'sum(value_sum) / sum(point_count)',
+      sum: 'sum(value_sum)',
+      min: 'min(min_value)',
+      max: 'max(max_value)',
+      count: 'sum(point_count)',
+    };
+    const expr = aggExpr[params.aggregation] || aggExpr.avg;
+
+    const projectIds = Array.isArray(params.projectId) ? params.projectId : [params.projectId];
+
+    const queryParams: Record<string, unknown> = {
+      p_pids: projectIds,
+      p_from: Math.floor(params.from.getTime() / 1000),
+      p_to: Math.floor(params.to.getTime() / 1000),
+      p_name: params.metricName,
+    };
+
+    let serviceFilter = '';
+    if (params.serviceName) {
+      const services = Array.isArray(params.serviceName) ? params.serviceName : [params.serviceName];
+      queryParams.p_services = services;
+      serviceFilter = ' AND service_name IN {p_services:Array(String)}';
+    }
+
+    const sql = `
+      SELECT
+        bucket,
+        ${expr} AS agg_value,
+        any(metric_type) AS metric_type
+      FROM ${rollupTable}
+      WHERE project_id IN {p_pids:Array(String)}
+        AND bucket >= {p_from:DateTime64(3)}
+        AND bucket <= {p_to:DateTime64(3)}
+        AND metric_name = {p_name:String}
+        ${serviceFilter}
+      GROUP BY bucket
+      ORDER BY bucket ASC
+    `;
+
+    const result = await client.query({
+      query: sql,
+      query_params: queryParams,
+      format: 'JSONEachRow',
+    });
+    const rows = await result.json<{ bucket: string; agg_value: number; metric_type?: string }[]>();
+
+    const metricType = params.metricType || rows[0]?.metric_type || 'gauge';
+
+    return {
+      metricName: params.metricName,
+      metricType: metricType as MetricType,
+      timeseries: rows.map(r => ({
+        bucket: new Date(r.bucket),
+        value: Number(r.agg_value) || 0,
+      })),
       executionTimeMs: Date.now() - start,
     };
   }
