@@ -538,33 +538,41 @@ export class MongoDBEngine extends StorageEngine {
 
   async upsertTrace(trace: TraceRecord): Promise<void> {
     const col = this.tracesCol();
+    const filter = { trace_id: trace.traceId, project_id: trace.projectId };
 
-    // Atomic upsert: $min for start_time, $max for end_time + error, $inc for span_count
-    await col.updateOne(
-      { trace_id: trace.traceId, project_id: trace.projectId },
-      {
-        $min: { start_time: trace.startTime },
-        $max: { end_time: trace.endTime, error: trace.error },
-        $inc: { span_count: trace.spanCount },
-        $set: {
-          service_name: trace.serviceName,
-          root_service_name: trace.rootServiceName ?? null,
-          root_operation_name: trace.rootOperationName ?? null,
-          updated_at: new Date(),
+    // Single bulkWrite: upsert + compute duration_ms in one network round trip
+    await col.bulkWrite(
+      [
+        {
+          updateOne: {
+            filter,
+            update: {
+              $min: { start_time: trace.startTime },
+              $max: { end_time: trace.endTime, error: trace.error },
+              $inc: { span_count: trace.spanCount },
+              $set: {
+                service_name: trace.serviceName,
+                root_service_name: trace.rootServiceName ?? null,
+                root_operation_name: trace.rootOperationName ?? null,
+                updated_at: new Date(),
+              },
+              $setOnInsert: {
+                trace_id: trace.traceId,
+                project_id: trace.projectId,
+                organization_id: trace.organizationId ?? null,
+              },
+            },
+            upsert: true,
+          },
         },
-        $setOnInsert: {
-          trace_id: trace.traceId,
-          project_id: trace.projectId,
-          organization_id: trace.organizationId ?? null,
+        {
+          updateOne: {
+            filter,
+            update: [{ $set: { duration_ms: { $subtract: [{ $toLong: '$end_time' }, { $toLong: '$start_time' }] } } }],
+          },
         },
-      },
-      { upsert: true },
-    );
-
-    // Compute duration_ms from the stored start_time and end_time
-    await col.updateOne(
-      { trace_id: trace.traceId, project_id: trace.projectId },
-      [{ $set: { duration_ms: { $subtract: [{ $toLong: '$end_time' }, { $toLong: '$start_time' }] } } }],
+      ],
+      { ordered: true },
     );
   }
 
@@ -786,11 +794,13 @@ export class MongoDBEngine extends StorageEngine {
         }
       }
 
-      await db.collection('metrics').insertMany(metricDocs, { ordered: false });
-
+      const insertOps: Promise<unknown>[] = [
+        db.collection('metrics').insertMany(metricDocs, { ordered: false }),
+      ];
       if (exemplarDocs.length > 0) {
-        await db.collection('metric_exemplars').insertMany(exemplarDocs, { ordered: false });
+        insertOps.push(db.collection('metric_exemplars').insertMany(exemplarDocs, { ordered: false }));
       }
+      await Promise.all(insertOps);
 
       return { ingested: metrics.length, failed: 0, durationMs: Date.now() - start };
     } catch (err) {
