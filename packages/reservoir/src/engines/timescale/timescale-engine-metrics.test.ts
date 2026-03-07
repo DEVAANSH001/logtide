@@ -1053,4 +1053,152 @@ describe('TimescaleEngine - Metrics', () => {
       expect(params).toContainEqual(['api']);
     });
   });
+
+  // =========================================================================
+  // getMetricsOverview
+  // =========================================================================
+
+  describe('getMetricsOverview', () => {
+    it('should return metrics grouped by service', async () => {
+      // First query: aggregate stats (tries metrics_hourly_stats)
+      mockQuery
+        .mockResolvedValueOnce({
+          rows: [
+            { metric_name: 'http.requests', metric_type: 'sum', service_name: 'api', point_count: 100, avg_value: 5.2, min_value: 1, max_value: 10 },
+            { metric_name: 'cpu.usage', metric_type: 'gauge', service_name: 'api', point_count: 50, avg_value: 65.3, min_value: 20, max_value: 95 },
+            { metric_name: 'http.requests', metric_type: 'sum', service_name: 'worker', point_count: 30, avg_value: 2.1, min_value: 0, max_value: 8 },
+          ],
+        })
+        // Second query: latest values
+        .mockResolvedValueOnce({ rows: [] });
+
+      await engine.connect();
+
+      const result = await engine.getMetricsOverview({
+        projectId: 'proj-1',
+        from: new Date('2024-01-01'),
+        to: new Date('2024-01-02'),
+      });
+
+      expect(result.services).toHaveLength(2);
+      expect(result.services[0].serviceName).toBe('api');
+      expect(result.services[0].metrics).toHaveLength(2);
+      expect(result.services[1].serviceName).toBe('worker');
+      expect(result.services[1].metrics).toHaveLength(1);
+      expect(result.executionTimeMs).toBeGreaterThanOrEqual(0);
+    });
+
+    it('should filter by serviceName', async () => {
+      mockQuery
+        .mockResolvedValueOnce({ rows: [] })
+        .mockResolvedValueOnce({ rows: [] });
+
+      await engine.connect();
+
+      await engine.getMetricsOverview({
+        projectId: 'proj-1',
+        from: new Date('2024-01-01'),
+        to: new Date('2024-01-02'),
+        serviceName: 'api',
+      });
+
+      const sql = mockQuery.mock.calls[0][0] as string;
+      expect(sql).toContain('service_name');
+      const params = mockQuery.mock.calls[0][1] as unknown[];
+      expect(params).toContain('api');
+    });
+
+    it('should return empty services when no data', async () => {
+      mockQuery
+        .mockResolvedValueOnce({ rows: [] })
+        .mockResolvedValueOnce({ rows: [] });
+
+      await engine.connect();
+
+      const result = await engine.getMetricsOverview({
+        projectId: 'proj-1',
+        from: new Date('2024-01-01'),
+        to: new Date('2024-01-02'),
+      });
+
+      expect(result.services).toHaveLength(0);
+    });
+
+    it('should use latest values when available', async () => {
+      mockQuery
+        .mockResolvedValueOnce({
+          rows: [
+            { metric_name: 'cpu.usage', metric_type: 'gauge', service_name: 'api', point_count: 50, avg_value: 65.3, min_value: 20, max_value: 95 },
+          ],
+        })
+        .mockResolvedValueOnce({
+          rows: [
+            { metric_name: 'cpu.usage', service_name: 'api', latest_value: 78.5 },
+          ],
+        });
+
+      await engine.connect();
+
+      const result = await engine.getMetricsOverview({
+        projectId: 'proj-1',
+        from: new Date('2024-01-01'),
+        to: new Date('2024-01-02'),
+      });
+
+      expect(result.services[0].metrics[0].latestValue).toBe(78.5);
+      expect(result.services[0].metrics[0].avgValue).toBe(65.3);
+    });
+
+    it('should fall back to raw metrics table when hourly stats fail', async () => {
+      // First query fails (hourly stats not available)
+      mockQuery.mockRejectedValueOnce(new Error('relation does not exist'));
+      // Fallback raw query succeeds
+      mockQuery.mockResolvedValueOnce({
+        rows: [
+          { metric_name: 'cpu.usage', metric_type: 'gauge', service_name: 'api', point_count: 10, avg_value: 50, min_value: 10, max_value: 90 },
+        ],
+      });
+      // Latest values query
+      mockQuery.mockResolvedValueOnce({ rows: [] });
+
+      await engine.connect();
+
+      const result = await engine.getMetricsOverview({
+        projectId: 'proj-1',
+        from: new Date('2024-01-01'),
+        to: new Date('2024-01-02'),
+      });
+
+      expect(result.services).toHaveLength(1);
+      expect(result.services[0].serviceName).toBe('api');
+      expect(result.services[0].metrics[0].metricName).toBe('cpu.usage');
+    });
+
+    it('should map metric fields correctly', async () => {
+      mockQuery
+        .mockResolvedValueOnce({
+          rows: [
+            { metric_name: 'http.duration', metric_type: 'gauge', service_name: 'gateway', point_count: 200, avg_value: 42.5, min_value: 1.2, max_value: 150.7 },
+          ],
+        })
+        .mockResolvedValueOnce({ rows: [] });
+
+      await engine.connect();
+
+      const result = await engine.getMetricsOverview({
+        projectId: 'proj-1',
+        from: new Date('2024-01-01'),
+        to: new Date('2024-01-02'),
+      });
+
+      const metric = result.services[0].metrics[0];
+      expect(metric.metricName).toBe('http.duration');
+      expect(metric.metricType).toBe('gauge');
+      expect(metric.serviceName).toBe('gateway');
+      expect(metric.avgValue).toBe(42.5);
+      expect(metric.minValue).toBe(1.2);
+      expect(metric.maxValue).toBe(150.7);
+      expect(metric.pointCount).toBe(200);
+    });
+  });
 });

@@ -958,4 +958,116 @@ describe('ClickHouseEngine metric operations (unit)', () => {
       expect(result.executionTimeMs).toBeGreaterThanOrEqual(0);
     });
   });
+
+  // ===========================================================================
+  // getMetricsOverview
+  // ===========================================================================
+
+  describe('getMetricsOverview', () => {
+    it('should return metrics grouped by service', async () => {
+      mockQuery.mockResolvedValueOnce(
+        mockQueryResult([
+          { metric_name: 'http.requests', metric_type: 'sum', service_name: 'api', point_count: 100, avg_value: 5.2, min_value: 1, max_value: 10 },
+          { metric_name: 'cpu.usage', metric_type: 'gauge', service_name: 'api', point_count: 50, avg_value: 65.3, min_value: 20, max_value: 95 },
+          { metric_name: 'http.requests', metric_type: 'sum', service_name: 'worker', point_count: 30, avg_value: 2.1, min_value: 0, max_value: 8 },
+        ]),
+      );
+
+      const result = await engine.getMetricsOverview({
+        projectId: 'proj-1',
+        from: new Date('2024-01-01T00:00:00Z'),
+        to: new Date('2024-01-02T00:00:00Z'),
+      });
+
+      expect(result.services).toHaveLength(2);
+      expect(result.services[0].serviceName).toBe('api');
+      expect(result.services[0].metrics).toHaveLength(2);
+      expect(result.services[1].serviceName).toBe('worker');
+      expect(result.services[1].metrics).toHaveLength(1);
+      expect(result.executionTimeMs).toBeGreaterThanOrEqual(0);
+    });
+
+    it('should filter by serviceName', async () => {
+      mockQuery.mockResolvedValueOnce(mockQueryResult([]));
+
+      await engine.getMetricsOverview({
+        projectId: 'proj-1',
+        from: new Date('2024-01-01T00:00:00Z'),
+        to: new Date('2024-01-02T00:00:00Z'),
+        serviceName: 'api',
+      });
+
+      const query = mockQuery.mock.calls[0][0].query as string;
+      expect(query).toContain('service_name');
+      const params = mockQuery.mock.calls[0][0].query_params;
+      expect(params.p_service).toBe('api');
+    });
+
+    it('should return empty services when no data', async () => {
+      mockQuery.mockResolvedValueOnce(mockQueryResult([]));
+
+      const result = await engine.getMetricsOverview({
+        projectId: 'proj-1',
+        from: new Date('2024-01-01T00:00:00Z'),
+        to: new Date('2024-01-02T00:00:00Z'),
+      });
+
+      expect(result.services).toHaveLength(0);
+    });
+
+    it('should query from metrics_hourly_rollup', async () => {
+      mockQuery.mockResolvedValueOnce(
+        mockQueryResult([
+          { metric_name: 'cpu.usage', metric_type: 'gauge', service_name: 'api', point_count: 50, avg_value: 65.3, min_value: 20, max_value: 95 },
+        ]),
+      );
+
+      await engine.getMetricsOverview({
+        projectId: 'proj-1',
+        from: new Date('2024-01-01T00:00:00Z'),
+        to: new Date('2024-01-02T00:00:00Z'),
+      });
+
+      const query = mockQuery.mock.calls[0][0].query as string;
+      expect(query).toContain('metrics_hourly_rollup');
+    });
+
+    it('should map metric fields correctly', async () => {
+      mockQuery.mockResolvedValueOnce(
+        mockQueryResult([
+          { metric_name: 'http.duration', metric_type: 'gauge', service_name: 'gateway', point_count: 200, avg_value: 42.5, min_value: 1.2, max_value: 150.7 },
+        ]),
+      );
+
+      const result = await engine.getMetricsOverview({
+        projectId: 'proj-1',
+        from: new Date('2024-01-01T00:00:00Z'),
+        to: new Date('2024-01-02T00:00:00Z'),
+      });
+
+      const metric = result.services[0].metrics[0];
+      expect(metric.metricName).toBe('http.duration');
+      expect(metric.metricType).toBe('gauge');
+      expect(metric.serviceName).toBe('gateway');
+      expect(metric.avgValue).toBe(42.5);
+      expect(metric.minValue).toBe(1.2);
+      expect(metric.maxValue).toBe(150.7);
+      expect(metric.pointCount).toBe(200);
+    });
+
+    it('should include project filter in query', async () => {
+      mockQuery.mockResolvedValueOnce(mockQueryResult([]));
+
+      await engine.getMetricsOverview({
+        projectId: 'proj-1',
+        from: new Date('2024-01-01T00:00:00Z'),
+        to: new Date('2024-01-02T00:00:00Z'),
+      });
+
+      const query = mockQuery.mock.calls[0][0].query as string;
+      expect(query).toContain('project_id IN');
+      const params = mockQuery.mock.calls[0][0].query_params;
+      expect(params.p_pids).toEqual(['proj-1']);
+    });
+  });
 });
