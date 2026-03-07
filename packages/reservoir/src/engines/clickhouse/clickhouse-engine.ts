@@ -1413,7 +1413,7 @@ export class ClickHouseEngine extends StorageEngine {
       query_params: queryParams,
       format: 'JSONEachRow',
     });
-    const rows = await result.json<{ bucket: string; agg_value: number; metric_type?: string }[]>();
+    const rows = await result.json<{ bucket: string; agg_value: number; metric_type?: string }>();
 
     const metricType = params.metricType || rows[0]?.metric_type || 'gauge';
 
