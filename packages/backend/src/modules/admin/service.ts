@@ -157,7 +157,7 @@ export interface RedisStats {
 
 // Health check
 export interface HealthStats {
-    storageEngine: 'timescale' | 'clickhouse';
+    storageEngine: 'timescale' | 'clickhouse' | 'mongodb';
     database: {
         status: 'healthy' | 'degraded' | 'down';
         latency: number; // milliseconds

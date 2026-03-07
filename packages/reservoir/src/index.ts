@@ -79,3 +79,7 @@ export type { TimescaleEngineOptions } from './engines/timescale/index.js';
 export { ClickHouseEngine, ClickHouseQueryTranslator } from './engines/clickhouse/index.js';
 export type { ClickHouseEngineOptions } from './engines/clickhouse/index.js';
 
+// Engines - MongoDB
+export { MongoDBEngine, MongoDBQueryTranslator } from './engines/mongodb/index.js';
+export type { MongoDBEngineOptions } from './engines/mongodb/index.js';
+
