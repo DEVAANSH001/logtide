@@ -142,6 +142,16 @@
     );
 
     let isClickHouse = $derived(healthStats?.storageEngine === 'clickhouse');
+    let isMongoDB = $derived(healthStats?.storageEngine === 'mongodb');
+
+    let engineLabel = $derived(
+        isMongoDB ? 'MongoDB' : isClickHouse ? 'ClickHouse' : 'TimescaleDB'
+    );
+    let engineBadgeClass = $derived(
+        isMongoDB ? 'bg-green-500/10 text-green-600 dark:text-green-400'
+        : isClickHouse ? 'bg-orange-500/10 text-orange-600 dark:text-orange-400'
+        : 'bg-blue-500/10 text-blue-600 dark:text-blue-400'
+    );
 </script>
 
 <svelte:head>
@@ -155,14 +165,16 @@
             <div class="flex items-center gap-2.5">
                 <h1 class="text-2xl font-bold tracking-tight">System Health</h1>
                 {#if healthStats?.storageEngine}
-                    <span class="text-xs font-medium px-2 py-0.5 rounded-full {isClickHouse ? 'bg-orange-500/10 text-orange-600 dark:text-orange-400' : 'bg-blue-500/10 text-blue-600 dark:text-blue-400'}">
-                        {isClickHouse ? 'ClickHouse' : 'TimescaleDB'}
+                    <span class="text-xs font-medium px-2 py-0.5 rounded-full {engineBadgeClass}">
+                        {engineLabel}
                     </span>
                 {/if}
             </div>
             <p class="text-sm text-muted-foreground mt-0.5">
                 {isClickHouse
                     ? 'PostgreSQL, ClickHouse, compression & infrastructure diagnostics'
+                    : isMongoDB
+                    ? 'MongoDB & infrastructure diagnostics'
                     : 'Database, compression, aggregates & infrastructure diagnostics'}
             </p>
         </div>
@@ -186,11 +198,11 @@
 
     {#if $authStore.user?.is_admin}
         <!-- Connection Pool & Health -->
-        <div class="grid gap-4 md:grid-cols-2 {isClickHouse ? 'lg:grid-cols-4' : 'lg:grid-cols-3'}">
+        <div class="grid gap-4 md:grid-cols-2 {isClickHouse || isMongoDB ? 'lg:grid-cols-4' : 'lg:grid-cols-3'}">
             <Card class={healthStats?.database.status === 'healthy' ? 'border-green-500/30' : healthStats?.database.status === 'degraded' ? 'border-yellow-500/30' : 'border-red-500/30'}>
                 <CardHeader class="flex flex-row items-center justify-between space-y-0 pb-2">
                     <CardTitle class="text-sm font-medium">
-                        {isClickHouse ? 'PostgreSQL' : 'Database'}
+                        {isClickHouse ? 'PostgreSQL' : isMongoDB ? 'MongoDB' : 'Database'}
                     </CardTitle>
                     <Database class="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
@@ -209,7 +221,7 @@
                         <span class="text-sm text-muted-foreground">Connections</span>
                         <span class="font-medium">{healthStats?.database.connections ?? "..."}</span>
                     </div>
-                    {#if isClickHouse}
+                    {#if isClickHouse || isMongoDB}
                         <p class="text-xs text-muted-foreground pt-1 border-t">Metadata store</p>
                     {/if}
                 </CardContent>
@@ -232,6 +244,30 @@
                             <span class="text-sm text-muted-foreground">Latency</span>
                             <span class="font-medium">
                                 {healthStats.clickhouse.latency >= 0 ? `${healthStats.clickhouse.latency}ms` : "N/A"}
+                            </span>
+                        </div>
+                        <p class="text-xs text-muted-foreground pt-1 border-t">Logs storage engine</p>
+                    </CardContent>
+                </Card>
+            {/if}
+
+            {#if isMongoDB && healthStats?.mongodb}
+                <Card class={healthStats.mongodb.status === 'healthy' ? 'border-green-500/30' : healthStats.mongodb.status === 'degraded' ? 'border-yellow-500/30' : 'border-red-500/30'}>
+                    <CardHeader class="flex flex-row items-center justify-between space-y-0 pb-2">
+                        <CardTitle class="text-sm font-medium">MongoDB</CardTitle>
+                        <Database class="h-4 w-4 text-green-500" />
+                    </CardHeader>
+                    <CardContent class="space-y-3">
+                        <div class="flex justify-between items-center">
+                            <span class="text-sm text-muted-foreground">Status</span>
+                            <span class="font-medium capitalize {healthStats.mongodb.status === 'healthy' ? 'text-green-500' : healthStats.mongodb.status === 'degraded' ? 'text-yellow-500' : 'text-red-500'}">
+                                {healthStats.mongodb.status}
+                            </span>
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <span class="text-sm text-muted-foreground">Latency</span>
+                            <span class="font-medium">
+                                {healthStats.mongodb.latency >= 0 ? `${healthStats.mongodb.latency}ms` : "N/A"}
                             </span>
                         </div>
                         <p class="text-xs text-muted-foreground pt-1 border-t">Logs storage engine</p>
@@ -339,7 +375,7 @@
         </Card>
 
         <!-- Compression & Continuous Aggregates -->
-        <div class="grid gap-4 {isClickHouse ? '' : 'md:grid-cols-2'}">
+        <div class="grid gap-4 {isClickHouse || isMongoDB ? '' : 'md:grid-cols-2'}">
             <!-- Compression Stats -->
             <Card>
                 <CardHeader class="pb-3">
@@ -364,7 +400,7 @@
                                         </span>
                                     </div>
                                     <div class="flex items-center gap-2 text-xs text-muted-foreground">
-                                        <span>{ht.compressedChunks}/{ht.totalChunks} {isClickHouse ? 'parts' : 'chunks'}</span>
+                                        <span>{ht.compressedChunks}/{ht.totalChunks} {isClickHouse ? 'parts' : isMongoDB ? 'collections' : 'chunks'}</span>
                                         <span>&middot;</span>
                                         <span>{ht.spaceSavedPretty} saved</span>
                                     </div>
@@ -390,7 +426,7 @@
             </Card>
 
             <!-- Continuous Aggregates (TimescaleDB only) -->
-            {#if !isClickHouse}
+            {#if !isClickHouse && !isMongoDB}
                 <Card>
                     <CardHeader class="pb-3">
                         <CardTitle class="text-sm font-medium">Continuous Aggregates</CardTitle>
@@ -434,8 +470,8 @@
                 <CardTitle class="text-sm font-medium">Storage & Performance</CardTitle>
             </CardHeader>
             <CardContent>
-                <div class="grid gap-6 md:grid-cols-2 {isClickHouse ? '' : 'lg:grid-cols-4'}">
-                    {#if !isClickHouse}
+                <div class="grid gap-6 md:grid-cols-2 {isClickHouse || isMongoDB ? '' : 'lg:grid-cols-4'}">
+                    {#if !isClickHouse && !isMongoDB}
                         <div>
                             <div class="text-xs text-muted-foreground mb-1">Logs Storage</div>
                             <div class="text-lg font-bold">{performanceStats?.storage.logsSize || "..."}</div>
@@ -457,7 +493,7 @@
                                 : "..."}
                         </div>
                     </div>
-                    {#if !isClickHouse}
+                    {#if !isClickHouse && !isMongoDB}
                         <div>
                             <div class="text-xs text-muted-foreground mb-1">Avg Latency</div>
                             <div class="text-lg font-bold">
@@ -537,7 +573,7 @@
                     <div class="flex items-center gap-2">
                         <Zap class="h-4 w-4 text-muted-foreground" />
                         <CardTitle class="text-sm font-medium">
-                            Active {isClickHouse ? 'PostgreSQL ' : ''}Queries
+                            Active {isClickHouse ? 'PostgreSQL ' : isMongoDB ? 'MongoDB ' : ''}Queries
                         </CardTitle>
                     </div>
                     {#if slowQueries}
