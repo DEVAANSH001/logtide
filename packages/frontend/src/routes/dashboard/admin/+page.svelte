@@ -63,6 +63,16 @@
     let lastRefreshed = $state(new Date());
 
     let isClickHouse = $derived(healthStats?.storageEngine === 'clickhouse');
+    let isMongoDB = $derived(healthStats?.storageEngine === 'mongodb');
+
+    let engineLabel = $derived(
+        isMongoDB ? 'MongoDB' : isClickHouse ? 'ClickHouse' : 'TimescaleDB'
+    );
+    let engineBadgeClass = $derived(
+        isMongoDB ? 'bg-green-500/10 text-green-600 dark:text-green-400'
+        : isClickHouse ? 'bg-orange-500/10 text-orange-600 dark:text-orange-400'
+        : 'bg-blue-500/10 text-blue-600 dark:text-blue-400'
+    );
 
     const usersAPI = new UsersAPI(() => get(authStore).token);
 
@@ -196,8 +206,8 @@
             <div class="flex items-center gap-2.5">
                 <h1 class="text-2xl font-bold tracking-tight">Admin Dashboard</h1>
                 {#if healthStats?.storageEngine}
-                    <span class="text-xs font-medium px-2 py-0.5 rounded-full {isClickHouse ? 'bg-orange-500/10 text-orange-600 dark:text-orange-400' : 'bg-blue-500/10 text-blue-600 dark:text-blue-400'}">
-                        {isClickHouse ? 'ClickHouse' : 'TimescaleDB'}
+                    <span class="text-xs font-medium px-2 py-0.5 rounded-full {engineBadgeClass}">
+                        {engineLabel}
                     </span>
                 {/if}
             </div>
@@ -365,7 +375,7 @@
                                 &middot; <span class="text-green-500">{performanceStats.storage.compressionRatio.toFixed(1)}x</span> compression
                             {/if}
                         {:else if performanceStats}
-                            {isClickHouse ? 'ClickHouse engine' : 'Storage: ...'}
+                            {engineLabel} engine
                         {:else}
                             Storage: ...
                         {/if}
@@ -588,9 +598,9 @@
                 <Card class="transition-shadow hover:shadow-md cursor-pointer h-full">
                     <CardHeader class="flex flex-row items-center justify-between space-y-0 pb-2">
                         <CardTitle class="text-sm font-medium">
-                            {isClickHouse ? 'ClickHouse' : 'Database'}
+                            {engineLabel}
                         </CardTitle>
-                        <Server class="h-4 w-4 {healthColor(isClickHouse ? healthStats?.clickhouse?.status : healthStats?.database.status)}" />
+                        <Server class="h-4 w-4 {healthColor(isClickHouse ? healthStats?.clickhouse?.status : isMongoDB ? healthStats?.mongodb?.status : healthStats?.database.status)}" />
                     </CardHeader>
                     <CardContent>
                         {#if isClickHouse && healthStats?.clickhouse}
@@ -603,6 +613,14 @@
                                 {#if healthStats.pool}
                                     &middot; {healthStats.pool.waitingRequests} waiting
                                 {/if}
+                            </p>
+                        {:else if isMongoDB && healthStats?.mongodb}
+                            <div class="text-2xl font-bold {healthColor(healthStats.mongodb.status)}">
+                                {healthStats.mongodb.latency >= 0 ? healthStats.mongodb.latency : "?"}
+                                <span class="text-sm font-normal text-muted-foreground">ms</span>
+                            </div>
+                            <p class="text-xs text-muted-foreground mt-1">
+                                MongoDB {healthStats.mongodb.status}
                             </p>
                         {:else}
                             <div class="text-2xl font-bold {healthColor(healthStats?.database.status)}">

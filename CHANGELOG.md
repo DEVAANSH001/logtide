@@ -5,6 +5,36 @@ All notable changes to LogTide will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.0]
+
+### Added
+
+- **MongoDB Storage Adapter** (#157): full MongoDB backend for the `@logtide/reservoir` storage abstraction layer
+  - All 33 `StorageEngine` methods implemented (logs, spans, traces, metrics, exemplars)
+  - `MongoDBQueryTranslator` extending abstract `QueryTranslator` for filter/query translation
+  - `EngineType` union extended: `'timescale' | 'clickhouse' | 'mongodb'`
+  - Factory support with `createStorageEngine('mongodb', config)` and client injection
+  - Sub-path export `@logtide/reservoir/mongodb`
+  - Docker Compose profile-gated MongoDB 7.0 service
+  - Backend `getMongoDBConfig()` with URI parsing and `authSource` support
+  - MongoDB health check in admin service
+  - Frontend admin dashboard updated for 3-engine support (TimescaleDB/ClickHouse/MongoDB)
+  - 34 unit tests + 66 integration tests (100 total)
+
+### Optimized
+
+- **Batch ingestion**: `insertMany({ordered: false})` for maximum write throughput
+- **Connection pool**: tuned `maxPoolSize: 100`, `minPoolSize: 5`, `maxIdleTimeMS: 60s`
+- **Index strategy**: compound indexes matching query patterns, sparse indexes for nullable fields
+- **Atomic trace upsert**: single `bulkWrite` with `$min/$max/$inc/$setOnInsert` (1 network round trip)
+- **Auto-detect MongoDB 5.0+ features**: `$dateTrunc` for time bucketing, time-series collections
+- **Client-side join** for service dependencies (O(n) Map vs O(n²) `$lookup`)
+- **Parallel metric + exemplar ingestion**: `Promise.all` for independent collection inserts
+- **Smart search**: `$text` index for clean terms, regex fallback for special characters
+- **Cursor-based keyset pagination**: `time,id` tuples for consistent pagination
+- **`limit+1` pattern**: detect `hasMore` without extra count query
+- **Single-element `$in` avoidance**: exact match for single values, `$in` only for arrays
+
 ## [0.7.0] - 2026-02-26
 
 ### Added

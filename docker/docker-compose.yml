@@ -12,14 +12,19 @@
 # With system metrics (CPU, memory, disk, network):
 #   docker compose --profile metrics up -d
 #
+# With MongoDB (alternative storage backend):
+#   docker compose --profile mongodb up -d
+#
 # Combine profiles:
 #   docker compose --profile logging --profile metrics up -d
 #   docker compose --profile clickhouse --profile logging up -d
+#   docker compose --profile mongodb --profile logging up -d
 #
 # IMPORTANT: Check .env configuration before starting!
 # - API_KEY_SECRET must be at least 32 characters
 # - DB_PASSWORD, REDIS_PASSWORD should be secure values
 # - Set STORAGE_ENGINE=clickhouse in .env when using the clickhouse profile
+# - Set STORAGE_ENGINE=mongodb in .env when using the mongodb profile
 
 services:
   postgres:
@@ -118,6 +123,12 @@ services:
       CLICKHOUSE_DATABASE: ${CLICKHOUSE_DATABASE:-logtide}
       CLICKHOUSE_USERNAME: ${CLICKHOUSE_USERNAME:-default}
       CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:-}
+      MONGODB_HOST: ${MONGODB_HOST:-mongodb}
+      MONGODB_PORT: ${MONGODB_PORT:-27017}
+      MONGODB_DATABASE: ${MONGODB_DATABASE:-logtide}
+      MONGODB_USERNAME: ${MONGODB_USERNAME:-}
+      MONGODB_PASSWORD: ${MONGODB_PASSWORD:-}
+      MONGODB_AUTH_SOURCE: ${MONGODB_AUTH_SOURCE:-}
     depends_on:
       postgres:
         condition: service_healthy
@@ -160,6 +171,12 @@ services:
       CLICKHOUSE_DATABASE: ${CLICKHOUSE_DATABASE:-logtide}
       CLICKHOUSE_USERNAME: ${CLICKHOUSE_USERNAME:-default}
       CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:-}
+      MONGODB_HOST: ${MONGODB_HOST:-mongodb}
+      MONGODB_PORT: ${MONGODB_PORT:-27017}
+      MONGODB_DATABASE: ${MONGODB_DATABASE:-logtide}
+      MONGODB_USERNAME: ${MONGODB_USERNAME:-}
+      MONGODB_PASSWORD: ${MONGODB_PASSWORD:-}
+      MONGODB_AUTH_SOURCE: ${MONGODB_AUTH_SOURCE:-}
     depends_on:
       backend:
         condition: service_healthy
@@ -200,6 +217,26 @@ services:
       - clickhouse_data:/var/lib/clickhouse
     healthcheck:
       test: ["CMD", "clickhouse-client", "--query", "SELECT 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - logtide-network
+
+  mongodb:
+    image: mongo:7.0
+    container_name: logtide-mongodb
+    profiles:
+      - mongodb
+    environment:
+      MONGO_INITDB_DATABASE: ${MONGODB_DATABASE:-logtide}
+    ports:
+      - "${MONGODB_PORT:-27017}:27017"
+    volumes:
+      - mongodb_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -260,6 +297,8 @@ volumes:
   redis_data:
     driver: local
   clickhouse_data:
+    driver: local
+  mongodb_data:
     driver: local
 
 networks:

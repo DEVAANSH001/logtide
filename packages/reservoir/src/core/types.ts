@@ -8,7 +8,7 @@
 import type { LogLevel, SpanKind, SpanStatusCode } from '@logtide/shared';
 export type { LogLevel, SpanKind, SpanStatusCode };
 
-export type EngineType = 'timescale' | 'clickhouse';
+export type EngineType = 'timescale' | 'clickhouse' | 'mongodb';
 
 export type StorageTier = 'hot' | 'warm' | 'cold' | 'archive';
 

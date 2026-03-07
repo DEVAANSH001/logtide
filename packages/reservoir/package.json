@@ -17,6 +17,10 @@
     "./engines/clickhouse": {
       "types": "./dist/engines/clickhouse/index.d.ts",
       "import": "./dist/engines/clickhouse/index.js"
+    },
+    "./engines/mongodb": {
+      "types": "./dist/engines/mongodb/index.d.ts",
+      "import": "./dist/engines/mongodb/index.js"
     }
   },
   "scripts": {
@@ -29,7 +33,8 @@
   },
   "dependencies": {
     "@clickhouse/client": "^1.17.0",
-    "@logtide/shared": "workspace:*"
+    "@logtide/shared": "workspace:*",
+    "mongodb": "^6.21.0"
   },
   "peerDependencies": {
     "pg": "^8.11.0"

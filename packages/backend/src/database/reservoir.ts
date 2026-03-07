@@ -1,16 +1,24 @@
 import { Reservoir } from '@logtide/reservoir';
 import { pool } from './connection.js';
-import { STORAGE_ENGINE, getClickHouseConfig } from './storage-config.js';
+import { STORAGE_ENGINE, getClickHouseConfig, getMongoDBConfig } from './storage-config.js';
 
 /**
  * Shared reservoir instance for log ingestion and querying.
  *
  * - timescale: reuses the existing pg pool, skipInitialize (table managed by migrations)
  * - clickhouse: standalone connection, initialize() creates the logs table
+ * - mongodb: standalone connection, initialize() creates collections and indexes
  */
 function createReservoir(): Reservoir {
   if (STORAGE_ENGINE === 'clickhouse') {
     return new Reservoir('clickhouse', getClickHouseConfig(), {
+      tableName: 'logs',
+      skipInitialize: false,
+    });
+  }
+
+  if (STORAGE_ENGINE === 'mongodb') {
+    return new Reservoir('mongodb', getMongoDBConfig(), {
       tableName: 'logs',
       skipInitialize: false,
     });
