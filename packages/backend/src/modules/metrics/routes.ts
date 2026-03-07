@@ -291,6 +291,7 @@ const metricsRoutes: FastifyPluginAsync = async (fastify) => {
               { type: 'array', items: { type: 'string' } },
             ],
           },
+          serviceName: { type: 'string' },
         },
       },
     },
@@ -305,6 +306,7 @@ const metricsRoutes: FastifyPluginAsync = async (fastify) => {
         interval,
         aggregation,
         groupBy,
+        serviceName,
       } = request.query as {
         projectId?: string;
         metricName?: string;
@@ -313,6 +315,7 @@ const metricsRoutes: FastifyPluginAsync = async (fastify) => {
         interval?: string;
         aggregation?: string;
         groupBy?: string | string[];
+        serviceName?: string;
       };
 
       const projectId = resolveProjectId(request, queryProjectId);
@@ -358,6 +361,62 @@ const metricsRoutes: FastifyPluginAsync = async (fastify) => {
         aggregation: (aggregation || 'avg') as MetricAggregationFn,
         groupBy: groupByArr,
         attributes,
+        serviceName,
+      });
+    },
+  });
+
+  // GET /api/v1/metrics/overview
+  fastify.get('/overview', {
+    schema: {
+      querystring: {
+        type: 'object',
+        properties: {
+          projectId: { type: 'string' },
+          from: { type: 'string', format: 'date-time' },
+          to: { type: 'string', format: 'date-time' },
+          serviceName: { type: 'string' },
+        },
+      },
+    },
+    handler: async (request: any, reply) => {
+      if (!await requireFullAccess(request, reply)) return;
+
+      const { projectId: queryProjectId, from, to, serviceName } = request.query as {
+        projectId?: string;
+        from?: string;
+        to?: string;
+        serviceName?: string;
+      };
+
+      const projectId = resolveProjectId(request, queryProjectId);
+
+      if (!projectId) {
+        return reply.code(400).send({
+          error: 'Project context missing - provide projectId query parameter',
+        });
+      }
+
+      if (!from || !to) {
+        return reply.code(400).send({
+          error: 'from and to query parameters are required',
+        });
+      }
+
+      if (request.user?.id) {
+        const hasAccess = await verifyProjectAccess(projectId, request.user.id);
+        if (!hasAccess) {
+          return reply.code(403).send({
+            error: 'Access denied - you do not have access to this project',
+          });
+        }
+      }
+
+      return metricsService.getOverview({
+        projectId,
+        from: new Date(from),
+        to: new Date(to),
+        serviceName,
       });
     },
   });

@@ -72,6 +72,7 @@ export class MetricsService {
     aggregation: MetricAggregationFn;
     groupBy?: string[];
     attributes?: Record<string, string>;
+    serviceName?: string;
   }) {
     return reservoir.aggregateMetrics({
       projectId: params.projectId,
@@ -82,6 +83,21 @@ export class MetricsService {
       aggregation: params.aggregation,
       groupBy: params.groupBy,
       attributes: params.attributes,
+      serviceName: params.serviceName,
+    });
+  }
+
+  async getOverview(params: {
+    projectId: string | string[];
+    from: Date;
+    to: Date;
+    serviceName?: string;
+  }) {
+    return reservoir.getMetricsOverview({
+      projectId: params.projectId,
+      from: params.from,
+      to: params.to,
+      serviceName: params.serviceName,
     });
   }
 }
