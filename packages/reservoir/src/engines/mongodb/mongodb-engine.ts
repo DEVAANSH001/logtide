@@ -140,7 +140,10 @@ export class MongoDBEngine extends StorageEngine {
     const auth = this.config.username
       ? `${encodeURIComponent(this.config.username)}:${encodeURIComponent(this.config.password)}@`
       : '';
-    const url = `mongodb://${auth}${this.config.host}:${this.config.port}/${this.config.database}`;
+    const queryParams = this.config.options
+      ? '?' + Object.entries(this.config.options).map(([k, v]) => `${k}=${v}`).join('&')
+      : '';
+    const url = `mongodb://${auth}${this.config.host}:${this.config.port}/${this.config.database}${queryParams}`;
 
     this.mongoClient = new MongoClient(url, {
       maxPoolSize: this.config.poolSize ?? 100,
