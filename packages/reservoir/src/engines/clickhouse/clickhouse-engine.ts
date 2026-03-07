@@ -306,6 +306,86 @@ export class ClickHouseEngine extends StorageEngine {
         SETTINGS index_granularity = 8192
       `,
     });
+
+    // Metrics hourly rollup (target table for materialized view)
+    await client.command({
+      query: `
+        CREATE TABLE IF NOT EXISTS metrics_hourly_rollup (
+          bucket DateTime NOT NULL,
+          project_id String NOT NULL,
+          metric_name LowCardinality(String) NOT NULL,
+          metric_type LowCardinality(String) NOT NULL,
+          service_name LowCardinality(String) NOT NULL,
+          point_count UInt64,
+          value_sum Float64,
+          min_value Float64,
+          max_value Float64
+        )
+        ENGINE = MergeTree()
+        PARTITION BY toYYYYMM(bucket)
+        ORDER BY (project_id, metric_name, service_name, bucket)
+      `,
+    });
+
+    // Materialized view: auto-populates hourly rollup on insert to metrics
+    await client.command({
+      query: `
+        CREATE MATERIALIZED VIEW IF NOT EXISTS metrics_hourly_rollup_mv
+        TO metrics_hourly_rollup AS
+        SELECT
+          toStartOfHour(time) AS bucket,
+          project_id,
+          metric_name,
+          metric_type,
+          service_name,
+          count() AS point_count,
+          sum(value) AS value_sum,
+          min(value) AS min_value,
+          max(value) AS max_value
+        FROM metrics
+        GROUP BY bucket, project_id, metric_name, metric_type, service_name
+      `,
+    });
+
+    // Metrics daily rollup
+    await client.command({
+      query: `
+        CREATE TABLE IF NOT EXISTS metrics_daily_rollup (
+          bucket DateTime NOT NULL,
+          project_id String NOT NULL,
+          metric_name LowCardinality(String) NOT NULL,
+          metric_type LowCardinality(String) NOT NULL,
+          service_name LowCardinality(String) NOT NULL,
+          point_count UInt64,
+          value_sum Float64,
+          min_value Float64,
+          max_value Float64
+        )
+        ENGINE = MergeTree()
+        PARTITION BY toYYYYMM(bucket)
+        ORDER BY (project_id, metric_name, service_name, bucket)
+      `,
+    });
+
+    // Materialized view: auto-populates daily rollup on insert to metrics
+    await client.command({
+      query: `
+        CREATE MATERIALIZED VIEW IF NOT EXISTS metrics_daily_rollup_mv
+        TO metrics_daily_rollup AS
+        SELECT
+          toStartOfDay(time) AS bucket,
+          project_id,
+          metric_name,
+          metric_type,
+          service_name,
+          count() AS point_count,
+          sum(value) AS value_sum,
+          min(value) AS min_value,
+          max(value) AS max_value
+        FROM metrics
+        GROUP BY bucket, project_id, metric_name, metric_type, service_name
+      `,
+    });
   }
 
   async migrate(_version: string): Promise<void> {
