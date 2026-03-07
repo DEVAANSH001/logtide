@@ -41,6 +41,8 @@ import type {
   MetricLabelResult,
   IngestMetricsResult,
   DeleteMetricsByTimeRangeParams,
+  MetricsOverviewParams,
+  MetricsOverviewResult,
 } from './core/types.js';
 import type { StorageEngine } from './core/storage-engine.js';
 import { StorageEngineFactory } from './factory.js';
@@ -245,6 +247,11 @@ export class Reservoir {
   async deleteMetricsByTimeRange(params: DeleteMetricsByTimeRangeParams): Promise<DeleteResult> {
     this.ensureInitialized();
     return this.engine.deleteMetricsByTimeRange(params);
+  }
+
+  async getMetricsOverview(params: MetricsOverviewParams): Promise<MetricsOverviewResult> {
+    this.ensureInitialized();
+    return this.engine.getMetricsOverview(params);
   }
 
   getEngineType(): EngineType {

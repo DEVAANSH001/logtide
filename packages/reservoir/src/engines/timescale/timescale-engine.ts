@@ -53,6 +53,9 @@ import type {
   MetricType,
   MetricTimeBucket,
   MetricExemplar,
+  MetricOverviewItem,
+  MetricsOverviewParams,
+  MetricsOverviewResult,
 } from '../../core/types.js';
 import { TimescaleQueryTranslator } from './query-translator.js';
 
@@ -1474,6 +1477,117 @@ export class TimescaleEngine extends StorageEngine {
 
     return {
       deleted: Number(result.rowCount ?? 0),
+      executionTimeMs: Date.now() - start,
+    };
+  }
+
+  async getMetricsOverview(params: MetricsOverviewParams): Promise<MetricsOverviewResult> {
+    const start = Date.now();
+    const pool = this.getPool();
+    const s = this.schema;
+    const projectIds = Array.isArray(params.projectId) ? params.projectId : [params.projectId];
+    const placeholders: unknown[] = [params.from, params.to, projectIds];
+
+    let serviceFilter = '';
+    if (params.serviceName) {
+      placeholders.push(params.serviceName);
+      serviceFilter = ` AND service_name = $${placeholders.length}`;
+    }
+
+    // Try continuous aggregate first
+    let rows: Record<string, unknown>[];
+    try {
+      const sql = `
+        SELECT
+          metric_name, metric_type, service_name,
+          SUM(point_count)::bigint AS point_count,
+          CASE WHEN SUM(point_count) > 0
+            THEN SUM(sum_value) / SUM(point_count)
+            ELSE 0
+          END AS avg_value,
+          MIN(min_value) AS min_value,
+          MAX(max_value) AS max_value
+        FROM ${s}.metrics_hourly_stats
+        WHERE bucket >= $1 AND bucket <= $2
+          AND project_id = ANY($3)
+          ${serviceFilter}
+        GROUP BY metric_name, metric_type, service_name
+        ORDER BY service_name, metric_name
+      `;
+      const result = await pool.query(sql, placeholders);
+      rows = result.rows;
+    } catch {
+      // Fallback to raw metrics table
+      const sql = `
+        SELECT
+          metric_name, metric_type, service_name,
+          COUNT(*)::bigint AS point_count,
+          AVG(value) AS avg_value,
+          MIN(value) AS min_value,
+          MAX(value) AS max_value
+        FROM ${s}.metrics
+        WHERE time >= $1 AND time <= $2
+          AND project_id = ANY($3)
+          ${serviceFilter}
+        GROUP BY metric_name, metric_type, service_name
+        ORDER BY service_name, metric_name
+      `;
+      const result = await pool.query(sql, placeholders);
+      rows = result.rows;
+    }
+
+    // Get latest value per metric (from raw table, last 5 min)
+    const latestPlaceholders: unknown[] = [new Date(Date.now() - 5 * 60 * 1000), projectIds];
+    let latestServiceFilter = '';
+    if (params.serviceName) {
+      latestPlaceholders.push(params.serviceName);
+      latestServiceFilter = ` AND service_name = $${latestPlaceholders.length}`;
+    }
+
+    let latestMap = new Map<string, number>();
+    try {
+      const latestSql = `
+        SELECT DISTINCT ON (metric_name, service_name)
+          metric_name, service_name, value AS latest_value
+        FROM ${s}.metrics
+        WHERE time >= $1 AND project_id = ANY($2)
+          ${latestServiceFilter}
+        ORDER BY metric_name, service_name, time DESC
+      `;
+      const { rows: latestRows } = await pool.query(latestSql, latestPlaceholders);
+      latestMap = new Map(
+        latestRows.map((r: Record<string, unknown>) => [
+          `${r.metric_name}:${r.service_name}`,
+          Number(r.latest_value),
+        ]),
+      );
+    } catch {
+      // If latest value query fails, just use avg from the aggregate
+    }
+
+    const serviceMap = new Map<string, MetricOverviewItem[]>();
+    for (const row of rows) {
+      const serviceName = row.service_name as string;
+      const key = `${row.metric_name}:${serviceName}`;
+      const item: MetricOverviewItem = {
+        metricName: row.metric_name as string,
+        metricType: (row.metric_type as MetricType) || 'gauge',
+        serviceName,
+        latestValue: latestMap.get(key) ?? Number(row.avg_value) ?? 0,
+        avgValue: Number(row.avg_value) ?? 0,
+        minValue: Number(row.min_value) ?? 0,
+        maxValue: Number(row.max_value) ?? 0,
+        pointCount: Number(row.point_count) ?? 0,
+      };
+      if (!serviceMap.has(serviceName)) serviceMap.set(serviceName, []);
+      serviceMap.get(serviceName)!.push(item);
+    }
+
+    return {
+      services: Array.from(serviceMap.entries()).map(([serviceName, metrics]) => ({
+        serviceName,
+        metrics,
+      })),
       executionTimeMs: Date.now() - start,
     };
   }

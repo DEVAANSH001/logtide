@@ -53,6 +53,9 @@ import type {
   IngestMetricsResult,
   DeleteMetricsByTimeRangeParams,
   MetricExemplar,
+  MetricOverviewItem,
+  MetricsOverviewParams,
+  MetricsOverviewResult,
 } from '../../core/types.js';
 import { ClickHouseQueryTranslator } from './query-translator.js';
 
@@ -1613,6 +1616,73 @@ export class ClickHouseEngine extends StorageEngine {
     });
 
     return { deleted: 0, executionTimeMs: Date.now() - start };
+  }
+
+  async getMetricsOverview(params: MetricsOverviewParams): Promise<MetricsOverviewResult> {
+    const start = Date.now();
+    const client = this.getClient();
+    const projectIds = Array.isArray(params.projectId) ? params.projectId : [params.projectId];
+    const queryParams: Record<string, unknown> = {
+      p_pids: projectIds,
+      p_from: Math.floor(params.from.getTime() / 1000),
+      p_to: Math.floor(params.to.getTime() / 1000),
+    };
+
+    let serviceFilter = '';
+    if (params.serviceName) {
+      queryParams.p_service = params.serviceName;
+      serviceFilter = ' AND service_name = {p_service:String}';
+    }
+
+    const sql = `
+      SELECT
+        metric_name,
+        any(metric_type) AS metric_type,
+        service_name,
+        sum(point_count) AS point_count,
+        sum(value_sum) / sum(point_count) AS avg_value,
+        min(min_value) AS min_value,
+        max(max_value) AS max_value
+      FROM metrics_hourly_rollup
+      WHERE project_id IN {p_pids:Array(String)}
+        AND bucket >= {p_from:DateTime64(3)}
+        AND bucket <= {p_to:DateTime64(3)}
+        ${serviceFilter}
+      GROUP BY metric_name, service_name
+      ORDER BY service_name, metric_name
+    `;
+
+    const result = await client.query({
+      query: sql,
+      query_params: queryParams,
+      format: 'JSONEachRow',
+    });
+    const rows = await result.json<Record<string, unknown>>();
+
+    const serviceMap = new Map<string, MetricOverviewItem[]>();
+    for (const row of rows) {
+      const serviceName = row.service_name as string;
+      const item: MetricOverviewItem = {
+        metricName: row.metric_name as string,
+        metricType: (row.metric_type as MetricType) || 'gauge',
+        serviceName,
+        latestValue: Number(row.avg_value) ?? 0,
+        avgValue: Number(row.avg_value) ?? 0,
+        minValue: Number(row.min_value) ?? 0,
+        maxValue: Number(row.max_value) ?? 0,
+        pointCount: Number(row.point_count) ?? 0,
+      };
+      if (!serviceMap.has(serviceName)) serviceMap.set(serviceName, []);
+      serviceMap.get(serviceName)!.push(item);
+    }
+
+    return {
+      services: Array.from(serviceMap.entries()).map(([serviceName, metrics]) => ({
+        serviceName,
+        metrics,
+      })),
+      executionTimeMs: Date.now() - start,
+    };
   }
 }
 

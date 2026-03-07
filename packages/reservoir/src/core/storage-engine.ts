@@ -41,6 +41,8 @@ import type {
   MetricLabelResult,
   IngestMetricsResult,
   DeleteMetricsByTimeRangeParams,
+  MetricsOverviewParams,
+  MetricsOverviewResult,
 } from './types.js';
 
 /**
@@ -166,4 +168,7 @@ export abstract class StorageEngine {
 
   /** Delete metrics by time range */
   abstract deleteMetricsByTimeRange(params: DeleteMetricsByTimeRangeParams): Promise<DeleteResult>;
+
+  /** Get overview of all metrics grouped by service */
+  abstract getMetricsOverview(params: MetricsOverviewParams): Promise<MetricsOverviewResult>;
 }

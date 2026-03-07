@@ -54,6 +54,9 @@ import type {
   DeleteMetricsByTimeRangeParams,
   MetricExemplar,
   MetricAggregationFn,
+  MetricOverviewItem,
+  MetricsOverviewParams,
+  MetricsOverviewResult,
 } from '../../core/types.js';
 import { MongoDBQueryTranslator, INTERVAL_MS } from './query-translator.js';
 
@@ -1052,6 +1055,65 @@ export class MongoDBEngine extends StorageEngine {
     });
 
     return { deleted: result.deletedCount, executionTimeMs: Date.now() - start };
+  }
+
+  async getMetricsOverview(params: MetricsOverviewParams): Promise<MetricsOverviewResult> {
+    const start = Date.now();
+    const db = this.getDb();
+    const projectIds = Array.isArray(params.projectId) ? params.projectId : [params.projectId];
+
+    const match: Record<string, unknown> = {
+      project_id: { $in: projectIds },
+      time: { $gte: params.from, $lte: params.to },
+    };
+    if (params.serviceName) match.service_name = params.serviceName;
+
+    const pipeline = [
+      { $match: match },
+      {
+        $group: {
+          _id: {
+            metric_name: '$metric_name',
+            metric_type: '$metric_type',
+            service_name: '$service_name',
+          },
+          point_count: { $sum: 1 },
+          avg_value: { $avg: '$value' },
+          min_value: { $min: '$value' },
+          max_value: { $max: '$value' },
+          latest_value: { $last: '$value' },
+        },
+      },
+      { $sort: { '_id.service_name': 1 as const, '_id.metric_name': 1 as const } },
+    ];
+
+    const cursor = db.collection('metrics').aggregate(pipeline, { allowDiskUse: true });
+    const docs = await cursor.toArray();
+
+    const serviceMap = new Map<string, MetricOverviewItem[]>();
+    for (const doc of docs) {
+      const serviceName = doc._id.service_name as string;
+      const item: MetricOverviewItem = {
+        metricName: doc._id.metric_name as string,
+        metricType: (doc._id.metric_type as MetricType) || 'gauge',
+        serviceName,
+        latestValue: Number(doc.latest_value) ?? 0,
+        avgValue: Number(doc.avg_value) ?? 0,
+        minValue: Number(doc.min_value) ?? 0,
+        maxValue: Number(doc.max_value) ?? 0,
+        pointCount: Number(doc.point_count) ?? 0,
+      };
+      if (!serviceMap.has(serviceName)) serviceMap.set(serviceName, []);
+      serviceMap.get(serviceName)!.push(item);
+    }
+
+    return {
+      services: Array.from(serviceMap.entries()).map(([serviceName, metrics]) => ({
+        serviceName,
+        metrics,
+      })),
+      executionTimeMs: Date.now() - start,
+    };
   }
 
   // =========================================================================

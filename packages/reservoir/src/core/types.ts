@@ -571,3 +571,32 @@ export interface DeleteMetricsByTimeRangeParams {
   metricName?: string | string[];
   serviceName?: string | string[];
 }
+
+/** A metric summary for dashboard overview */
+export interface MetricOverviewItem {
+  metricName: string;
+  metricType: MetricType;
+  serviceName: string;
+  latestValue: number;
+  avgValue: number;
+  minValue: number;
+  maxValue: number;
+  pointCount: number;
+}
+
+/** Parameters for metrics overview */
+export interface MetricsOverviewParams {
+  projectId: string | string[];
+  from: Date;
+  to: Date;
+  serviceName?: string;
+}
+
+/** Result of metrics overview query */
+export interface MetricsOverviewResult {
+  services: Array<{
+    serviceName: string;
+    metrics: MetricOverviewItem[];
+  }>;
+  executionTimeMs?: number;
+}
