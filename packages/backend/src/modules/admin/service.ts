@@ -1120,6 +1120,22 @@ export class AdminService {
                 }
             }
 
+            // MongoDB health (only when using MongoDB engine)
+            let mongodbHealth: { status: 'healthy' | 'degraded' | 'down'; latency: number } | undefined;
+            if (storageEngine === 'mongodb') {
+                try {
+                    const mgHealth = await reservoir.healthCheck();
+                    mongodbHealth = {
+                        status: mgHealth.status === 'unhealthy' ? 'down'
+                            : mgHealth.status === 'degraded' ? 'degraded'
+                            : 'healthy',
+                        latency: mgHealth.responseTimeMs,
+                    };
+                } catch {
+                    mongodbHealth = { status: 'down', latency: -1 };
+                }
+            }
+
             // Redis health (only if configured)
             const redisStart = Date.now();
             let redisStatus: 'healthy' | 'degraded' | 'down' | 'not_configured' = 'not_configured';
@@ -1146,13 +1162,14 @@ export class AdminService {
             // Redis is not required - only affects overall status if configured and down
             const redisHealthy = redisStatus === 'healthy' || redisStatus === 'not_configured';
 
-            // ClickHouse health affects overall when it's the storage engine
+            // External engine health affects overall when it's the storage engine
             const chHealthy = !clickhouseHealth || clickhouseHealth.status === 'healthy';
+            const mgHealthy = !mongodbHealth || mongodbHealth.status === 'healthy';
 
             const overall: 'healthy' | 'degraded' | 'down' =
-                dbStatus === 'down' || redisStatus === 'down' || clickhouseHealth?.status === 'down'
+                dbStatus === 'down' || redisStatus === 'down' || clickhouseHealth?.status === 'down' || mongodbHealth?.status === 'down'
                     ? 'down'
-                    : dbStatus === 'healthy' && redisHealthy && poolHealthy && chHealthy
+                    : dbStatus === 'healthy' && redisHealthy && poolHealthy && chHealthy && mgHealthy
                         ? 'healthy'
                         : 'degraded';
 
@@ -1164,6 +1181,7 @@ export class AdminService {
                     connections: dbConnections,
                 },
                 ...(clickhouseHealth ? { clickhouse: clickhouseHealth } : {}),
+                ...(mongodbHealth ? { mongodb: mongodbHealth } : {}),
                 redis: {
                     status: redisStatus,
                     latency: redisLatency,
@@ -1184,6 +1202,7 @@ export class AdminService {
                     connections: 0,
                 },
                 ...(storageEngine === 'clickhouse' ? { clickhouse: { status: 'down' as const, latency: -1 } } : {}),
+                ...(storageEngine === 'mongodb' ? { mongodb: { status: 'down' as const, latency: -1 } } : {}),
                 redis: {
                     status: 'down',
                     latency: -1,
