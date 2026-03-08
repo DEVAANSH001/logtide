@@ -6,7 +6,7 @@
 	const projectId = $derived(page.params.id);
 
 	onMount(() => {
-		goto(`/dashboard/projects/${projectId}/settings`, { replaceState: true });
+		goto(`/dashboard/projects/${projectId}/overview`, { replaceState: true });
 	});
 </script>
 

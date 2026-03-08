@@ -15,16 +15,28 @@ async function verifyOrganizationAccess(organizationId: string, userId: string):
   return !!result;
 }
 
+async function verifyProjectBelongsToOrg(projectId: string, organizationId: string): Promise<boolean> {
+  const result = await db
+    .selectFrom('projects')
+    .select('id')
+    .where('id', '=', projectId)
+    .where('organization_id', '=', organizationId)
+    .executeTakeFirst();
+
+  return !!result;
+}
+
 const dashboardRoutes: FastifyPluginAsync = async (fastify) => {
   // GET /api/v1/dashboard/stats - Get dashboard statistics
   fastify.get('/api/v1/dashboard/stats', {
     schema: {
-      description: 'Get dashboard statistics for organization',
+      description: 'Get dashboard statistics for organization or project',
       tags: ['dashboard'],
       querystring: {
         type: 'object',
         properties: {
           organizationId: { type: 'string', format: 'uuid' },
+          projectId: { type: 'string', format: 'uuid' },
         },
         required: ['organizationId'],
       },
@@ -32,7 +44,7 @@ const dashboardRoutes: FastifyPluginAsync = async (fastify) => {
     handler: async (request: any, reply) => {
       if (!await requireFullAccess(request, reply)) return;
 
-      const { organizationId } = request.query as { organizationId: string };
+      const { organizationId, projectId } = request.query as { organizationId: string; projectId?: string };
 
       if (!organizationId) {
         return reply.code(400).send({
@@ -51,7 +63,15 @@ const dashboardRoutes: FastifyPluginAsync = async (fastify) => {
         }
       }
 
-      const stats = await dashboardService.getStats(organizationId);
+      // Verify project belongs to org if specified
+      if (projectId) {
+        const belongsToOrg = await verifyProjectBelongsToOrg(projectId, organizationId);
+        if (!belongsToOrg) {
+          return reply.code(404).send({ error: 'Project not found in this organization' });
+        }
+      }
+
+      const stats = await dashboardService.getStats(organizationId, projectId);
       return stats;
     },
   });
@@ -65,6 +85,7 @@ const dashboardRoutes: FastifyPluginAsync = async (fastify) => {
         type: 'object',
         properties: {
           organizationId: { type: 'string', format: 'uuid' },
+          projectId: { type: 'string', format: 'uuid' },
         },
         required: ['organizationId'],
       },
@@ -72,7 +93,7 @@ const dashboardRoutes: FastifyPluginAsync = async (fastify) => {
     handler: async (request: any, reply) => {
       if (!await requireFullAccess(request, reply)) return;
 
-      const { organizationId } = request.query as { organizationId: string };
+      const { organizationId, projectId } = request.query as { organizationId: string; projectId?: string };
 
       if (!organizationId) {
         return reply.code(400).send({
@@ -91,7 +112,14 @@ const dashboardRoutes: FastifyPluginAsync = async (fastify) => {
         }
       }
 
-      const timeseries = await dashboardService.getTimeseries(organizationId);
+      if (projectId) {
+        const belongsToOrg = await verifyProjectBelongsToOrg(projectId, organizationId);
+        if (!belongsToOrg) {
+          return reply.code(404).send({ error: 'Project not found in this organization' });
+        }
+      }
+
+      const timeseries = await dashboardService.getTimeseries(organizationId, projectId);
       return { timeseries };
     },
   });
@@ -99,12 +127,13 @@ const dashboardRoutes: FastifyPluginAsync = async (fastify) => {
   // GET /api/v1/dashboard/top-services - Get top services
   fastify.get('/api/v1/dashboard/top-services', {
     schema: {
-      description: 'Get top services by log count for organization',
+      description: 'Get top services by log count for organization or project',
       tags: ['dashboard'],
       querystring: {
         type: 'object',
         properties: {
           organizationId: { type: 'string', format: 'uuid' },
+          projectId: { type: 'string', format: 'uuid' },
           limit: { type: 'number', minimum: 1, maximum: 20, default: 5 },
         },
         required: ['organizationId'],
@@ -113,7 +142,7 @@ const dashboardRoutes: FastifyPluginAsync = async (fastify) => {
     handler: async (request: any, reply) => {
       if (!await requireFullAccess(request, reply)) return;
 
-      const { organizationId, limit } = request.query as { organizationId: string; limit?: number };
+      const { organizationId, projectId, limit } = request.query as { organizationId: string; projectId?: string; limit?: number };
 
       if (!organizationId) {
         return reply.code(400).send({
@@ -132,7 +161,14 @@ const dashboardRoutes: FastifyPluginAsync = async (fastify) => {
         }
       }
 
-      const services = await dashboardService.getTopServices(organizationId, limit || 5);
+      if (projectId) {
+        const belongsToOrg = await verifyProjectBelongsToOrg(projectId, organizationId);
+        if (!belongsToOrg) {
+          return reply.code(404).send({ error: 'Project not found in this organization' });
+        }
+      }
+
+      const services = await dashboardService.getTopServices(organizationId, limit || 5, projectId);
       return { services };
     },
   });
@@ -146,6 +182,7 @@ const dashboardRoutes: FastifyPluginAsync = async (fastify) => {
         type: 'object',
         properties: {
           organizationId: { type: 'string', format: 'uuid' },
+          projectId: { type: 'string', format: 'uuid' },
         },
         required: ['organizationId'],
       },
@@ -153,7 +190,7 @@ const dashboardRoutes: FastifyPluginAsync = async (fastify) => {
     handler: async (request: any, reply) => {
       if (!await requireFullAccess(request, reply)) return;
 
-      const { organizationId } = request.query as { organizationId: string };
+      const { organizationId, projectId } = request.query as { organizationId: string; projectId?: string };
 
       if (!organizationId) {
         return reply.code(400).send({
@@ -171,7 +208,14 @@ const dashboardRoutes: FastifyPluginAsync = async (fastify) => {
         }
       }
 
-      const events = await dashboardService.getTimelineEvents(organizationId);
+      if (projectId) {
+        const belongsToOrg = await verifyProjectBelongsToOrg(projectId, organizationId);
+        if (!belongsToOrg) {
+          return reply.code(404).send({ error: 'Project not found in this organization' });
+        }
+      }
+
+      const events = await dashboardService.getTimelineEvents(organizationId, projectId);
       return { events };
     },
   });
@@ -179,12 +223,13 @@ const dashboardRoutes: FastifyPluginAsync = async (fastify) => {
   // GET /api/v1/dashboard/recent-errors - Get recent errors
   fastify.get('/api/v1/dashboard/recent-errors', {
     schema: {
-      description: 'Get recent error logs for organization',
+      description: 'Get recent error logs for organization or project',
       tags: ['dashboard'],
       querystring: {
         type: 'object',
         properties: {
           organizationId: { type: 'string', format: 'uuid' },
+          projectId: { type: 'string', format: 'uuid' },
         },
         required: ['organizationId'],
       },
@@ -192,7 +237,7 @@ const dashboardRoutes: FastifyPluginAsync = async (fastify) => {
     handler: async (request: any, reply) => {
       if (!await requireFullAccess(request, reply)) return;
 
-      const { organizationId } = request.query as { organizationId: string };
+      const { organizationId, projectId } = request.query as { organizationId: string; projectId?: string };
 
       if (!organizationId) {
         return reply.code(400).send({
@@ -211,7 +256,14 @@ const dashboardRoutes: FastifyPluginAsync = async (fastify) => {
         }
       }
 
-      const errors = await dashboardService.getRecentErrors(organizationId);
+      if (projectId) {
+        const belongsToOrg = await verifyProjectBelongsToOrg(projectId, organizationId);
+        if (!belongsToOrg) {
+          return reply.code(404).send({ error: 'Project not found in this organization' });
+        }
+      }
+
+      const errors = await dashboardService.getRecentErrors(organizationId, projectId);
       return { errors };
     },
   });

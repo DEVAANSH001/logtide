@@ -61,6 +61,18 @@ export class ProjectsAPI {
     return response.json();
   }
 
+  async getProjectCapabilities(
+    id: string,
+  ): Promise<{ hasWebVitals: boolean; hasSessions: boolean }> {
+    const response = await this.request(`/projects/${id}/capabilities`);
+
+    if (!response.ok) {
+      throw new Error('Failed to fetch project capabilities');
+    }
+
+    return response.json();
+  }
+
   async getProject(id: string): Promise<{ project: Project }> {
     const response = await this.request(`/projects/${id}`);
 

@@ -18,6 +18,7 @@
 	let { children }: Props = $props();
 
 	let project = $state<any>(null);
+	let capabilities = $state<{ hasWebVitals: boolean; hasSessions: boolean }>({ hasWebVitals: false, hasSessions: false });
 	let loading = $state(false);
 	let error = $state('');
 	let lastLoadedKey = $state<string | null>(null);
@@ -41,16 +42,41 @@
 	const projectId = $derived(page.params.id);
 
 	const currentPath = $derived(page.url.pathname);
-	const currentTab = $derived(
-		currentPath.endsWith('/alerts') ? 'alerts' : 'settings'
-	);
+
+	const allTabs = ['overview', 'performance', 'sessions', 'alerts', 'settings'] as const;
+
+	const currentTab = $derived(() => {
+		const segments = currentPath.split('/');
+		const last = segments[segments.length - 1];
+		if (allTabs.includes(last as any)) return last;
+		return 'overview';
+	});
+
+	const visibleTabs = $derived(() => {
+		const tabs: Array<{ value: string; label: string }> = [
+			{ value: 'overview', label: 'Overview' },
+		];
+		if (capabilities.hasWebVitals) {
+			tabs.push({ value: 'performance', label: 'Performance' });
+		}
+		if (capabilities.hasSessions) {
+			tabs.push({ value: 'sessions', label: 'Sessions' });
+		}
+		tabs.push({ value: 'alerts', label: 'Alerts' });
+		tabs.push({ value: 'settings', label: 'Settings' });
+		return tabs;
+	});
 
 	async function loadProject(orgId: string, projId: string) {
 		loading = true;
 		error = '';
 
 		try {
-			const response = await projectsAPI.getProjects(orgId);
+			const [response, caps] = await Promise.all([
+				projectsAPI.getProjects(orgId),
+				projectsAPI.getProjectCapabilities(projId).catch(() => ({ hasWebVitals: false, hasSessions: false })),
+			]);
+
 			const foundProject = response.projects.find((p) => p.id === projId);
 
 			if (!foundProject) {
@@ -61,6 +87,7 @@
 			}
 
 			project = foundProject;
+			capabilities = caps;
 			lastLoadedKey = `${orgId}-${projId}`;
 		} catch (e) {
 			error = e instanceof Error ? e.message : 'Failed to load project';
@@ -86,11 +113,7 @@
 	// Handle tab change
 	function handleTabChange(tab: string) {
 		const basePath = `/dashboard/projects/${projectId}`;
-		if (tab === 'settings') {
-			goto(basePath);
-		} else {
-			goto(`${basePath}/${tab}`);
-		}
+		goto(`${basePath}/${tab}`);
 	}
 </script>
 
@@ -109,10 +132,11 @@
 			{/if}
 		</div>
 
-		<Tabs.Root value={currentTab} onValueChange={handleTabChange}>
-			<Tabs.List class="grid w-full grid-cols-2">
-				<Tabs.Trigger value="settings">API Keys & Settings</Tabs.Trigger>
-				<Tabs.Trigger value="alerts">Alerts</Tabs.Trigger>
+		<Tabs.Root value={currentTab()} onValueChange={handleTabChange}>
+			<Tabs.List class="grid w-full" style="grid-template-columns: repeat({visibleTabs().length}, minmax(0, 1fr))">
+				{#each visibleTabs() as tab (tab.value)}
+					<Tabs.Trigger value={tab.value}>{tab.label}</Tabs.Trigger>
+				{/each}
 			</Tabs.List>
 		</Tabs.Root>
 
