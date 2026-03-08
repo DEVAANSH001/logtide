@@ -47,8 +47,10 @@
 
 	const currentTab = $derived.by(() => {
 		const segments = currentPath.split('/');
-		const last = segments[segments.length - 1];
-		if (validTabs.includes(last)) return last;
+		// Check from last to first for a valid tab (handles sub-routes like /sessions/abc123)
+		for (let i = segments.length - 1; i >= 0; i--) {
+			if (validTabs.includes(segments[i])) return segments[i];
+		}
 		return 'overview';
 	});
 
