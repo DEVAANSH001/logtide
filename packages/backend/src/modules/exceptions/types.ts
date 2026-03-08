@@ -27,6 +27,10 @@ export interface StackFrame {
     post?: string[];
   };
   metadata?: Record<string, unknown>;
+  originalFile?: string;
+  originalLine?: number;
+  originalColumn?: number;
+  originalFunction?: string;
 }
 
 export interface ParsedException {

@@ -54,6 +54,7 @@ const queryRoutes: FastifyPluginAsync = async (fastify) => {
             ]
           },
           traceId: { type: 'string' },
+          sessionId: { type: 'string' },
           from: { type: 'string', format: 'date-time' },
           to: { type: 'string', format: 'date-time' },
           q: { type: 'string' },
@@ -67,11 +68,12 @@ const queryRoutes: FastifyPluginAsync = async (fastify) => {
     handler: async (request: any, reply) => {
       if (!await requireFullAccess(request, reply)) return;
 
-      const { service, level, hostname, traceId, from, to, q, searchMode, limit, offset, cursor, projectId: queryProjectId } = request.query as {
+      const { service, level, hostname, traceId, sessionId, from, to, q, searchMode, limit, offset, cursor, projectId: queryProjectId } = request.query as {
         service?: string | string[];
         level?: LogLevel | LogLevel[];
         hostname?: string | string[];
         traceId?: string;
+        sessionId?: string;
         from?: string;
         to?: string;
         q?: string;
@@ -122,6 +124,7 @@ const queryRoutes: FastifyPluginAsync = async (fastify) => {
         level,
         hostname,
         traceId,
+        sessionId,
         from: from ? new Date(from) : undefined,
         to: to ? new Date(to) : undefined,
         q,

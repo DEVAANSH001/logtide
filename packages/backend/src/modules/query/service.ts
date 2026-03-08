@@ -13,6 +13,7 @@ export interface LogQueryParams {
   level?: LogLevel | LogLevel[]; // Support single or multiple levels
   hostname?: string | string[]; // Filter by hostname (from metadata.hostname)
   traceId?: string; // Filter by trace ID
+  sessionId?: string; // Filter by browser session ID
   from?: Date;
   to?: Date;
   q?: string; // Search query
@@ -37,6 +38,7 @@ export class QueryService {
       level,
       hostname,
       traceId,
+      sessionId,
       from,
       to,
       q,
@@ -55,6 +57,7 @@ export class QueryService {
       level: level || null,
       hostname: hostname || null,
       traceId: traceId || null,
+      sessionId: sessionId || null,
       from: effectiveFrom.toISOString(),
       to: to?.toISOString() || null,
       q: q || null,
@@ -84,6 +87,7 @@ export class QueryService {
       level,
       hostname,
       traceId,
+      sessionId,
       from: effectiveFrom,
       to: effectiveTo,
       search: q,
@@ -111,6 +115,7 @@ export class QueryService {
       message: log.message,
       metadata: log.metadata,
       traceId: log.traceId,
+      sessionId: log.sessionId,
     }));
 
     const result = {

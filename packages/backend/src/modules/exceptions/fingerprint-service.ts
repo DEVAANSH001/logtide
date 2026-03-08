@@ -50,7 +50,12 @@ export class FingerprintService {
     return frames
       .filter((f) => f.isAppCode)
       .slice(0, 10)
-      .map((f) => `${this.normalizeFilePath(f.filePath)}:${f.functionName || '<anonymous>'}`)
+      .map((f) => {
+        // Prefer source-mapped original path for better grouping across builds
+        const filePath = f.originalFile || f.filePath;
+        const funcName = f.originalFunction || f.functionName || '<anonymous>';
+        return `${this.normalizeFilePath(filePath)}:${funcName}`;
+      })
       .join('|');
   }
 

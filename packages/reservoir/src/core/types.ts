@@ -40,6 +40,7 @@ export interface LogRecord {
   metadata?: Record<string, unknown>;
   traceId?: string;
   spanId?: string;
+  sessionId?: string;
   hostname?: string;
 }
 
@@ -63,6 +64,7 @@ export interface QueryParams {
   level?: LogLevel | LogLevel[];
   hostname?: string | string[];
   traceId?: string;
+  sessionId?: string;
   from: Date;
   to: Date;
   fromExclusive?: boolean; // time > from (instead of >=)
@@ -193,6 +195,7 @@ export interface CountParams {
   level?: LogLevel | LogLevel[];
   hostname?: string | string[];
   traceId?: string;
+  sessionId?: string;
   from: Date;
   to: Date;
   fromExclusive?: boolean;
