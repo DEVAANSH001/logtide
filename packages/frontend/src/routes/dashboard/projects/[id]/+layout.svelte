@@ -43,16 +43,16 @@
 
 	const currentPath = $derived(page.url.pathname);
 
-	const allTabs = ['overview', 'performance', 'sessions', 'alerts', 'settings'] as const;
+	const validTabs = ['overview', 'performance', 'sessions', 'alerts', 'settings'];
 
-	const currentTab = $derived(() => {
+	const currentTab = $derived.by(() => {
 		const segments = currentPath.split('/');
 		const last = segments[segments.length - 1];
-		if (allTabs.includes(last as any)) return last;
+		if (validTabs.includes(last)) return last;
 		return 'overview';
 	});
 
-	const visibleTabs = $derived(() => {
+	const visibleTabs = $derived.by(() => {
 		const tabs: Array<{ value: string; label: string }> = [
 			{ value: 'overview', label: 'Overview' },
 		];
@@ -132,9 +132,9 @@
 			{/if}
 		</div>
 
-		<Tabs.Root value={currentTab()} onValueChange={handleTabChange}>
-			<Tabs.List class="grid w-full" style="grid-template-columns: repeat({visibleTabs().length}, minmax(0, 1fr))">
-				{#each visibleTabs() as tab (tab.value)}
+		<Tabs.Root value={currentTab} onValueChange={handleTabChange}>
+			<Tabs.List class="grid w-full" style="grid-template-columns: repeat({visibleTabs.length}, minmax(0, 1fr))">
+				{#each visibleTabs as tab (tab.value)}
 					<Tabs.Trigger value={tab.value}>{tab.label}</Tabs.Trigger>
 				{/each}
 			</Tabs.List>

@@ -567,7 +567,7 @@ class DashboardService {
     const lastHour = new Date(now.getTime() - 60 * 60 * 1000);
 
     // Query alerts from alert_history JOIN alert_rules (last 24h)
-    const alertRows = await db
+    let alertQuery = db
       .selectFrom('alert_history')
       .innerJoin('alert_rules', 'alert_rules.id', 'alert_history.rule_id')
       .select([
@@ -577,45 +577,31 @@ class DashboardService {
         'alert_history.log_count',
       ])
       .where('alert_rules.organization_id', '=', organizationId)
-      .where('alert_history.triggered_at', '>=', last24Hours)
-      .execute();
+      .where('alert_history.triggered_at', '>=', last24Hours);
+
+    if (projectId) {
+      alertQuery = alertQuery.where('alert_rules.project_id', '=', projectId);
+    }
+
+    const alertRows = await alertQuery.execute();
 
     // Query detections - try continuous aggregate first, fallback to raw
     let detectionRows: Array<{ bucket: string | Date; severity: string; count: string }> = [];
 
     try {
       // Historical from aggregate + recent from raw
-      const [historicalDetections, recentDetections] = await Promise.all([
-        db
-          .selectFrom('detection_events_hourly_stats')
-          .select([
-            'bucket',
-            'severity',
-            sql<string>`SUM(detection_count)`.as('count'),
-          ])
-          .where('organization_id', '=', organizationId)
-          .where('bucket', '>=', last24Hours)
-          .where('bucket', '<', lastHour)
-          .groupBy(['bucket', 'severity'])
-          .execute(),
+      let histQuery = db
+        .selectFrom('detection_events_hourly_stats')
+        .select([
+          'bucket',
+          'severity',
+          sql<string>`SUM(detection_count)`.as('count'),
+        ])
+        .where('organization_id', '=', organizationId)
+        .where('bucket', '>=', last24Hours)
+        .where('bucket', '<', lastHour);
 
-        db
-          .selectFrom('detection_events')
-          .select([
-            sql<string>`time_bucket('1 hour', time)`.as('bucket'),
-            'severity',
-            sql<string>`COUNT(*)`.as('count'),
-          ])
-          .where('organization_id', '=', organizationId)
-          .where('time', '>=', lastHour)
-          .groupBy(['bucket', 'severity'])
-          .execute(),
-      ]);
-
-      detectionRows = [...historicalDetections, ...recentDetections];
-    } catch {
-      // Fallback: query raw detection_events for full 24h
-      detectionRows = await db
+      let recentQuery = db
         .selectFrom('detection_events')
         .select([
           sql<string>`time_bucket('1 hour', time)`.as('bucket'),
@@ -623,7 +609,36 @@ class DashboardService {
           sql<string>`COUNT(*)`.as('count'),
         ])
         .where('organization_id', '=', organizationId)
-        .where('time', '>=', last24Hours)
+        .where('time', '>=', lastHour);
+
+      if (projectId) {
+        histQuery = histQuery.where('project_id', '=', projectId);
+        recentQuery = recentQuery.where('project_id', '=', projectId);
+      }
+
+      const [historicalDetections, recentDetections] = await Promise.all([
+        histQuery.groupBy(['bucket', 'severity']).execute(),
+        recentQuery.groupBy(['bucket', 'severity']).execute(),
+      ]);
+
+      detectionRows = [...historicalDetections, ...recentDetections];
+    } catch {
+      // Fallback: query raw detection_events for full 24h
+      let fallbackQuery = db
+        .selectFrom('detection_events')
+        .select([
+          sql<string>`time_bucket('1 hour', time)`.as('bucket'),
+          'severity',
+          sql<string>`COUNT(*)`.as('count'),
+        ])
+        .where('organization_id', '=', organizationId)
+        .where('time', '>=', last24Hours);
+
+      if (projectId) {
+        fallbackQuery = fallbackQuery.where('project_id', '=', projectId);
+      }
+
+      detectionRows = await fallbackQuery
         .groupBy(['bucket', 'severity'])
         .execute();
     }
