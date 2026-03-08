@@ -631,13 +631,29 @@
           Explore and visualize OTLP metrics from your applications
         </p>
       </div>
-      <ServiceSelector
-        services={serviceNames}
-        selectedService={storeState.selectedService}
-        timeRange={timeRangeType}
-        onServiceChange={handleServiceChange}
-        onTimeRangeChange={handleTimeRangeChange}
-      />
+      <div class="flex items-center gap-3">
+        <Select.Root
+          type="single"
+          value={selectedProject || ""}
+          onValueChange={(v) => { selectedProject = v || null; }}
+        >
+          <Select.Trigger class="w-[180px]">
+            {projects.find(p => p.id === selectedProject)?.name || "Select project"}
+          </Select.Trigger>
+          <Select.Content>
+            {#each projects as project}
+              <Select.Item value={project.id}>{project.name}</Select.Item>
+            {/each}
+          </Select.Content>
+        </Select.Root>
+        <ServiceSelector
+          services={serviceNames}
+          selectedService={storeState.selectedService}
+          timeRange={timeRangeType}
+          onServiceChange={handleServiceChange}
+          onTimeRangeChange={handleTimeRangeChange}
+        />
+      </div>
     </div>
   </div>
 
