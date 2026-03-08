@@ -15,6 +15,7 @@
   import Spinner from '$lib/components/Spinner.svelte';
   import { layoutStore } from '$lib/stores/layout';
   import { logsAPI } from '$lib/api/logs';
+  import { projectsAPI } from '$lib/api/projects';
 
   import Activity from '@lucide/svelte/icons/activity';
   import AlertTriangle from '@lucide/svelte/icons/alert-triangle';
@@ -97,10 +98,17 @@
 
   async function loadWebVitals() {
     try {
+      if (!$currentOrganization) return;
+
+      const { projects: orgProjects } = await projectsAPI.getProjects($currentOrganization.id);
+      if (orgProjects.length === 0) return;
+
+      const projectIds = orgProjects.map((p) => p.id);
       const now = new Date();
       const from = new Date(now.getTime() - 24 * 60 * 60 * 1000);
 
       const response = await logsAPI.getLogs({
+        projectId: projectIds.length === 1 ? projectIds[0] : projectIds,
         q: 'Web Vital:',
         searchMode: 'substring',
         from: from.toISOString(),

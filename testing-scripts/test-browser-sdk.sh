@@ -98,15 +98,15 @@ for i in $(seq 1 10); do
 
   case $i in
     1)  msg="Page loaded: /products"; level="info"; svc="nextjs-frontend" ;;
-    2)  msg="User clicked: button#add-to-cart \"Add to Cart\""; level="info"; svc="nextjs-frontend" ;;
+    2)  msg="User clicked: button#add-to-cart [Add to Cart]"; level="info"; svc="nextjs-frontend" ;;
     3)  msg="API request: GET /api/cart -> 200 (45ms)"; level="info"; svc="nextjs-frontend" ;;
     4)  msg="Page navigation: /checkout"; level="info"; svc="nextjs-frontend" ;;
-    5)  msg="User clicked: button#pay-now \"Pay Now\""; level="info"; svc="nextjs-frontend" ;;
+    5)  msg="User clicked: button#pay-now [Pay Now]"; level="info"; svc="nextjs-frontend" ;;
     6)  msg="API request: POST /api/orders -> 201 (320ms)"; level="info"; svc="nextjs-frontend" ;;
     7)  msg="Order created: order_id=ord-8821"; level="info"; svc="order-service" ;;
     8)  msg="Payment processed: charge_id=ch_93kx amount=49.99"; level="info"; svc="payment-service" ;;
     9)  msg="Page navigation: /order/confirmation"; level="info"; svc="nextjs-frontend" ;;
-    10) msg="User clicked: a#continue-shopping \"Continue Shopping\""; level="info"; svc="nextjs-frontend" ;;
+    10) msg="User clicked: a#continue-shopping [Continue Shopping]"; level="info"; svc="nextjs-frontend" ;;
   esac
 
   body='{"logs":[{"time":"'"$ts"'","service":"'"$svc"'","level":"'"$level"'","message":"'"$msg"'","session_id":"'"$SESSION_1"'","trace_id":"'"$TRACE_1"'","metadata":{"hostname":"browser","user_agent":"Mozilla/5.0 Chrome/120"}}]}'
@@ -150,11 +150,11 @@ for i in $(seq 1 8); do
   case $i in
     1) msg="Page loaded: /dashboard"; level="info"; svc="nuxt-app" ;;
     2) msg="API request: GET /api/stats -> 200 (120ms)"; level="info"; svc="nuxt-app" ;;
-    3) msg="User clicked: button#refresh \"Refresh Data\""; level="info"; svc="nuxt-app" ;;
+    3) msg="User clicked: button#refresh [Refresh Data]"; level="info"; svc="nuxt-app" ;;
     4) msg="API request: GET /api/analytics -> 500 (2340ms)"; level="warn"; svc="nuxt-app" ;;
     5) msg="TypeError: Cannot read properties of undefined (reading 'map')"; level="error"; svc="nuxt-app" ;;
     6) msg="Internal server error on GET /api/analytics"; level="error"; svc="api-gateway" ;;
-    7) msg="User clicked: button#retry \"Retry\""; level="info"; svc="nuxt-app" ;;
+    7) msg="User clicked: button#retry [Retry]"; level="info"; svc="nuxt-app" ;;
     8) msg="API request: GET /api/analytics -> 200 (95ms)"; level="info"; svc="nuxt-app" ;;
   esac
 
@@ -174,7 +174,7 @@ for i in $(seq 1 6); do
   case $i in
     1) msg="Page loaded: /settings"; level="info"; svc="angular-admin" ;;
     2) msg="API request: GET /api/settings -> 200 (67ms)"; level="info"; svc="angular-admin" ;;
-    3) msg="User clicked: button#save \"Save Changes\""; level="info"; svc="angular-admin" ;;
+    3) msg="User clicked: button#save [Save Changes]"; level="info"; svc="angular-admin" ;;
     4) msg="API request: PUT /api/settings -> 200 (150ms)"; level="info"; svc="angular-admin" ;;
     5) msg="Settings updated successfully"; level="info"; svc="api-gateway" ;;
     6) msg="Page navigation: /settings/security"; level="info"; svc="angular-admin" ;;
