@@ -50,43 +50,51 @@ class SessionsService {
   }> {
     const { projectId, from, to, hasErrors, service, limit, offset } = params;
 
-    // Build WHERE conditions
-    const conditions: string[] = ['project_id = $1', 'session_id IS NOT NULL'];
-    const values: unknown[] = [projectId];
-    let idx = 2;
+    // Build base query using Kysely query builder
+    let baseQuery = db
+      .selectFrom('logs')
+      .where('project_id', '=', projectId)
+      .where('session_id', 'is not', null);
 
     if (from) {
-      conditions.push(`time >= $${idx}`);
-      values.push(from.toISOString());
-      idx++;
+      baseQuery = baseQuery.where('time', '>=', from);
     }
     if (to) {
-      conditions.push(`time <= $${idx}`);
-      values.push(to.toISOString());
-      idx++;
+      baseQuery = baseQuery.where('time', '<=', to);
     }
     if (service) {
-      conditions.push(`service = $${idx}`);
-      values.push(service);
-      idx++;
+      baseQuery = baseQuery.where('service', '=', service);
     }
 
-    const whereClause = conditions.join(' AND ');
-
     // Count total distinct sessions
-    const countResult = await sql<{ count: string }>`
-      SELECT COUNT(DISTINCT session_id) as count
-      FROM logs
-      WHERE ${sql.raw(whereClause)}
-    `.execute(db);
-    const total = parseInt(countResult.rows[0]?.count ?? '0', 10);
+    const countResult = await baseQuery
+      .select(sql<string>`COUNT(DISTINCT session_id)`.as('count'))
+      .executeTakeFirst();
+    const total = parseInt(countResult?.count ?? '0', 10);
 
-    // Aggregate sessions
-    let havingClause = '';
+    // Aggregate sessions — need raw SQL for GROUP BY + HAVING + FILTER
+    // Build WHERE fragments for the raw query
+    const whereParts: ReturnType<typeof sql>[] = [
+      sql`project_id = ${projectId}`,
+      sql`session_id IS NOT NULL`,
+    ];
+    if (from) {
+      whereParts.push(sql`time >= ${from.toISOString()}`);
+    }
+    if (to) {
+      whereParts.push(sql`time <= ${to.toISOString()}`);
+    }
+    if (service) {
+      whereParts.push(sql`service = ${service}`);
+    }
+
+    const whereClause = sql.join(whereParts, sql` AND `);
+
+    let havingFragment = sql``;
     if (hasErrors === true) {
-      havingClause = `HAVING COUNT(*) FILTER (WHERE level IN ('error', 'critical')) > 0`;
+      havingFragment = sql`HAVING COUNT(*) FILTER (WHERE level IN ('error', 'critical')) > 0`;
     } else if (hasErrors === false) {
-      havingClause = `HAVING COUNT(*) FILTER (WHERE level IN ('error', 'critical')) = 0`;
+      havingFragment = sql`HAVING COUNT(*) FILTER (WHERE level IN ('error', 'critical')) = 0`;
     }
 
     const result = await sql<{
@@ -105,12 +113,12 @@ class SessionsService {
         COUNT(*)::text as event_count,
         COUNT(*) FILTER (WHERE level IN ('error', 'critical'))::text as error_count
       FROM logs
-      WHERE ${sql.raw(whereClause)}
+      WHERE ${whereClause}
       GROUP BY session_id
-      ${sql.raw(havingClause)}
+      ${havingFragment}
       ORDER BY MAX(time) DESC
-      LIMIT ${sql.raw(String(limit))}
-      OFFSET ${sql.raw(String(offset))}
+      LIMIT ${limit}
+      OFFSET ${offset}
     `.execute(db);
 
     const sessions: SessionSummary[] = (result.rows ?? []).map((row: any) => {
