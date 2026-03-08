@@ -449,6 +449,7 @@ export class TimescaleEngine extends StorageEngine {
     const metadatas: (string | null)[] = [];
     const traceIds: (string | null)[] = [];
     const spanIds: (string | null)[] = [];
+    const sessionIds: (string | null)[] = [];
 
     for (const log of logs) {
       if (hasIds) ids.push(log.id!);
@@ -460,6 +461,7 @@ export class TimescaleEngine extends StorageEngine {
       metadatas.push(log.metadata ? JSON.stringify(log.metadata) : null);
       traceIds.push(log.traceId ?? null);
       spanIds.push(log.spanId ?? null);
+      sessionIds.push(log.sessionId ?? null);
     }
 
     let query: string;
@@ -467,11 +469,11 @@ export class TimescaleEngine extends StorageEngine {
     const pidType = this.options.projectIdType === 'uuid' ? 'uuid' : 'text';
 
     if (hasIds) {
-      query = `INSERT INTO ${s}.${t} (id, time, project_id, service, level, message, metadata, trace_id, span_id) SELECT * FROM UNNEST($1::uuid[], $2::timestamptz[], $3::${pidType}[], $4::text[], $5::text[], $6::text[], $7::jsonb[], $8::text[], $9::text[])`;
-      values = [ids, times, projectIds, services, levels, messages, metadatas, traceIds, spanIds];
+      query = `INSERT INTO ${s}.${t} (id, time, project_id, service, level, message, metadata, trace_id, span_id, session_id) SELECT * FROM UNNEST($1::uuid[], $2::timestamptz[], $3::${pidType}[], $4::text[], $5::text[], $6::text[], $7::jsonb[], $8::text[], $9::text[], $10::text[])`;
+      values = [ids, times, projectIds, services, levels, messages, metadatas, traceIds, spanIds, sessionIds];
     } else {
-      query = `INSERT INTO ${s}.${t} (time, project_id, service, level, message, metadata, trace_id, span_id) SELECT * FROM UNNEST($1::timestamptz[], $2::${pidType}[], $3::text[], $4::text[], $5::text[], $6::jsonb[], $7::text[], $8::text[])`;
-      values = [times, projectIds, services, levels, messages, metadatas, traceIds, spanIds];
+      query = `INSERT INTO ${s}.${t} (time, project_id, service, level, message, metadata, trace_id, span_id, session_id) SELECT * FROM UNNEST($1::timestamptz[], $2::${pidType}[], $3::text[], $4::text[], $5::text[], $6::jsonb[], $7::text[], $8::text[], $9::text[])`;
+      values = [times, projectIds, services, levels, messages, metadatas, traceIds, spanIds, sessionIds];
     }
 
     if (returning) {
@@ -1604,6 +1606,7 @@ function mapRowToLogRecord(row: Record<string, unknown>): LogRecord {
     metadata: row.metadata as Record<string, unknown> | undefined,
     traceId: row.trace_id as string | undefined,
     spanId: row.span_id as string | undefined,
+    sessionId: row.session_id as string | undefined,
     hostname: row.hostname as string | undefined,
   };
 }

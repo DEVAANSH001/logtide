@@ -58,6 +58,7 @@ export interface LogsTable {
   >;
   trace_id: string | null;
   span_id: string | null;
+  session_id: string | null;
   created_at: Generated<Timestamp>;
 }
 

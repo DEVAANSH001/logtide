@@ -75,6 +75,11 @@ export class TimescaleQueryTranslator extends QueryTranslator {
       values.push(params.traceId);
       idx++;
     }
+    if (params.sessionId !== undefined) {
+      conditions.push(`session_id = $${idx}`);
+      values.push(params.sessionId);
+      idx++;
+    }
 
     conditions.push(`time ${params.fromExclusive ? '>' : '>='} $${idx}`);
     values.push(params.from);

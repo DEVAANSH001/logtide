@@ -666,6 +666,7 @@ export class ClickHouseEngine extends StorageEngine {
       metadata: log.metadata ? JSON.stringify(log.metadata) : '{}',
       trace_id: log.traceId ?? null,
       span_id: log.spanId ?? null,
+      session_id: log.sessionId ?? null,
     };
     if (log.id) {
       row.id = log.id;
@@ -1720,6 +1721,7 @@ function mapClickHouseRowToStoredLogRecord(row: Record<string, unknown>): Stored
     metadata,
     traceId: row.trace_id ? String(row.trace_id) : undefined,
     spanId: row.span_id ? String(row.span_id) : undefined,
+    sessionId: row.session_id ? String(row.session_id) : undefined,
   };
 }
 

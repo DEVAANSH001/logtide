@@ -98,12 +98,13 @@ export class IngestionService {
         metadata: hasMetadata ? sanitizeForPostgres(metadata) : undefined,
         traceId: sanitizeForPostgres(log.trace_id) || undefined,
         spanId: sanitizeForPostgres((log as { span_id?: string }).span_id) || undefined,
+        sessionId: sanitizeForPostgres((log as { session_id?: string }).session_id) || undefined,
       };
     });
 
     // Insert via reservoir (raw parametrized SQL with RETURNING *)
     const ingestResult = await reservoir.ingestReturning(records);
-    const insertedLogs = ingestResult.rows.map((row: { id: string; time: Date; projectId: string; service: string; level: string; message: string; metadata?: Record<string, unknown>; traceId?: string; spanId?: string }) => ({
+    const insertedLogs = ingestResult.rows.map((row: { id: string; time: Date; projectId: string; service: string; level: string; message: string; metadata?: Record<string, unknown>; traceId?: string; spanId?: string; sessionId?: string }) => ({
       id: row.id,
       time: row.time,
       project_id: row.projectId,
@@ -113,6 +114,7 @@ export class IngestionService {
       metadata: row.metadata,
       trace_id: row.traceId,
       span_id: row.spanId,
+      session_id: row.sessionId,
     }));
 
     // Store extracted identifiers (async, non-blocking)
