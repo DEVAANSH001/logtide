@@ -46,6 +46,30 @@ export async function projectsRoutes(fastify: FastifyInstance) {
     }
   });
 
+  // Get project data availability per category
+  fastify.get('/data-availability', async (request: any, reply) => {
+    const organizationId = request.query.organizationId;
+
+    if (!organizationId) {
+      return reply.status(400).send({
+        error: 'organizationId query parameter is required',
+      });
+    }
+
+    try {
+      const availability = await projectsService.getProjectDataAvailability(
+        organizationId,
+        request.user.id,
+      );
+      return reply.send(availability);
+    } catch (error) {
+      if (error instanceof Error && error.message.includes('do not have access')) {
+        return reply.status(403).send({ error: error.message });
+      }
+      throw error;
+    }
+  });
+
   // Get a single project
   fastify.get('/:id', async (request: any, reply) => {
     try {

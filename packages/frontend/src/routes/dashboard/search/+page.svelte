@@ -396,8 +396,14 @@
     }
 
     try {
-      const response = await projectsAPI.getProjects($currentOrganization.id);
-      projects = response.projects;
+      const [response, availability] = await Promise.all([
+        projectsAPI.getProjects($currentOrganization.id),
+        projectsAPI.getProjectDataAvailability($currentOrganization.id).catch(() => null),
+      ]);
+      const logsProjectIds = availability?.logs;
+      projects = logsProjectIds
+        ? response.projects.filter((p) => logsProjectIds.includes(p.id))
+        : response.projects;
 
       if (projects.length > 0 && selectedProjects.length === 0) {
         selectedProjects = projects.map((p) => p.id);

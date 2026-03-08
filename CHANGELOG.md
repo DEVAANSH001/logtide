@@ -9,6 +9,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Metrics Dashboard & Rollups** (#150): first-class metrics experience with pre-aggregated rollups and multi-panel dashboard
+  - Redesigned metrics page with **Overview** and **Explorer** tabs
+  - Overview panel: service-grouped metric cards with sparkline charts (ECharts), latest/avg/min/max values
+  - Pre-aggregated rollups for fast dashboard queries:
+    - TimescaleDB: `metrics_hourly_stats` and `metrics_daily_stats` continuous aggregates with refresh policies
+    - ClickHouse: `metrics_hourly_rollup` and `metrics_daily_rollup` materialized views
+    - MongoDB: on-the-fly aggregation pipeline (no materialized views needed)
+  - Smart rollup routing: auto-detects eligible queries (1h/1d interval, compatible aggregation) and falls back to raw table
+  - `GET /api/v1/metrics/overview` endpoint with `serviceName` filter
+  - `serviceName` filter added to `/aggregate` endpoint
+  - Cross-signal correlation: click chart data point → navigate to traces with time window
+  - Project selector in metrics header for quick switching
+  - `ServiceSelector` component with service dropdown and segmented time range buttons
+  - `MetricCard` component with type badge and ECharts sparkline
+  - `OverviewPanel` component with per-service metric groups and cross-links to traces/logs
+  - Frontend API client and store extended with overview support
+  - 13 new reservoir tests (rollups + overview) across TimescaleDB and ClickHouse engines
+
+- **Smart Project Selectors**: project dropdowns now only show projects that have data in the relevant category
+  - `GET /api/v1/projects/data-availability` endpoint returns per-category project IDs (logs, traces, metrics)
+  - Metrics page filters to projects with metrics data
+  - Traces page filters to projects with traces data
+  - Search page filters to projects with logs data
+  - Graceful fallback to all projects if availability check fails
+
 - **MongoDB Storage Adapter** (#157): full MongoDB backend for the `@logtide/reservoir` storage abstraction layer
   - All 33 `StorageEngine` methods implemented (logs, spans, traces, metrics, exemplars)
   - `MongoDBQueryTranslator` extending abstract `QueryTranslator` for filter/query translation

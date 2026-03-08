@@ -47,6 +47,20 @@ export class ProjectsAPI {
     return response.json();
   }
 
+  async getProjectDataAvailability(
+    organizationId: string,
+  ): Promise<{ logs: string[]; traces: string[]; metrics: string[] }> {
+    const response = await this.request(
+      `/projects/data-availability?organizationId=${organizationId}`,
+    );
+
+    if (!response.ok) {
+      throw new Error('Failed to fetch project data availability');
+    }
+
+    return response.json();
+  }
+
   async getProject(id: string): Promise<{ project: Project }> {
     const response = await this.request(`/projects/${id}`);
 
