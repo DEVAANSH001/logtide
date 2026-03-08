@@ -10,9 +10,11 @@
   import LogsChart from '$lib/components/dashboard/LogsChart.svelte';
   import TopServicesWidget from '$lib/components/dashboard/TopServicesWidget.svelte';
   import RecentErrorsWidget from '$lib/components/dashboard/RecentErrorsWidget.svelte';
+  import WebVitalsWidget from '$lib/components/dashboard/WebVitalsWidget.svelte';
   import EmptyDashboard from '$lib/components/dashboard/EmptyDashboard.svelte';
   import Spinner from '$lib/components/Spinner.svelte';
   import { layoutStore } from '$lib/stores/layout';
+  import { logsAPI } from '$lib/api/logs';
 
   import Activity from '@lucide/svelte/icons/activity';
   import AlertTriangle from '@lucide/svelte/icons/alert-triangle';
@@ -25,6 +27,7 @@
   let topServices = $state<TopService[]>([]);
   let recentErrors = $state<RecentError[]>([]);
   let timelineEvents = $state<TimelineEvent[]>([]);
+  let webVitalsMetrics = $state<Array<{ name: string; value: number; rating: 'good' | 'needs-improvement' | 'poor'; unit: string }>>([]);
   let loading = $state(true);
   let error = $state('');
   let lastLoadedOrg = $state<string | null>(null);
@@ -52,6 +55,7 @@
       topServices = [];
       recentErrors = [];
       timelineEvents = [];
+      webVitalsMetrics = [];
       return;
     }
 
@@ -72,6 +76,10 @@
       topServices = servicesData;
       recentErrors = errorsData;
       timelineEvents = eventsData;
+
+      // Load Web Vitals data (fire and forget — non-blocking)
+      loadWebVitals().catch(() => {});
+
       lastLoadedOrg = $currentOrganization.id;
     } catch (e) {
       console.error('Failed to load dashboard data:', e);
@@ -81,8 +89,54 @@
       topServices = [];
       recentErrors = [];
       timelineEvents = [];
+      webVitalsMetrics = [];
     } finally {
       loading = false;
+    }
+  }
+
+  async function loadWebVitals() {
+    try {
+      const now = new Date();
+      const from = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+
+      const response = await logsAPI.getLogs({
+        q: 'Web Vital:',
+        searchMode: 'substring',
+        from: from.toISOString(),
+        to: now.toISOString(),
+        limit: 100,
+      });
+
+      // Group by metric name, keep latest value per metric
+      const latest = new Map<string, { value: number; rating: string }>();
+      for (const log of response.logs) {
+        const meta = log.metadata;
+        if (!meta || !meta['performance.metric']) continue;
+        const name = String(meta['performance.metric']);
+        // Keep the latest (logs are sorted desc by time)
+        if (!latest.has(name)) {
+          latest.set(name, {
+            value: Number(meta['performance.value']),
+            rating: String(meta['performance.rating'] || 'good'),
+          });
+        }
+      }
+
+      const metricOrder = ['LCP', 'INP', 'CLS'];
+      webVitalsMetrics = metricOrder
+        .filter((name) => latest.has(name))
+        .map((name) => {
+          const data = latest.get(name)!;
+          return {
+            name,
+            value: data.value,
+            rating: data.rating as 'good' | 'needs-improvement' | 'poor',
+            unit: name === 'CLS' ? '' : 'ms',
+          };
+        });
+    } catch {
+      webVitalsMetrics = [];
     }
   }
 
@@ -304,6 +358,10 @@
         <div class="grid gap-4 md:grid-cols-2">
           <TopServicesWidget services={topServices} onServiceClick={handleServiceClick} />
           <RecentErrorsWidget errors={recentErrors} onErrorClick={handleErrorClick} />
+        </div>
+
+        <div class="grid gap-4 md:grid-cols-2">
+          <WebVitalsWidget metrics={webVitalsMetrics} />
         </div>
       {/if}
 </div>
