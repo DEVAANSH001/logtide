@@ -9,6 +9,7 @@
 		message: string;
 		metadata?: Record<string, unknown>;
 		traceId?: string;
+		sessionId?: string;
 		projectId: string;
 	}
 
