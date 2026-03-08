@@ -49,6 +49,25 @@ export interface MetricDataResponse {
   offset: number;
 }
 
+export interface MetricOverviewItem {
+  metricName: string;
+  metricType: MetricType;
+  serviceName: string;
+  latestValue: number;
+  avgValue: number;
+  minValue: number;
+  maxValue: number;
+  pointCount: number;
+}
+
+export interface MetricsOverviewResult {
+  services: Array<{
+    serviceName: string;
+    metrics: MetricOverviewItem[];
+  }>;
+  executionTimeMs?: number;
+}
+
 export class MetricsAPI {
   constructor(private getToken: () => string | null) {}
 
@@ -144,6 +163,25 @@ export class MetricsAPI {
     }
     const res = await fetch(`${getApiBaseUrl()}/metrics/aggregate?${searchParams}`, { headers: this.getHeaders() });
     if (!res.ok) throw new Error(`Failed to aggregate metrics: ${res.statusText}`);
+    return res.json();
+  }
+
+  async getOverview(params: {
+    projectId: string;
+    from: string;
+    to: string;
+    serviceName?: string;
+  }): Promise<MetricsOverviewResult> {
+    const searchParams = new URLSearchParams({
+      projectId: params.projectId,
+      from: params.from,
+      to: params.to,
+    });
+    if (params.serviceName) searchParams.append('serviceName', params.serviceName);
+    const res = await fetch(`${getApiBaseUrl()}/metrics/overview?${searchParams}`, {
+      headers: this.getHeaders(),
+    });
+    if (!res.ok) throw new Error(`Failed to fetch metrics overview: ${res.statusText}`);
     return res.json();
   }
 }

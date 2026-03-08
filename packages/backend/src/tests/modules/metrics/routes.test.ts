@@ -534,6 +534,110 @@ describe('Metrics Routes', () => {
   });
 
   // ==========================================================================
+  // GET /api/v1/metrics/overview
+  // ==========================================================================
+  describe('GET /api/v1/metrics/overview', () => {
+    const timeRange = () => ({
+      from: new Date(Date.now() - 3600000).toISOString(),
+      to: new Date(Date.now() + 3600000).toISOString(),
+    });
+
+    it('should return metrics overview', async () => {
+      const { from, to } = timeRange();
+
+      const response = await request(app.server)
+        .get('/api/v1/metrics/overview')
+        .set('x-api-key', apiKey)
+        .query({ projectId, from, to });
+
+      expect(response.status).toBe(200);
+      expect(response.body).toHaveProperty('services');
+      expect(Array.isArray(response.body.services)).toBe(true);
+    });
+
+    it('should return 400 when from/to missing', async () => {
+      const response = await request(app.server)
+        .get('/api/v1/metrics/overview')
+        .set('x-api-key', apiKey)
+        .query({ projectId });
+
+      expect(response.status).toBe(400);
+      expect(response.body).toHaveProperty('error');
+      expect(response.body.error).toContain('from');
+    });
+
+    it('should return 400 when projectId is missing', async () => {
+      const { from, to } = timeRange();
+
+      const response = await request(app.server)
+        .get('/api/v1/metrics/overview')
+        .set('Authorization', `Bearer ${sessionToken}`)
+        .query({ from, to });
+
+      expect(response.status).toBe(400);
+      expect(response.body).toHaveProperty('error');
+    });
+
+    it('should accept serviceName filter', async () => {
+      const { from, to } = timeRange();
+
+      const response = await request(app.server)
+        .get('/api/v1/metrics/overview')
+        .set('x-api-key', apiKey)
+        .query({ projectId, from, to, serviceName: 'test-api' });
+
+      expect(response.status).toBe(200);
+      expect(response.body).toHaveProperty('services');
+    });
+
+    it('should return 401 without auth', async () => {
+      const { from, to } = timeRange();
+
+      const response = await request(app.server)
+        .get('/api/v1/metrics/overview')
+        .query({ projectId, from, to });
+
+      expect(response.status).toBe(401);
+    });
+
+    it('should return overview with session auth', async () => {
+      const { from, to } = timeRange();
+
+      const response = await request(app.server)
+        .get('/api/v1/metrics/overview')
+        .set('Authorization', `Bearer ${sessionToken}`)
+        .query({ projectId, from, to });
+
+      expect(response.status).toBe(200);
+      expect(response.body).toHaveProperty('services');
+    });
+  });
+
+  // ==========================================================================
+  // GET /api/v1/metrics/aggregate - serviceName filter
+  // ==========================================================================
+  describe('GET /api/v1/metrics/aggregate - serviceName filter', () => {
+    it('should accept serviceName parameter', async () => {
+      const from = new Date(Date.now() - 3600000).toISOString();
+      const to = new Date(Date.now() + 3600000).toISOString();
+
+      const response = await request(app.server)
+        .get('/api/v1/metrics/aggregate')
+        .set('x-api-key', apiKey)
+        .query({
+          projectId,
+          metricName: 'http.request.duration',
+          from,
+          to,
+          serviceName: 'test-api',
+        });
+
+      expect(response.status).toBe(200);
+      expect(response.body).toBeDefined();
+    });
+  });
+
+  // ==========================================================================
   // Access control
   // ==========================================================================
   describe('access control', () => {
@@ -566,6 +670,14 @@ describe('Metrics Routes', () => {
           query: {
             projectId,
             metricName: 'http.request.duration',
+            from: new Date(Date.now() - 3600000).toISOString(),
+            to: new Date(Date.now() + 3600000).toISOString(),
+          },
+        },
+        {
+          url: '/api/v1/metrics/overview',
+          query: {
+            projectId,
             from: new Date(Date.now() - 3600000).toISOString(),
             to: new Date(Date.now() + 3600000).toISOString(),
           },

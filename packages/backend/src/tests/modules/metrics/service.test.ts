@@ -6,6 +6,7 @@ const mockGetMetricLabelKeys = vi.fn();
 const mockGetMetricLabelValues = vi.fn();
 const mockQueryMetrics = vi.fn();
 const mockAggregateMetrics = vi.fn();
+const mockGetMetricsOverview = vi.fn();
 
 vi.mock('../../../database/reservoir.js', () => ({
   reservoir: {
@@ -15,6 +16,7 @@ vi.mock('../../../database/reservoir.js', () => ({
     getMetricLabelValues: (...args: unknown[]) => mockGetMetricLabelValues(...args),
     queryMetrics: (...args: unknown[]) => mockQueryMetrics(...args),
     aggregateMetrics: (...args: unknown[]) => mockAggregateMetrics(...args),
+    getMetricsOverview: (...args: unknown[]) => mockGetMetricsOverview(...args),
   },
 }));
 
@@ -346,6 +348,93 @@ describe('MetricsService', () => {
           metricName: 'memory_usage',
         }),
       );
+    });
+
+    it('should pass serviceName to reservoir.aggregateMetrics', async () => {
+      mockAggregateMetrics.mockResolvedValueOnce({ timeseries: [] });
+
+      const from = new Date('2025-01-01T00:00:00Z');
+      const to = new Date('2025-01-02T00:00:00Z');
+
+      await service.aggregateMetrics({
+        projectId: 'proj-1',
+        metricName: 'http_requests_total',
+        from,
+        to,
+        interval: '1h',
+        aggregation: 'avg',
+        serviceName: 'api-gateway',
+      });
+
+      expect(mockAggregateMetrics).toHaveBeenCalledWith(
+        expect.objectContaining({
+          serviceName: 'api-gateway',
+        }),
+      );
+    });
+  });
+
+  describe('getOverview', () => {
+    it('should delegate to reservoir.getMetricsOverview with correct params', async () => {
+      const mockResult = {
+        services: [
+          {
+            serviceName: 'api',
+            metrics: [
+              {
+                metricName: 'http.requests',
+                metricType: 'sum',
+                serviceName: 'api',
+                latestValue: 100,
+                avgValue: 80,
+                minValue: 10,
+                maxValue: 200,
+                pointCount: 50,
+              },
+            ],
+          },
+        ],
+        executionTimeMs: 5,
+      };
+      mockGetMetricsOverview.mockResolvedValueOnce(mockResult);
+
+      const from = new Date('2025-01-01T00:00:00Z');
+      const to = new Date('2025-01-02T00:00:00Z');
+
+      const result = await service.getOverview({
+        projectId: 'proj-1',
+        from,
+        to,
+      });
+
+      expect(mockGetMetricsOverview).toHaveBeenCalledWith({
+        projectId: 'proj-1',
+        from,
+        to,
+        serviceName: undefined,
+      });
+      expect(result).toBe(mockResult);
+    });
+
+    it('should pass serviceName filter to reservoir', async () => {
+      mockGetMetricsOverview.mockResolvedValueOnce({ services: [] });
+
+      const from = new Date('2025-01-01T00:00:00Z');
+      const to = new Date('2025-01-02T00:00:00Z');
+
+      await service.getOverview({
+        projectId: 'proj-1',
+        from,
+        to,
+        serviceName: 'worker',
+      });
+
+      expect(mockGetMetricsOverview).toHaveBeenCalledWith({
+        projectId: 'proj-1',
+        from,
+        to,
+        serviceName: 'worker',
+      });
     });
   });
 });

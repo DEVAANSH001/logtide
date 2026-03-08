@@ -100,8 +100,14 @@
   async function loadProjects() {
     if (!$currentOrganization) return;
     try {
-      const res = await projectsAPI.getProjects($currentOrganization.id);
-      projects = res.projects;
+      const [res, availability] = await Promise.all([
+        projectsAPI.getProjects($currentOrganization.id),
+        projectsAPI.getProjectDataAvailability($currentOrganization.id).catch(() => null),
+      ]);
+      const tracesProjectIds = availability?.traces;
+      projects = tracesProjectIds
+        ? res.projects.filter((p) => tracesProjectIds.includes(p.id))
+        : res.projects;
       if (projects.length > 0 && !selectedProject) {
         selectedProject = projects[0].id;
       }

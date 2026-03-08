@@ -59,6 +59,9 @@ export type {
   MetricLabelResult,
   IngestMetricsResult,
   DeleteMetricsByTimeRangeParams,
+  MetricOverviewItem,
+  MetricsOverviewParams,
+  MetricsOverviewResult,
 } from './core/types.js';
 
 // Core abstractions

@@ -53,6 +53,9 @@ import type {
   IngestMetricsResult,
   DeleteMetricsByTimeRangeParams,
   MetricExemplar,
+  MetricOverviewItem,
+  MetricsOverviewParams,
+  MetricsOverviewResult,
 } from '../../core/types.js';
 import { ClickHouseQueryTranslator } from './query-translator.js';
 
@@ -304,6 +307,86 @@ export class ClickHouseEngine extends StorageEngine {
         PARTITION BY toYYYYMM(time)
         ORDER BY (project_id, metric_id, time)
         SETTINGS index_granularity = 8192
+      `,
+    });
+
+    // Metrics hourly rollup (target table for materialized view)
+    await client.command({
+      query: `
+        CREATE TABLE IF NOT EXISTS metrics_hourly_rollup (
+          bucket DateTime NOT NULL,
+          project_id String NOT NULL,
+          metric_name LowCardinality(String) NOT NULL,
+          metric_type LowCardinality(String) NOT NULL,
+          service_name LowCardinality(String) NOT NULL,
+          point_count UInt64,
+          value_sum Float64,
+          min_value Float64,
+          max_value Float64
+        )
+        ENGINE = MergeTree()
+        PARTITION BY toYYYYMM(bucket)
+        ORDER BY (project_id, metric_name, service_name, bucket)
+      `,
+    });
+
+    // Materialized view: auto-populates hourly rollup on insert to metrics
+    await client.command({
+      query: `
+        CREATE MATERIALIZED VIEW IF NOT EXISTS metrics_hourly_rollup_mv
+        TO metrics_hourly_rollup AS
+        SELECT
+          toStartOfHour(time) AS bucket,
+          project_id,
+          metric_name,
+          metric_type,
+          service_name,
+          count() AS point_count,
+          sum(value) AS value_sum,
+          min(value) AS min_value,
+          max(value) AS max_value
+        FROM metrics
+        GROUP BY bucket, project_id, metric_name, metric_type, service_name
+      `,
+    });
+
+    // Metrics daily rollup
+    await client.command({
+      query: `
+        CREATE TABLE IF NOT EXISTS metrics_daily_rollup (
+          bucket DateTime NOT NULL,
+          project_id String NOT NULL,
+          metric_name LowCardinality(String) NOT NULL,
+          metric_type LowCardinality(String) NOT NULL,
+          service_name LowCardinality(String) NOT NULL,
+          point_count UInt64,
+          value_sum Float64,
+          min_value Float64,
+          max_value Float64
+        )
+        ENGINE = MergeTree()
+        PARTITION BY toYYYYMM(bucket)
+        ORDER BY (project_id, metric_name, service_name, bucket)
+      `,
+    });
+
+    // Materialized view: auto-populates daily rollup on insert to metrics
+    await client.command({
+      query: `
+        CREATE MATERIALIZED VIEW IF NOT EXISTS metrics_daily_rollup_mv
+        TO metrics_daily_rollup AS
+        SELECT
+          toStartOfDay(time) AS bucket,
+          project_id,
+          metric_name,
+          metric_type,
+          service_name,
+          count() AS point_count,
+          sum(value) AS value_sum,
+          min(value) AS min_value,
+          max(value) AS max_value
+        FROM metrics
+        GROUP BY bucket, project_id, metric_name, metric_type, service_name
       `,
     });
   }
@@ -1124,6 +1207,12 @@ export class ClickHouseEngine extends StorageEngine {
 
   async aggregateMetrics(params: MetricAggregateParams): Promise<MetricAggregateResult> {
     const start = Date.now();
+
+    // Use pre-aggregated rollups when eligible
+    if (this.canUseMetricRollup(params)) {
+      return this.aggregateMetricsFromRollup(params, start);
+    }
+
     const client = this.getClient();
 
     const intervalMap: Record<AggregationInterval, string> = {
@@ -1256,6 +1345,85 @@ export class ClickHouseEngine extends StorageEngine {
       metricName: params.metricName,
       metricType,
       timeseries,
+      executionTimeMs: Date.now() - start,
+    };
+  }
+
+  private canUseMetricRollup(params: MetricAggregateParams): boolean {
+    if (params.interval !== '1h' && params.interval !== '1d') return false;
+    if (params.aggregation === 'last') return false;
+    if (params.groupBy && params.groupBy.length > 0) return false;
+    if (params.attributes && Object.keys(params.attributes).length > 0) return false;
+    return true;
+  }
+
+  private async aggregateMetricsFromRollup(
+    params: MetricAggregateParams,
+    start: number,
+  ): Promise<MetricAggregateResult> {
+    const client = this.getClient();
+
+    const rollupTable = params.interval === '1d'
+      ? 'metrics_daily_rollup'
+      : 'metrics_hourly_rollup';
+
+    // Re-aggregate from rollup (handles partial rows)
+    const aggExpr: Record<string, string> = {
+      avg: 'sum(value_sum) / sum(point_count)',
+      sum: 'sum(value_sum)',
+      min: 'min(min_value)',
+      max: 'max(max_value)',
+      count: 'sum(point_count)',
+    };
+    const expr = aggExpr[params.aggregation] || aggExpr.avg;
+
+    const projectIds = Array.isArray(params.projectId) ? params.projectId : [params.projectId];
+
+    const queryParams: Record<string, unknown> = {
+      p_pids: projectIds,
+      p_from: Math.floor(params.from.getTime() / 1000),
+      p_to: Math.floor(params.to.getTime() / 1000),
+      p_name: params.metricName,
+    };
+
+    let serviceFilter = '';
+    if (params.serviceName) {
+      const services = Array.isArray(params.serviceName) ? params.serviceName : [params.serviceName];
+      queryParams.p_services = services;
+      serviceFilter = ' AND service_name IN {p_services:Array(String)}';
+    }
+
+    const sql = `
+      SELECT
+        bucket,
+        ${expr} AS agg_value,
+        any(metric_type) AS metric_type
+      FROM ${rollupTable}
+      WHERE project_id IN {p_pids:Array(String)}
+        AND bucket >= {p_from:DateTime64(3)}
+        AND bucket <= {p_to:DateTime64(3)}
+        AND metric_name = {p_name:String}
+        ${serviceFilter}
+      GROUP BY bucket
+      ORDER BY bucket ASC
+    `;
+
+    const result = await client.query({
+      query: sql,
+      query_params: queryParams,
+      format: 'JSONEachRow',
+    });
+    const rows = await result.json<{ bucket: string; agg_value: number; metric_type?: string }>();
+
+    const metricType = params.metricType || rows[0]?.metric_type || 'gauge';
+
+    return {
+      metricName: params.metricName,
+      metricType: metricType as MetricType,
+      timeseries: rows.map(r => ({
+        bucket: new Date(r.bucket),
+        value: Number(r.agg_value) || 0,
+      })),
       executionTimeMs: Date.now() - start,
     };
   }
@@ -1448,6 +1616,73 @@ export class ClickHouseEngine extends StorageEngine {
     });
 
     return { deleted: 0, executionTimeMs: Date.now() - start };
+  }
+
+  async getMetricsOverview(params: MetricsOverviewParams): Promise<MetricsOverviewResult> {
+    const start = Date.now();
+    const client = this.getClient();
+    const projectIds = Array.isArray(params.projectId) ? params.projectId : [params.projectId];
+    const queryParams: Record<string, unknown> = {
+      p_pids: projectIds,
+      p_from: Math.floor(params.from.getTime() / 1000),
+      p_to: Math.floor(params.to.getTime() / 1000),
+    };
+
+    let serviceFilter = '';
+    if (params.serviceName) {
+      queryParams.p_service = params.serviceName;
+      serviceFilter = ' AND service_name = {p_service:String}';
+    }
+
+    const sql = `
+      SELECT
+        metric_name,
+        any(metric_type) AS metric_type,
+        service_name,
+        sum(point_count) AS point_count,
+        sum(value_sum) / sum(point_count) AS avg_value,
+        min(min_value) AS min_value,
+        max(max_value) AS max_value
+      FROM metrics_hourly_rollup
+      WHERE project_id IN {p_pids:Array(String)}
+        AND bucket >= {p_from:DateTime64(3)}
+        AND bucket <= {p_to:DateTime64(3)}
+        ${serviceFilter}
+      GROUP BY metric_name, service_name
+      ORDER BY service_name, metric_name
+    `;
+
+    const result = await client.query({
+      query: sql,
+      query_params: queryParams,
+      format: 'JSONEachRow',
+    });
+    const rows = await result.json<Record<string, unknown>>();
+
+    const serviceMap = new Map<string, MetricOverviewItem[]>();
+    for (const row of rows) {
+      const serviceName = row.service_name as string;
+      const item: MetricOverviewItem = {
+        metricName: row.metric_name as string,
+        metricType: (row.metric_type as MetricType) || 'gauge',
+        serviceName,
+        latestValue: Number(row.avg_value) ?? 0,
+        avgValue: Number(row.avg_value) ?? 0,
+        minValue: Number(row.min_value) ?? 0,
+        maxValue: Number(row.max_value) ?? 0,
+        pointCount: Number(row.point_count) ?? 0,
+      };
+      if (!serviceMap.has(serviceName)) serviceMap.set(serviceName, []);
+      serviceMap.get(serviceName)!.push(item);
+    }
+
+    return {
+      services: Array.from(serviceMap.entries()).map(([serviceName, metrics]) => ({
+        serviceName,
+        metrics,
+      })),
+      executionTimeMs: Date.now() - start,
+    };
   }
 }
 

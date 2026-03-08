@@ -175,6 +175,58 @@ export class ProjectsService {
   }
 
   /**
+   * Get which projects have data per category (logs, traces, metrics)
+   */
+  async getProjectDataAvailability(
+    organizationId: string,
+    userId: string,
+  ): Promise<{ logs: string[]; traces: string[]; metrics: string[] }> {
+    await this.checkOrganizationAccess(organizationId, userId);
+
+    const projects = await db
+      .selectFrom('projects')
+      .select('id')
+      .where('organization_id', '=', organizationId)
+      .execute();
+
+    const projectIds = projects.map((p) => p.id);
+
+    if (projectIds.length === 0) {
+      return { logs: [], traces: [], metrics: [] };
+    }
+
+    const [logsResult, tracesResult, metricsResult] = await Promise.all([
+      db
+        .selectFrom('logs')
+        .select('project_id')
+        .where('project_id', 'in', projectIds)
+        .groupBy('project_id')
+        .execute()
+        .catch(() => []),
+      db
+        .selectFrom('traces')
+        .select('project_id')
+        .where('project_id', 'in', projectIds)
+        .groupBy('project_id')
+        .execute()
+        .catch(() => []),
+      db
+        .selectFrom('metrics')
+        .select('project_id')
+        .where('project_id', 'in', projectIds)
+        .groupBy('project_id')
+        .execute()
+        .catch(() => []),
+    ]);
+
+    return {
+      logs: logsResult.map((r) => r.project_id).filter((id): id is string => id !== null),
+      traces: tracesResult.map((r) => r.project_id),
+      metrics: metricsResult.map((r) => r.project_id),
+    };
+  }
+
+  /**
    * Delete a project
    */
   async deleteProject(projectId: string, userId: string): Promise<boolean> {
