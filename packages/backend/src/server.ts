@@ -32,6 +32,7 @@ import { retentionRoutes } from './modules/retention/index.js';
 import { correlationRoutes, patternRoutes } from './modules/correlation/index.js';
 import { piiMaskingRoutes } from './modules/pii-masking/index.js';
 import { sessionsRoutes } from './modules/sessions/routes.js';
+import { sourcemapsRoutes } from './modules/sourcemaps/index.js';
 import { auditLogRoutes, auditLogService } from './modules/audit-log/index.js';
 import { bootstrapService } from './modules/bootstrap/index.js';
 import { notificationChannelsRoutes } from './modules/notification-channels/index.js';
@@ -178,6 +179,7 @@ export async function build(opts = {}) {
   await fastify.register(tracesRoutes);
   await fastify.register(metricsRoutes, { prefix: '/api/v1/metrics' });
   await fastify.register(sessionsRoutes, { prefix: '/api/v1/sessions' });
+  await fastify.register(sourcemapsRoutes);
   await fastify.register(websocketPlugin);
   await fastify.register(websocketRoutes);
 

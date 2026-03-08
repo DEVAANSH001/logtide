@@ -486,7 +486,22 @@ export interface StackFramesTable {
   is_app_code: boolean;
   code_context: ColumnType<Record<string, unknown> | null, Record<string, unknown> | null, Record<string, unknown> | null>;
   metadata: ColumnType<Record<string, unknown> | null, Record<string, unknown> | null, Record<string, unknown> | null>;
+  original_file: string | null;
+  original_line: number | null;
+  original_column: number | null;
+  original_function: string | null;
   created_at: Generated<Timestamp>;
+}
+
+export interface SourceMapsTable {
+  id: Generated<string>;
+  project_id: string;
+  organization_id: string;
+  release: string;
+  file_name: string;
+  file_size: number;
+  storage_path: string;
+  uploaded_at: Generated<Timestamp>;
 }
 
 export interface ErrorGroupsTable {
@@ -878,6 +893,8 @@ export interface Database {
   organization_pii_salts: OrganizationPiiSaltsTable;
   // Audit log
   audit_log: AuditLogTable;
+  // Source maps
+  sourcemaps: SourceMapsTable;
   // Metrics (OTLP)
   metrics: MetricsTable;
   metric_exemplars: MetricExemplarsTable;

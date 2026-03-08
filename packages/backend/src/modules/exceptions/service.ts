@@ -59,6 +59,10 @@ export class ExceptionService {
               is_app_code: frame.isAppCode,
               code_context: frame.codeContext || null,
               metadata: frame.metadata || null,
+              original_file: frame.originalFile || null,
+              original_line: frame.originalLine || null,
+              original_column: frame.originalColumn || null,
+              original_function: frame.originalFunction || null,
             }))
           )
           .execute();
@@ -112,6 +116,10 @@ export class ExceptionService {
         isAppCode: f.is_app_code,
         codeContext: f.code_context as Record<string, unknown> | null,
         metadata: f.metadata as Record<string, unknown> | null,
+        originalFile: f.original_file,
+        originalLine: f.original_line,
+        originalColumn: f.original_column,
+        originalFunction: f.original_function,
         createdAt: f.created_at,
       })),
     };
@@ -161,6 +169,10 @@ export class ExceptionService {
         isAppCode: f.is_app_code,
         codeContext: f.code_context as Record<string, unknown> | null,
         metadata: f.metadata as Record<string, unknown> | null,
+        originalFile: f.original_file,
+        originalLine: f.original_line,
+        originalColumn: f.original_column,
+        originalFunction: f.original_function,
         createdAt: f.created_at,
       })),
     };
