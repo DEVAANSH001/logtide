@@ -158,7 +158,7 @@ describe('TimescaleEngine', () => {
       const insertCall = mockQuery.mock.calls[0];
       expect((insertCall[0] as string)).toContain('INSERT INTO public.logs');
       expect((insertCall[0] as string)).toContain('UNNEST');
-      expect((insertCall[1] as unknown[]).length).toBe(8); // 8 column arrays
+      expect((insertCall[1] as unknown[]).length).toBe(9); // 9 column arrays (incl. session_id)
     });
 
     it('returns empty result for empty batch', async () => {

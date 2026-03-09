@@ -9,6 +9,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Browser & Frontend SDK Enhancements** (#156): Sentry-level browser observability across all frontend framework SDKs
+  - **`@logtide/browser` package**: new dedicated browser SDK with session tracking, Web Vitals, rich breadcrumbs, and offline resilience
+  - **Session context**: per-tab `session_id` via `sessionStorage` + in-memory cache, wired through full stack (SDK → backend column → reservoir → UI filter)
+  - **Core Web Vitals**: automatic LCP, INP, CLS collection via `web-vitals` library with configurable sampling rate
+  - **Click breadcrumbs**: event-delegation-based click/input tracking with `data-testid` capture, debounced inputs, never captures values
+  - **Network breadcrumbs**: monkey-patched `fetch` + `XMLHttpRequest` recording method/URL/status/duration, query param stripping by default, configurable deny list
+  - **Offline resilience**: `OfflineTransport` wrapper that buffers logs/spans during connectivity loss (bounded queue), flushes on reconnect, `sendBeacon` on page unload
+  - **Source maps**: `@logtide/cli` with `logtide sourcemaps upload` command, backend storage/un-minification service, original file/line/column/function in stack frames, frontend toggle between minified and original frames
+  - **Framework improvements**:
+    - Next.js: RSC error detection (`mechanism: 'react.server-component'`), route params from `__NEXT_DATA__` in navigation breadcrumbs
+    - Nuxt: `logtidePiniaPlugin` for Pinia action breadcrumbs
+    - SvelteKit: route context in `handleError`, `createBoundaryHandler()` for `<svelte:boundary>`
+    - Angular: NgZone context detection (`angular.zone: 'inside'/'outside'`) in error handler
+  - **Project-scoped dashboard**: Overview tab for all projects, auto-detected Performance and Sessions tabs for browser SDK projects
+  - **Capabilities API**: `GET /api/v1/projects/:id/capabilities` auto-detects `hasWebVitals` and `hasSessions` from recent data
+  - Backend: migrations 029-031, `session_id` column on logs, `sourcemaps` table, `original_*` columns on `stack_frames`
+  - SDK: 212 tests across 8 packages (browser: 41, core: 111, nextjs: 17, nuxt: 7, sveltekit: 20, angular: 7, cli: 9)
+
 - **Metrics Dashboard & Rollups** (#150): first-class metrics experience with pre-aggregated rollups and multi-panel dashboard
   - Redesigned metrics page with **Overview** and **Explorer** tabs
   - Overview panel: service-grouped metric cards with sparkline charts (ECharts), latest/avg/min/max values
