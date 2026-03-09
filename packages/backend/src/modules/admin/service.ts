@@ -1877,6 +1877,40 @@ export class AdminService {
             }
         }
 
+        // Metrics timeline: use continuous aggregate for TimescaleDB, count from raw table otherwise
+        let metricsTimeline: { rows: Array<{ bucket: string; count: number }> };
+
+        if (reservoir.getEngineType() === 'timescale') {
+            metricsTimeline = await db.executeQuery<{ bucket: string; count: number }>(
+                sql`
+                    SELECT
+                        bucket::text AS bucket,
+                        SUM(point_count)::int AS count
+                    FROM metrics_hourly_stats
+                    WHERE bucket >= ${sql.lit(since)}
+                    GROUP BY bucket
+                    ORDER BY bucket ASC
+                `.compile(db)
+            ).catch(() => ({ rows: [] as Array<{ bucket: string; count: number }> }));
+        } else {
+            // ClickHouse / other: count from raw metrics table
+            try {
+                metricsTimeline = await db.executeQuery<{ bucket: string; count: number }>(
+                    sql`
+                        SELECT
+                            date_trunc('hour', time)::text AS bucket,
+                            COUNT(*)::int AS count
+                        FROM metrics
+                        WHERE time >= ${sql.lit(since)}
+                        GROUP BY bucket
+                        ORDER BY bucket ASC
+                    `.compile(db)
+                );
+            } catch {
+                metricsTimeline = { rows: [] };
+            }
+        }
+
         // Normalize bucket key: parse any format to Date, then use ISO string
         const normalizeBucket = (bucket: string): string =>
             new Date(bucket).toISOString();
@@ -1887,6 +1921,7 @@ export class AdminService {
             logsCount: number;
             detectionsCount: number;
             spansCount: number;
+            metricsCount: number;
         }>();
 
         for (let h = 0; h < hours; h++) {
@@ -1899,6 +1934,7 @@ export class AdminService {
                 logsCount: 0,
                 detectionsCount: 0,
                 spansCount: 0,
+                metricsCount: 0,
             });
         }
 
@@ -1913,6 +1949,7 @@ export class AdminService {
                     logsCount: row.count,
                     detectionsCount: 0,
                     spansCount: 0,
+                    metricsCount: 0,
                 });
             }
         }
@@ -1928,6 +1965,7 @@ export class AdminService {
                     logsCount: 0,
                     detectionsCount: row.count,
                     spansCount: 0,
+                    metricsCount: 0,
                 });
             }
         }
@@ -1943,6 +1981,23 @@ export class AdminService {
                     logsCount: 0,
                     detectionsCount: 0,
                     spansCount: row.count,
+                    metricsCount: 0,
+                });
+            }
+        }
+
+        for (const row of metricsTimeline.rows) {
+            const key = normalizeBucket(row.bucket);
+            const existing = bucketMap.get(key);
+            if (existing) {
+                existing.metricsCount += row.count;
+            } else {
+                bucketMap.set(key, {
+                    bucket: key,
+                    logsCount: 0,
+                    detectionsCount: 0,
+                    spansCount: 0,
+                    metricsCount: row.count,
                 });
             }
         }
@@ -2236,6 +2291,7 @@ export interface PlatformTimeline {
         logsCount: number;
         detectionsCount: number;
         spansCount: number;
+        metricsCount: number;
     }>;
 }
 

@@ -50,7 +50,7 @@
             legend: {
                 ...legendStyle,
                 bottom: 0,
-                data: ['Logs', 'Detections', 'Spans'],
+                data: ['Logs', 'Detections', 'Spans', 'Metrics'],
             },
             grid: {
                 left: '3%',
@@ -117,6 +117,21 @@
                     data: timeline.map(t => t.spansCount),
                     lineStyle: { color: chartColors.series.purple, width: 2, type: 'dashed' },
                     itemStyle: { color: chartColors.series.purple },
+                    symbol: 'none',
+                },
+                {
+                    name: 'Metrics',
+                    type: 'line',
+                    smooth: true,
+                    data: timeline.map(t => t.metricsCount),
+                    lineStyle: { color: chartColors.series.green, width: 2 },
+                    itemStyle: { color: chartColors.series.green },
+                    areaStyle: {
+                        color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+                            { offset: 0, color: theme.isDark ? 'rgba(34,197,94,0.2)' : 'rgba(34,197,94,0.1)' },
+                            { offset: 1, color: 'rgba(34,197,94,0)' },
+                        ]),
+                    },
                     symbol: 'none',
                 },
             ],

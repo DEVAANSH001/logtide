@@ -281,6 +281,7 @@ export interface PlatformTimeline {
         logsCount: number;
         detectionsCount: number;
         spansCount: number;
+        metricsCount: number;
     }>;
 }
 

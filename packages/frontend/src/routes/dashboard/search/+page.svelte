@@ -650,8 +650,28 @@
         try {
           const data = JSON.parse(event.data);
           if (data.type === "logs") {
-            const newLogs = data.logs;
-            logs = [...newLogs, ...logs].slice(0, liveTailLimit);
+            let newLogs: LogEntry[] = data.logs;
+
+            // Client-side filtering for criteria not sent to WS
+            if (searchQuery) {
+              const q = searchQuery.toLowerCase();
+              newLogs = newLogs.filter((log) => {
+                if (log.message?.toLowerCase().includes(q)) return true;
+                if (log.service?.toLowerCase().includes(q)) return true;
+                if (log.metadata && JSON.stringify(log.metadata).toLowerCase().includes(q)) return true;
+                return false;
+              });
+            }
+            if (traceId) {
+              newLogs = newLogs.filter((log) => log.traceId === traceId);
+            }
+            if (sessionId) {
+              newLogs = newLogs.filter((log) => log.sessionId === sessionId);
+            }
+
+            if (newLogs.length > 0) {
+              logs = [...newLogs, ...logs].slice(0, liveTailLimit);
+            }
           }
         } catch (e) {
           console.error("[LiveTail] Error parsing WS message:", e);

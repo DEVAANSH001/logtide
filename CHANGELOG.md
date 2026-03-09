@@ -131,6 +131,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Admin Dashboard Missing Metrics**: Platform Activity chart now includes a Metrics series alongside Logs, Detections, and Spans, querying `metrics_hourly_stats` continuous aggregate for OTLP metric data points
+- **Live Tail Search Filtering**: incoming logs via WebSocket are now filtered client-side against the active search query, trace ID, and session ID filters — previously live tail showed all incoming logs regardless of search criteria
 - **OTLP Traces Ingestion**: fixed a critical typo in trace transformation where `resource_logs` was used instead of `resource_spans`, preventing proper parsing of OTLP/JSON traces.
 - **OTLP Authentication**: fixed `authPlugin` to correctly handle `/v1/otlp` routes, allowing API Key authentication without requiring a valid user session.
 - **LogTide JavaScript SDKs**: updated `@logtide/core`, `@logtide/fastify`, and `@logtide/sveltekit` to version `0.6.1` for improved OTLP compatibility and TraceID/SpanID serialization.

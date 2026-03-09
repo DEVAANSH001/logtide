@@ -466,6 +466,10 @@
                             <span class="inline-block w-3 h-0.5 rounded bg-purple-500" style="border-bottom: 1px dashed;"></span>
                             Spans
                         </span>
+                        <span class="flex items-center gap-1.5">
+                            <span class="inline-block w-3 h-0.5 rounded bg-green-500"></span>
+                            Metrics
+                        </span>
                     </div>
                 </div>
             </CardHeader>
