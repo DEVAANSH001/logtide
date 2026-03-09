@@ -2,7 +2,7 @@ import { getApiBaseUrl } from '$lib/config';
 import { getAuthToken } from '$lib/utils/auth';
 
 export type MetricType = 'gauge' | 'sum' | 'histogram' | 'exp_histogram' | 'summary';
-export type MetricAggregationFn = 'avg' | 'sum' | 'min' | 'max' | 'count' | 'last';
+export type MetricAggregationFn = 'avg' | 'sum' | 'min' | 'max' | 'count' | 'last' | 'p50' | 'p95' | 'p99';
 
 export interface MetricName {
   name: string;
