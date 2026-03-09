@@ -19,9 +19,9 @@
     "clean": "rm -rf .svelte-kit build test-results"
   },
   "dependencies": {
-    "@logtide/core": "0.7.0",
+    "@logtide/core": "0.6.1",
     "@logtide/shared": "workspace:*",
-    "@logtide/sveltekit": "0.7.0",
+    "@logtide/sveltekit": "0.6.1",
     "@lucide/svelte": "^0.482.0",
     "@tanstack/svelte-table": "^8.21.3",
     "canvas-confetti": "^1.9.4",
