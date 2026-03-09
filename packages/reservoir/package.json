@@ -29,7 +29,15 @@
     "test": "vitest",
     "test:watch": "vitest --watch",
     "typecheck": "tsc --noEmit",
-    "clean": "rimraf dist"
+    "clean": "rimraf dist",
+    "bench": "tsx benchmark/run.ts",
+    "bench:logs": "tsx benchmark/run.ts -s logs",
+    "bench:spans": "tsx benchmark/run.ts -s spans",
+    "bench:metrics": "tsx benchmark/run.ts -s metrics",
+    "bench:quick": "tsx benchmark/run.ts -v 1k,10k -i 3 -w 1",
+    "bench:full": "tsx benchmark/run.ts -v 1k,10k,100k,1m,10m,50m",
+    "bench:infra": "docker compose -f benchmark/docker-compose.benchmark.yml up -d",
+    "bench:infra:down": "docker compose -f benchmark/docker-compose.benchmark.yml down -v"
   },
   "dependencies": {
     "@clickhouse/client": "^1.17.0",
@@ -47,6 +55,7 @@
   "devDependencies": {
     "@types/node": "^20.11.0",
     "@types/pg": "^8.11.0",
+    "tsx": "^4.21.0",
     "typescript": "^5.9.3",
     "vitest": "^2.1.0"
   },
