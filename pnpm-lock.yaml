@@ -16,6 +16,9 @@ overrides:
   rollup: '>=4.59.0'
   svelte: '>=5.53.5'
   '@sveltejs/kit': '>=2.53.3'
+  '@logtide/types': 0.7.0
+  '@logtide/browser': 0.7.0
+  '@logtide/core': 0.7.0
 
 importers:
 
@@ -46,11 +49,11 @@ importers:
         specifier: ^11.0.2
         version: 11.2.0
       '@logtide/core':
-        specifier: 0.6.1
-        version: 0.6.1
+        specifier: 0.7.0
+        version: 0.7.0
       '@logtide/fastify':
-        specifier: 0.6.1
-        version: 0.6.1(fastify@5.8.1)
+        specifier: 0.7.0
+        version: 0.7.0(fastify@5.8.1)
       '@logtide/reservoir':
         specifier: workspace:*
         version: link:../reservoir
@@ -155,14 +158,14 @@ importers:
   packages/frontend:
     dependencies:
       '@logtide/core':
-        specifier: 0.6.1
-        version: 0.6.1
+        specifier: 0.7.0
+        version: 0.7.0
       '@logtide/shared':
         specifier: workspace:*
         version: link:../shared
       '@logtide/sveltekit':
-        specifier: 0.6.1
-        version: 0.6.1(@sveltejs/kit@2.53.4(@opentelemetry/api@1.9.0)(@sveltejs/vite-plugin-svelte@5.1.1(svelte@5.53.6)(vite@6.4.1(@types/node@22.19.7)(jiti@1.21.7)(tsx@4.21.0)))(svelte@5.53.6)(typescript@5.9.3)(vite@6.4.1(@types/node@22.19.7)(jiti@1.21.7)(tsx@4.21.0)))
+        specifier: 0.7.0
+        version: 0.7.0(@sveltejs/kit@2.53.4(@opentelemetry/api@1.9.0)(@sveltejs/vite-plugin-svelte@5.1.1(svelte@5.53.6)(vite@6.4.1(@types/node@22.19.7)(jiti@1.21.7)(tsx@4.21.0)))(svelte@5.53.6)(typescript@5.9.3)(vite@6.4.1(@types/node@22.19.7)(jiti@1.21.7)(tsx@4.21.0)))
       '@lucide/svelte':
         specifier: ^0.482.0
         version: 0.482.0(svelte@5.53.6)
@@ -844,21 +847,29 @@ packages:
   '@jridgewell/trace-mapping@0.3.31':
     resolution: {integrity: sha512-zzNR+SdQSDJzc8joaeP8QQoCQr8NuYx2dIIytl1QeBEZHJ9uW6hebsrYgbz8hJwUQao3TWCMtmfV8Nu1twOLAw==}
 
-  '@logtide/core@0.6.1':
-    resolution: {integrity: sha512-xHKvs98D4CsDUT3sY6BEdBiZX3aG3qtRvJZ9RDMfzGxjR13viVnpS1Up2P4/Lv0MST3eYumVhJQx7XIxP0AmFA==}
+  '@logtide/browser@0.7.0':
+    resolution: {integrity: sha512-znKKtnW+omzbakkr0rVmZPQ4bSrfl5BaxOWAVVSYf9jXq83EDT4m6/8bG2YkEFsHbxP2hCNgrHt5nHA4ZpJrkQ==}
+    peerDependencies:
+      web-vitals: '>=4.0.0'
+    peerDependenciesMeta:
+      web-vitals:
+        optional: true
 
-  '@logtide/fastify@0.6.1':
-    resolution: {integrity: sha512-wX+loXKCDWciIa0fdPXzXsLBwngSv5ct+6Rxq4xPLdvfawddYxnNRfjltUOs6gSJA6JcZIFVE3EXUSQPPLOFrQ==}
+  '@logtide/core@0.7.0':
+    resolution: {integrity: sha512-SBh4p9mW7WD6lif15Ww4BGxYDGOUrLT4vN7h+zseKb/QSai7gRG5FMrpXoZihlCTdkAlEv3wa0iudwA9psjF4w==}
+
+  '@logtide/fastify@0.7.0':
+    resolution: {integrity: sha512-1HcxY5vV/9bzQoWJ93NcRYXq0Qr2biAy6k0Xb63YLqUJUuCC4bEU1aN1d2CmLj6n/5lGw1p1Ynf+zbWh64tPyg==}
     peerDependencies:
       fastify: ^4.0.0 || ^5.0.0
 
-  '@logtide/sveltekit@0.6.1':
-    resolution: {integrity: sha512-NjUg+DowPNi6hGvnoDMuk9mJX+W2B/o6AtenKDGBpHTdAV3HxUhorf0WH5sOo389g5//dDmlx6MBUF3iSKYeKw==}
+  '@logtide/sveltekit@0.7.0':
+    resolution: {integrity: sha512-4HaeHKHf5tZpdgCQts49NJjOE06sUotHoYgUrYOZewUQ104uGmISWDuiWwCIsgGH97aoaqObV5D6GcbbhVgtIg==}
     peerDependencies:
       '@sveltejs/kit': '>=2.53.3'
 
-  '@logtide/types@0.6.1':
-    resolution: {integrity: sha512-P0noncXcmYESxA6ubSJEzVjLLl6cRwb6GR+N0mAtV7onHaEjzu/0q8eUME+YxTIv98nUR0rbyursYHUEfSfd6g==}
+  '@logtide/types@0.7.0':
+    resolution: {integrity: sha512-77zBNij2F4QttSIv/EK0mU8y9Ct3uTYsTbqIcAH+T2B5kfBULyuzMRiiLmKQgOhZXzfOxUuAm7nUs1RaOnqwxQ==}
 
   '@lucide/svelte@0.482.0':
     resolution: {integrity: sha512-n2ycHU9cNcleRDwwpEHBJ6pYzVhHIaL3a+9dQa8kns9hB2g05bY+v2p2KP8v0pZwtNhYTHk/F2o2uZ1bVtQGhw==}
@@ -3940,24 +3951,32 @@ snapshots:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.5.5
 
-  '@logtide/core@0.6.1':
+  '@logtide/browser@0.7.0':
     dependencies:
-      '@logtide/types': 0.6.1
+      '@logtide/core': 0.7.0
+      '@logtide/types': 0.7.0
 
-  '@logtide/fastify@0.6.1(fastify@5.8.1)':
+  '@logtide/core@0.7.0':
     dependencies:
-      '@logtide/core': 0.6.1
-      '@logtide/types': 0.6.1
+      '@logtide/types': 0.7.0
+
+  '@logtide/fastify@0.7.0(fastify@5.8.1)':
+    dependencies:
+      '@logtide/core': 0.7.0
+      '@logtide/types': 0.7.0
       fastify: 5.8.1
       fastify-plugin: 5.1.0
 
-  '@logtide/sveltekit@0.6.1(@sveltejs/kit@2.53.4(@opentelemetry/api@1.9.0)(@sveltejs/vite-plugin-svelte@5.1.1(svelte@5.53.6)(vite@6.4.1(@types/node@22.19.7)(jiti@1.21.7)(tsx@4.21.0)))(svelte@5.53.6)(typescript@5.9.3)(vite@6.4.1(@types/node@22.19.7)(jiti@1.21.7)(tsx@4.21.0)))':
+  '@logtide/sveltekit@0.7.0(@sveltejs/kit@2.53.4(@opentelemetry/api@1.9.0)(@sveltejs/vite-plugin-svelte@5.1.1(svelte@5.53.6)(vite@6.4.1(@types/node@22.19.7)(jiti@1.21.7)(tsx@4.21.0)))(svelte@5.53.6)(typescript@5.9.3)(vite@6.4.1(@types/node@22.19.7)(jiti@1.21.7)(tsx@4.21.0)))':
     dependencies:
-      '@logtide/core': 0.6.1
-      '@logtide/types': 0.6.1
+      '@logtide/browser': 0.7.0
+      '@logtide/core': 0.7.0
+      '@logtide/types': 0.7.0
       '@sveltejs/kit': 2.53.4(@opentelemetry/api@1.9.0)(@sveltejs/vite-plugin-svelte@5.1.1(svelte@5.53.6)(vite@6.4.1(@types/node@22.19.7)(jiti@1.21.7)(tsx@4.21.0)))(svelte@5.53.6)(typescript@5.9.3)(vite@6.4.1(@types/node@22.19.7)(jiti@1.21.7)(tsx@4.21.0))
+    transitivePeerDependencies:
+      - web-vitals
 
-  '@logtide/types@0.6.1': {}
+  '@logtide/types@0.7.0': {}
 
   '@lucide/svelte@0.482.0(svelte@5.53.6)':
     dependencies:
