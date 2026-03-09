@@ -1147,6 +1147,15 @@ export class TimescaleEngine extends StorageEngine {
       case 'last':
         aggExpr = '(array_agg(value ORDER BY time DESC))[1]';
         break;
+      case 'p50':
+        aggExpr = 'percentile_cont(0.5) WITHIN GROUP (ORDER BY value)';
+        break;
+      case 'p95':
+        aggExpr = 'percentile_cont(0.95) WITHIN GROUP (ORDER BY value)';
+        break;
+      case 'p99':
+        aggExpr = 'percentile_cont(0.99) WITHIN GROUP (ORDER BY value)';
+        break;
       default:
         aggExpr = 'AVG(value)';
     }
@@ -1205,7 +1214,7 @@ export class TimescaleEngine extends StorageEngine {
 
   private canUseMetricRollup(params: MetricAggregateParams): boolean {
     if (params.interval !== '1h' && params.interval !== '1d') return false;
-    if (params.aggregation === 'last') return false;
+    if (params.aggregation === 'last' || params.aggregation === 'p50' || params.aggregation === 'p95' || params.aggregation === 'p99') return false;
     if (params.groupBy && params.groupBy.length > 0) return false;
     if (params.attributes && Object.keys(params.attributes).length > 0) return false;
     return true;
