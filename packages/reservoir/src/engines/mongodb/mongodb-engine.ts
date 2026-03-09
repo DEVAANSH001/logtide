@@ -1400,6 +1400,7 @@ function toMongoLogDoc(log: LogRecord, id: string): Document {
     metadata: log.metadata ?? null,
     trace_id: log.traceId ?? null,
     span_id: log.spanId ?? null,
+    session_id: log.sessionId ?? null,
     hostname: log.hostname ?? null,
   };
 }
@@ -1439,6 +1440,7 @@ function mapDocToStoredLogRecord(doc: Document): StoredLogRecord {
     metadata: doc.metadata as Record<string, unknown> | undefined ?? undefined,
     traceId: doc.trace_id ? String(doc.trace_id) : undefined,
     spanId: doc.span_id ? String(doc.span_id) : undefined,
+    sessionId: doc.session_id ? String(doc.session_id) : undefined,
     hostname: doc.hostname ? String(doc.hostname) : undefined,
   };
 }

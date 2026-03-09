@@ -156,6 +156,9 @@ export class MongoDBQueryTranslator extends QueryTranslator {
     if ('traceId' in params && params.traceId !== undefined) {
       filter.trace_id = params.traceId;
     }
+    if ('sessionId' in params && params.sessionId !== undefined) {
+      filter.session_id = params.sessionId;
+    }
 
     if ('search' in params && params.search) {
       const search = params.search;

@@ -62,6 +62,7 @@
     message: string;
     metadata?: Record<string, any>;
     traceId?: string;
+    sessionId?: string;
     projectId: string;
   }
 
@@ -78,6 +79,7 @@
   let searchQuery = $state("");
   let searchMode = $state<SearchMode>("fulltext");
   let traceId = $state("");
+  let sessionId = $state("");
   let selectedProjects = $state<string[]>([]);
   let selectedServices = $state<string[]>([]);
   let selectedHostnames = $state<string[]>([]);
@@ -340,6 +342,12 @@
       shouldLoadLogs = true;
     }
 
+    const sessionIdParam = params.get("sessionId");
+    if (sessionIdParam && !sessionId) {
+      sessionId = sessionIdParam;
+      shouldLoadLogs = true;
+    }
+
     const fromParam = params.get("from");
     const toParam = params.get("to");
     if (fromParam && toParam && !customFromTime && !customToTime) {
@@ -457,6 +465,7 @@
               : selectedHostnames
             : undefined,
         traceId: traceId || undefined,
+        sessionId: sessionId || undefined,
         q: searchQuery || undefined,
         searchMode: searchQuery ? searchMode : undefined,
         from: timeRange.from.toISOString(),
@@ -826,6 +835,7 @@
           : selectedHostnames
         : undefined,
     traceId: traceId || undefined,
+    sessionId: sessionId || undefined,
     q: searchQuery || undefined,
     from: getTimeRange().from.toISOString(),
     to: getTimeRange().to.toISOString(),
@@ -906,6 +916,17 @@
                 type="text"
                 placeholder="Filter by trace ID..."
                 bind:value={traceId}
+                oninput={debouncedSearch}
+              />
+            </div>
+
+            <div class="space-y-2">
+              <Label for="sessionId">Session ID</Label>
+              <Input
+                id="sessionId"
+                type="text"
+                placeholder="Filter by session ID..."
+                bind:value={sessionId}
                 oninput={debouncedSearch}
               />
             </div>
@@ -1575,6 +1596,21 @@
                                   title="Click to filter by this trace ID"
                                 >
                                   {log.traceId}
+                                </button>
+                              </div>
+                            {/if}
+                            {#if log.sessionId}
+                              <div>
+                                <span class="font-semibold">Session ID:</span>
+                                <button
+                                  class="ml-2 text-xs font-mono bg-teal-100 text-teal-800 px-2 py-1 rounded hover:bg-teal-200 transition-colors cursor-pointer"
+                                  onclick={() => {
+                                    sessionId = log.sessionId || "";
+                                    applyFilters();
+                                  }}
+                                  title="Click to filter by this session ID"
+                                >
+                                  {log.sessionId}
                                 </button>
                               </div>
                             {/if}

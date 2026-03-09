@@ -69,9 +69,10 @@ export class DashboardAPI {
     return headers;
   }
 
-  async getStats(organizationId: string): Promise<DashboardStats> {
+  async getStats(organizationId: string, projectId?: string): Promise<DashboardStats> {
     const params = new URLSearchParams();
     params.append('organizationId', organizationId);
+    if (projectId) params.append('projectId', projectId);
 
     const url = `${getApiUrl()}/api/v1/dashboard/stats?${params.toString()}`;
 
@@ -87,9 +88,10 @@ export class DashboardAPI {
     return response.json();
   }
 
-  async getTimeseries(organizationId: string): Promise<TimeseriesDataPoint[]> {
+  async getTimeseries(organizationId: string, projectId?: string): Promise<TimeseriesDataPoint[]> {
     const params = new URLSearchParams();
     params.append('organizationId', organizationId);
+    if (projectId) params.append('projectId', projectId);
 
     const url = `${getApiUrl()}/api/v1/dashboard/timeseries?${params.toString()}`;
 
@@ -106,9 +108,10 @@ export class DashboardAPI {
     return data.timeseries;
   }
 
-  async getTopServices(organizationId: string): Promise<TopService[]> {
+  async getTopServices(organizationId: string, projectId?: string): Promise<TopService[]> {
     const params = new URLSearchParams();
     params.append('organizationId', organizationId);
+    if (projectId) params.append('projectId', projectId);
 
     const url = `${getApiUrl()}/api/v1/dashboard/top-services?${params.toString()}`;
 
@@ -125,9 +128,10 @@ export class DashboardAPI {
     return data.services;
   }
 
-  async getTimelineEvents(organizationId: string): Promise<TimelineEvent[]> {
+  async getTimelineEvents(organizationId: string, projectId?: string): Promise<TimelineEvent[]> {
     const params = new URLSearchParams();
     params.append('organizationId', organizationId);
+    if (projectId) params.append('projectId', projectId);
 
     const url = `${getApiUrl()}/api/v1/dashboard/timeline-events?${params.toString()}`;
 
@@ -144,9 +148,10 @@ export class DashboardAPI {
     return data.events;
   }
 
-  async getRecentErrors(organizationId: string): Promise<RecentError[]> {
+  async getRecentErrors(organizationId: string, projectId?: string): Promise<RecentError[]> {
     const params = new URLSearchParams();
     params.append('organizationId', organizationId);
+    if (projectId) params.append('projectId', projectId);
 
     const url = `${getApiUrl()}/api/v1/dashboard/recent-errors?${params.toString()}`;
 

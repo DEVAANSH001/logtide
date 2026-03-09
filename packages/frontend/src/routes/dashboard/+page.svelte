@@ -13,7 +13,6 @@
   import EmptyDashboard from '$lib/components/dashboard/EmptyDashboard.svelte';
   import Spinner from '$lib/components/Spinner.svelte';
   import { layoutStore } from '$lib/stores/layout';
-
   import Activity from '@lucide/svelte/icons/activity';
   import AlertTriangle from '@lucide/svelte/icons/alert-triangle';
   import Server from '@lucide/svelte/icons/server';
@@ -72,6 +71,7 @@
       topServices = servicesData;
       recentErrors = errorsData;
       timelineEvents = eventsData;
+
       lastLoadedOrg = $currentOrganization.id;
     } catch (e) {
       console.error('Failed to load dashboard data:', e);
@@ -116,6 +116,7 @@
       timelineEvents = [];
       lastLoadedOrg = null;
       return;
+
     }
 
     if ($currentOrganization.id === lastLoadedOrg) return;
