@@ -1,6 +1,6 @@
 {
   "name": "@logtide/shared",
-  "version": "0.8.1-rc2",
+  "version": "0.8.0-rc2",
   "private": true,
   "description": "Shared types, schemas and utilities for LogTide",
   "type": "module",
