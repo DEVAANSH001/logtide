@@ -1234,6 +1234,9 @@ export class ClickHouseEngine extends StorageEngine {
       max: 'max(value)',
       count: 'count()',
       last: 'argMax(value, time)',
+      p50: 'quantile(0.5)(value)',
+      p95: 'quantile(0.95)(value)',
+      p99: 'quantile(0.99)(value)',
     };
     const aggExpr = aggFnMap[params.aggregation] ?? 'avg(value)';
 
@@ -1352,7 +1355,7 @@ export class ClickHouseEngine extends StorageEngine {
 
   private canUseMetricRollup(params: MetricAggregateParams): boolean {
     if (params.interval !== '1h' && params.interval !== '1d') return false;
-    if (params.aggregation === 'last') return false;
+    if (params.aggregation === 'last' || params.aggregation === 'p50' || params.aggregation === 'p95' || params.aggregation === 'p99') return false;
     if (params.groupBy && params.groupBy.length > 0) return false;
     if (params.attributes && Object.keys(params.attributes).length > 0) return false;
     return true;
