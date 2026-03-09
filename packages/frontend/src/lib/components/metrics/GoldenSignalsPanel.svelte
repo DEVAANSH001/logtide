@@ -4,7 +4,6 @@
   import {
     SIGNAL_CONFIGS,
     detectSignalMetrics,
-    type SignalType,
   } from '$lib/utils/golden-signals';
   import { metricsAPI } from '$lib/api/metrics';
   import type { MetricAggregationFn } from '$lib/api/metrics';
@@ -23,6 +22,7 @@
   let { metricNames, services, projectId, timeRange, interval }: Props = $props();
 
   let detectedMetrics = $derived(detectSignalMetrics(metricNames));
+  let displayServices = $derived(services.length > 0 ? services : [{ serviceName: '' }]);
 
   // Timeseries data keyed by `${signalType}:${serviceName}`
   let seriesData = $state<Map<string, Array<{ label: string; color: string; values: Array<{ bucket: string; value: number }> }>>>(new Map());
@@ -42,16 +42,34 @@
     const fromISO = timeRange.from.toISOString();
     const toISO = timeRange.to.toISOString();
 
-    const displayServices = services.length > 0 ? services : [{ serviceName: '' }];
+    const svcList = displayServices;
 
-    for (const service of displayServices) {
+    // Build all fetch tasks upfront
+    const tasks: Array<{
+      signalKey: string;
+      config: typeof SIGNAL_CONFIGS[0];
+      serviceName: string;
+    }> = [];
+
+    for (const service of svcList) {
       for (const config of SIGNAL_CONFIGS) {
         const metricName = detectedMetrics[config.type];
         if (!metricName) continue;
+        tasks.push({
+          signalKey: `${config.type}:${service.serviceName}`,
+          config,
+          serviceName: service.serviceName,
+        });
+      }
+    }
 
-        const signalKey = `${config.type}:${service.serviceName}`;
-        loadingSignals = new Set([...loadingSignals, signalKey]);
+    // Mark all as loading
+    loadingSignals = new Set(tasks.map(t => t.signalKey));
 
+    // Fetch all in parallel
+    await Promise.allSettled(
+      tasks.map(async ({ signalKey, config, serviceName }) => {
+        const metricName = detectedMetrics[config.type]!;
         try {
           const results = await Promise.all(
             config.aggregations.map(agg =>
@@ -62,6 +80,8 @@
                 to: toISO,
                 interval: interval || '5m',
                 aggregation: agg.fn as MetricAggregationFn,
+                attributes: config.attributeFilter,
+                ...(serviceName ? { serviceName } : {}),
               }).then(result => ({
                 label: agg.label,
                 color: agg.color,
@@ -72,7 +92,6 @@
               }))
             )
           );
-
           seriesData = new Map(seriesData).set(signalKey, results);
         } catch (e) {
           console.error(`Failed to fetch signal ${signalKey}:`, e);
@@ -82,8 +101,8 @@
           next.delete(signalKey);
           loadingSignals = next;
         }
-      }
-    }
+      })
+    );
   }
 
   function goToTraces(serviceName: string) {
@@ -98,7 +117,6 @@
     goto(`/dashboard/search?service=${encodeURIComponent(serviceName)}&from=${from}&to=${to}&project=${projectId}`);
   }
 
-  let displayServices = $derived(services.length > 0 ? services : [{ serviceName: 'All Services' }]);
 </script>
 
 {#if metricNames.length === 0}
