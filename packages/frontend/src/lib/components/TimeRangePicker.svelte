@@ -116,6 +116,15 @@
     return { from: customFromTime, to: customToTime };
   }
 
+  /**
+   * Programmatically sets the time range (e.g. from URL parameters).
+   */
+  export function setTimeRange(type: TimeRangeType, customFrom?: string, customTo?: string) {
+    timeRangeType = type;
+    if (customFrom) customFromTime = formatDateForInput(customFrom);
+    if (customTo) customToTime = formatDateForInput(customTo);
+  }
+
   function handleTypeChange(newType: TimeRangeType) {
     const previousType = timeRangeType;
     timeRangeType = newType;

@@ -358,7 +358,13 @@
 
     if (shouldLoadLogs && selectedProjects.length > 0) {
       urlParamsProcessed = true;
-      Promise.all([loadServices(), loadHostnames()]).then(() => loadLogs());
+      Promise.all([loadServices(), loadHostnames()]).then(() => {
+        // Sync the TimeRangePicker's internal state with URL params before querying
+        if (timeRangePicker && fromParam && toParam) {
+          timeRangePicker.setTimeRange("custom", fromParam, toParam);
+        }
+        loadLogs();
+      });
     }
   });
 
