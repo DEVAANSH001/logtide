@@ -492,7 +492,7 @@ export interface MetricQueryResult {
 }
 
 /** Aggregation function for metric time-series */
-export type MetricAggregationFn = 'avg' | 'sum' | 'min' | 'max' | 'count' | 'last';
+export type MetricAggregationFn = 'avg' | 'sum' | 'min' | 'max' | 'count' | 'last' | 'p50' | 'p95' | 'p99';
 
 /** Parameters for time-series aggregation of metrics */
 export interface MetricAggregateParams {
