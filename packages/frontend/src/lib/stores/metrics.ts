@@ -17,7 +17,7 @@ interface MetricsState {
   labelValues: Record<string, string[]>;
   dataPoints: MetricDataResponse | null;
   dataPointsLoading: boolean;
-  activeTab: 'overview' | 'explorer';
+  activeTab: 'overview' | 'explorer' | 'golden';
   overview: MetricsOverviewResult | null;
   overviewLoading: boolean;
   overviewError: string | null;
@@ -164,7 +164,7 @@ function createMetricsStore() {
       }
     },
 
-    setActiveTab(tab: 'overview' | 'explorer') {
+    setActiveTab(tab: 'overview' | 'explorer' | 'golden') {
       update(s => ({ ...s, activeTab: tab }));
     },
 
