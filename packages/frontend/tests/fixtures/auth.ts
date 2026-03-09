@@ -438,6 +438,66 @@ export class TestApiClient {
       body: JSON.stringify({ role }),
     });
   }
+
+  async ingestOtlpMetrics(apiKey: string, metrics: Array<{
+    name: string;
+    type: 'gauge' | 'sum';
+    value: number;
+    service?: string;
+    attributes?: Record<string, string>;
+    time?: string;
+  }>) {
+    const resourceMetrics = [{
+      resource: {
+        attributes: [
+          { key: 'service.name', value: { stringValue: metrics[0]?.service || 'test-service' } },
+        ],
+      },
+      scopeMetrics: [{
+        scope: { name: 'e2e-test' },
+        metrics: metrics.map(m => {
+          const dataPoint = {
+            asDouble: m.value,
+            timeUnixNano: String((m.time ? new Date(m.time).getTime() : Date.now()) * 1_000_000),
+            attributes: Object.entries(m.attributes || {}).map(([key, val]) => ({
+              key,
+              value: { stringValue: val },
+            })),
+          };
+          if (m.type === 'gauge') {
+            return {
+              name: m.name,
+              gauge: { dataPoints: [dataPoint] },
+            };
+          }
+          return {
+            name: m.name,
+            sum: {
+              dataPoints: [dataPoint],
+              aggregationTemporality: 2,
+              isMonotonic: true,
+            },
+          };
+        }),
+      }],
+    }];
+
+    const response = await fetch(`${TEST_API_URL}/v1/otlp/metrics`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-API-Key': apiKey,
+      },
+      body: JSON.stringify({ resourceMetrics }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ error: 'Metrics ingest failed' }));
+      throw new Error(errorData.error || `Metrics ingest failed: ${response.status}`);
+    }
+
+    return response.json();
+  }
 }
 
 // Create test with authenticated user fixture

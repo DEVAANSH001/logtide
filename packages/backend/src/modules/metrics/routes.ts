@@ -284,7 +284,7 @@ const metricsRoutes: FastifyPluginAsync = async (fastify) => {
           from: { type: 'string', format: 'date-time' },
           to: { type: 'string', format: 'date-time' },
           interval: { type: 'string', enum: ['1m', '5m', '15m', '1h', '6h', '1d', '1w'], default: '1h' },
-          aggregation: { type: 'string', enum: ['avg', 'sum', 'min', 'max', 'count', 'last'], default: 'avg' },
+          aggregation: { type: 'string', enum: ['avg', 'sum', 'min', 'max', 'count', 'last', 'p50', 'p95', 'p99'], default: 'avg' },
           groupBy: {
             oneOf: [
               { type: 'string' },

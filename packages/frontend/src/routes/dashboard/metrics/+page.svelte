@@ -20,6 +20,7 @@
 
   import ServiceSelector from "$lib/components/metrics/ServiceSelector.svelte";
   import OverviewPanel from "$lib/components/metrics/OverviewPanel.svelte";
+  import GoldenSignalsPanel from "$lib/components/metrics/GoldenSignalsPanel.svelte";
 
   import {
     Card,
@@ -46,6 +47,7 @@
   import ExternalLink from "@lucide/svelte/icons/external-link";
   import LayoutDashboard from "@lucide/svelte/icons/layout-dashboard";
   import Search from "@lucide/svelte/icons/search";
+  import Gauge from "@lucide/svelte/icons/gauge";
 
   // Layout state
   let maxWidthClass = $state("max-w-7xl");
@@ -150,7 +152,7 @@
       offset: number;
     } | null,
     dataPointsLoading: false,
-    activeTab: 'overview' as 'overview' | 'explorer',
+    activeTab: 'overview' as 'overview' | 'explorer' | 'golden',
     overview: null as import("$lib/api/metrics").MetricsOverviewResult | null,
     overviewLoading: false,
     overviewError: null as string | null,
@@ -679,6 +681,13 @@
       <Search class="w-4 h-4" />
       Explorer
     </button>
+    <button
+      class="flex items-center gap-2 px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px {storeState.activeTab === 'golden' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'}"
+      onclick={() => metricsStore.setActiveTab('golden')}
+    >
+      <Gauge class="w-4 h-4" />
+      Golden Signals
+    </button>
   </div>
 
   {#if storeState.activeTab === 'overview'}
@@ -707,6 +716,23 @@
         projectId={selectedProject}
         timeRange={getTimeRange()}
         onMetricClick={handleOverviewMetricClick}
+      />
+    {/if}
+  {:else if storeState.activeTab === 'golden'}
+    <!-- Golden Signals Tab -->
+    {#if !selectedProject}
+      <div class="flex flex-col items-center justify-center py-16 text-muted-foreground">
+        <Gauge class="w-12 h-12 mb-3 opacity-50" />
+        <p class="text-lg font-medium mb-1">No project selected</p>
+        <p class="text-sm">Select a project to view golden signals</p>
+      </div>
+    {:else}
+      <GoldenSignalsPanel
+        metricNames={storeState.metricNames}
+        services={overviewServices}
+        projectId={selectedProject}
+        timeRange={getTimeRange()}
+        interval={storeState.selectedInterval}
       />
     {/if}
   {:else}

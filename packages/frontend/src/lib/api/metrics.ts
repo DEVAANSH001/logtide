@@ -2,7 +2,7 @@ import { getApiBaseUrl } from '$lib/config';
 import { getAuthToken } from '$lib/utils/auth';
 
 export type MetricType = 'gauge' | 'sum' | 'histogram' | 'exp_histogram' | 'summary';
-export type MetricAggregationFn = 'avg' | 'sum' | 'min' | 'max' | 'count' | 'last';
+export type MetricAggregationFn = 'avg' | 'sum' | 'min' | 'max' | 'count' | 'last' | 'p50' | 'p95' | 'p99';
 
 export interface MetricName {
   name: string;
@@ -146,6 +146,7 @@ export class MetricsAPI {
     aggregation?: MetricAggregationFn;
     groupBy?: string[];
     attributes?: Record<string, string>;
+    serviceName?: string;
   }): Promise<MetricAggregateResult> {
     const searchParams = new URLSearchParams({
       projectId: params.projectId,
@@ -156,6 +157,7 @@ export class MetricsAPI {
       aggregation: params.aggregation ?? 'avg',
     });
     if (params.groupBy) params.groupBy.forEach(g => searchParams.append('groupBy', g));
+    if (params.serviceName) searchParams.append('serviceName', params.serviceName);
     if (params.attributes) {
       for (const [k, v] of Object.entries(params.attributes)) {
         searchParams.append(`attributes[${k}]`, v);

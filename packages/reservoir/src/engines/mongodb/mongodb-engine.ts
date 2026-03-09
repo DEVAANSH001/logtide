@@ -91,6 +91,15 @@ const AGG_ACCUMULATORS: Record<MetricAggregationFn, Document> = {
   max: { $max: '$value' },
   count: { $sum: 1 },
   last: { $last: '$value' },
+  p50: { $push: '$value' },
+  p95: { $push: '$value' },
+  p99: { $push: '$value' },
+};
+
+const PERCENTILE_FRACTIONS: Record<string, number> = {
+  p50: 0.5,
+  p95: 0.95,
+  p99: 0.99,
 };
 
 export class MongoDBEngine extends StorageEngine {
@@ -905,10 +914,35 @@ export class MongoDBEngine extends StorageEngine {
       pipeline.push({ $sort: { time: 1 } });
     }
 
+    const isPercentile = params.aggregation in PERCENTILE_FRACTIONS;
+
     pipeline.push(
       { $group: { _id: groupId, agg_value: aggExpr } },
-      { $sort: { '_id.bucket': 1 } },
     );
+
+    // For percentile aggregations, sort the collected values and pick the nth element
+    if (isPercentile) {
+      const fraction = PERCENTILE_FRACTIONS[params.aggregation];
+      pipeline.push({
+        $addFields: {
+          agg_value: {
+            $let: {
+              vars: {
+                sorted: { $sortArray: { input: '$agg_value', sortBy: 1 } },
+              },
+              in: {
+                $arrayElemAt: [
+                  '$$sorted',
+                  { $floor: { $multiply: [fraction, { $size: '$$sorted' }] } },
+                ],
+              },
+            },
+          },
+        },
+      });
+    }
+
+    pipeline.push({ $sort: { '_id.bucket': 1 } });
 
     const rows = await col.aggregate(pipeline, { allowDiskUse: true }).toArray();
 

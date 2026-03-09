@@ -601,6 +601,45 @@ describe('ClickHouseEngine metric operations (unit)', () => {
       expect(params.p_attr_key_0).toBe('region');
       expect(params.p_attr_val_0).toBe('us-east');
     });
+
+    it('should use p50 aggregation (quantile 0.5)', async () => {
+      mockQuery.mockResolvedValueOnce(mockQueryResult([]));
+
+      await engine.aggregateMetrics({
+        ...baseAggParams,
+        aggregation: 'p50',
+        metricType: 'gauge',
+      });
+
+      const query = mockQuery.mock.calls[0][0].query as string;
+      expect(query).toContain('quantile(0.5)(value) AS agg_value');
+    });
+
+    it('should use p95 aggregation (quantile 0.95)', async () => {
+      mockQuery.mockResolvedValueOnce(mockQueryResult([]));
+
+      await engine.aggregateMetrics({
+        ...baseAggParams,
+        aggregation: 'p95',
+        metricType: 'gauge',
+      });
+
+      const query = mockQuery.mock.calls[0][0].query as string;
+      expect(query).toContain('quantile(0.95)(value) AS agg_value');
+    });
+
+    it('should use p99 aggregation (quantile 0.99)', async () => {
+      mockQuery.mockResolvedValueOnce(mockQueryResult([]));
+
+      await engine.aggregateMetrics({
+        ...baseAggParams,
+        aggregation: 'p99',
+        metricType: 'gauge',
+      });
+
+      const query = mockQuery.mock.calls[0][0].query as string;
+      expect(query).toContain('quantile(0.99)(value) AS agg_value');
+    });
   });
 
   // ===========================================================================
@@ -714,6 +753,48 @@ describe('ClickHouseEngine metric operations (unit)', () => {
       const query = mockQuery.mock.calls[0][0].query as string;
       expect(query).not.toContain('metrics_hourly_rollup');
       expect(query).toContain('argMax(value, time)');
+    });
+
+    it('should fall back to raw table for p50 aggregation', async () => {
+      mockQuery.mockResolvedValueOnce(mockQueryResult([]));
+
+      await engine.aggregateMetrics({
+        ...baseRollupParams,
+        aggregation: 'p50',
+        metricType: 'gauge',
+      });
+
+      const query = mockQuery.mock.calls[0][0].query as string;
+      expect(query).not.toContain('metrics_hourly_rollup');
+      expect(query).toContain('quantile(0.5)(value)');
+    });
+
+    it('should fall back to raw table for p95 aggregation', async () => {
+      mockQuery.mockResolvedValueOnce(mockQueryResult([]));
+
+      await engine.aggregateMetrics({
+        ...baseRollupParams,
+        aggregation: 'p95',
+        metricType: 'gauge',
+      });
+
+      const query = mockQuery.mock.calls[0][0].query as string;
+      expect(query).not.toContain('metrics_hourly_rollup');
+      expect(query).toContain('quantile(0.95)(value)');
+    });
+
+    it('should fall back to raw table for p99 aggregation', async () => {
+      mockQuery.mockResolvedValueOnce(mockQueryResult([]));
+
+      await engine.aggregateMetrics({
+        ...baseRollupParams,
+        aggregation: 'p99',
+        metricType: 'gauge',
+      });
+
+      const query = mockQuery.mock.calls[0][0].query as string;
+      expect(query).not.toContain('metrics_hourly_rollup');
+      expect(query).toContain('quantile(0.99)(value)');
     });
 
     it('should fall back to raw table when groupBy is used', async () => {

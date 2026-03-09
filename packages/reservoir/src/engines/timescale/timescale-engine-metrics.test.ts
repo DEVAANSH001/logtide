@@ -582,6 +582,39 @@ describe('TimescaleEngine - Metrics', () => {
       expect(sql).toContain('(array_agg(value ORDER BY time DESC))[1]');
     });
 
+    it('should use percentile_cont for p50 aggregation', async () => {
+      mockQuery.mockResolvedValueOnce({
+        rows: [{ bucket: new Date('2024-01-01T00:00:00Z'), agg_value: 0.45 }],
+      });
+      await engine.connect();
+
+      await engine.aggregateMetrics({ ...baseParams, aggregation: 'p50' });
+      const sql = mockQuery.mock.calls[0][0] as string;
+      expect(sql).toContain('percentile_cont(0.5) WITHIN GROUP (ORDER BY value)');
+    });
+
+    it('should use percentile_cont for p95 aggregation', async () => {
+      mockQuery.mockResolvedValueOnce({
+        rows: [{ bucket: new Date('2024-01-01T00:00:00Z'), agg_value: 0.95 }],
+      });
+      await engine.connect();
+
+      await engine.aggregateMetrics({ ...baseParams, aggregation: 'p95' });
+      const sql = mockQuery.mock.calls[0][0] as string;
+      expect(sql).toContain('percentile_cont(0.95) WITHIN GROUP (ORDER BY value)');
+    });
+
+    it('should use percentile_cont for p99 aggregation', async () => {
+      mockQuery.mockResolvedValueOnce({
+        rows: [{ bucket: new Date('2024-01-01T00:00:00Z'), agg_value: 0.99 }],
+      });
+      await engine.connect();
+
+      await engine.aggregateMetrics({ ...baseParams, aggregation: 'p99' });
+      const sql = mockQuery.mock.calls[0][0] as string;
+      expect(sql).toContain('percentile_cont(0.99) WITHIN GROUP (ORDER BY value)');
+    });
+
     it('should include groupBy columns', async () => {
       mockQuery.mockResolvedValueOnce({
         rows: [
@@ -756,6 +789,25 @@ describe('TimescaleEngine - Metrics', () => {
       });
 
       const sql = mockQuery.mock.calls[0][0] as string;
+      expect(sql).not.toContain('metrics_hourly_stats');
+    });
+
+    it('should fall back to raw table for p50 aggregation', async () => {
+      mockQuery.mockResolvedValueOnce({
+        rows: [{ bucket: new Date('2024-01-01T00:00:00Z'), agg_value: 0.5 }],
+      });
+      await engine.connect();
+
+      await engine.aggregateMetrics({
+        projectId: 'proj-1',
+        metricName: 'cpu.usage',
+        from: new Date('2024-01-01T00:00:00Z'),
+        to: new Date('2024-01-02T00:00:00Z'),
+        interval: '1h' as const,
+        aggregation: 'p50',
+      });
+      const sql = mockQuery.mock.calls[0][0] as string;
+      expect(sql).toContain('time_bucket');
       expect(sql).not.toContain('metrics_hourly_stats');
     });
 
