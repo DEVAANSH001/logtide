@@ -1211,6 +1211,12 @@ export class MongoDBEngine extends StorageEngine {
     await safeCreateIndex(col, { trace_id: 1, project_id: 1 }, 'idx_trace_project', { sparse: true });
     await safeCreateIndex(col, { span_id: 1, project_id: 1 }, 'idx_span_project', { sparse: true });
 
+    // Compound indexes for filtered queries
+    await safeCreateIndex(col, { project_id: 1, service: 1, time: -1 }, 'idx_project_service_time');
+    await safeCreateIndex(col, { project_id: 1, level: 1, time: -1 }, 'idx_project_level_time');
+    await safeCreateIndex(col, { project_id: 1, service: 1, level: 1, time: -1 }, 'idx_project_service_level_time');
+    await safeCreateIndex(col, { project_id: 1, hostname: 1, time: -1 }, 'idx_project_hostname_time');
+
     // Text index for $text search (not supported on time-series timeField/metaField)
     if (!this.useTimeSeries) {
       await safeCreateIndex(col, { message: 'text' }, 'idx_message_text');
@@ -1223,12 +1229,20 @@ export class MongoDBEngine extends StorageEngine {
     await safeCreateIndex(col, { project_id: 1, time: -1 }, 'idx_span_time');
     await safeCreateIndex(col, { span_id: 1, project_id: 1 }, 'idx_span_id');
     await safeCreateIndex(col, { parent_span_id: 1, trace_id: 1 }, 'idx_span_parent', { sparse: true });
+
+    // Compound indexes for filtered span queries
+    await safeCreateIndex(col, { project_id: 1, service_name: 1, time: -1 }, 'idx_span_service_time');
+    await safeCreateIndex(col, { project_id: 1, service_name: 1, status_code: 1, time: -1 }, 'idx_span_service_status_time');
   }
 
   private async createTracesIndexes(db: Db): Promise<void> {
     const col = db.collection('traces');
     await safeCreateIndex(col, { trace_id: 1, project_id: 1 }, 'idx_trace_key', { unique: true });
     await safeCreateIndex(col, { project_id: 1, start_time: -1 }, 'idx_trace_time');
+
+    // Compound indexes for filtered trace queries
+    await safeCreateIndex(col, { project_id: 1, error: 1, start_time: -1 }, 'idx_trace_error_time');
+    await safeCreateIndex(col, { project_id: 1, duration_ms: -1, start_time: -1 }, 'idx_trace_duration_time');
   }
 
   private async createMetricsIndexes(db: Db): Promise<void> {
@@ -1236,6 +1250,9 @@ export class MongoDBEngine extends StorageEngine {
     await safeCreateIndex(metricsCol, { project_id: 1, metric_name: 1, time: -1 }, 'idx_metric_name_time');
     await safeCreateIndex(metricsCol, { project_id: 1, time: -1 }, 'idx_metric_time');
     await safeCreateIndex(metricsCol, { id: 1 }, 'idx_metric_id');
+
+    // Compound index for metric queries with service filter
+    await safeCreateIndex(metricsCol, { project_id: 1, metric_name: 1, service_name: 1, time: -1 }, 'idx_metric_name_service_time');
 
     const exemplarCol = db.collection('metric_exemplars');
     await safeCreateIndex(exemplarCol, { metric_id: 1 }, 'idx_exemplar_metric');
