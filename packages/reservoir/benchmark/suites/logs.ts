@@ -22,7 +22,7 @@ export async function seedLogs(
   projectId: string,
   organizationId: string,
 ): Promise<void> {
-  const batchSize = 10_000;
+  const batchSize = 100_000;
   let seeded = 0;
   const tr = getTimeRange();
 

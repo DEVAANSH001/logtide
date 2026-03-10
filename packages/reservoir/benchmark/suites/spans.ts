@@ -22,7 +22,7 @@ export async function seedSpans(
   projectId: string,
   organizationId: string,
 ): Promise<{ traceIds: string[] }> {
-  const batchSize = 5_000;
+  const batchSize = 50_000;
   let seeded = 0;
   const traceIds: string[] = [];
   const tr = getTimeRange();
