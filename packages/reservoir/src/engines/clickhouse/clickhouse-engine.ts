@@ -1641,16 +1641,16 @@ export class ClickHouseEngine extends StorageEngine {
     const sql = `
       SELECT
         metric_name,
-        any(metric_type) AS metric_type,
+        any(metric_type) AS mt,
         service_name,
-        sum(point_count) AS point_count,
-        sum(value_sum) / sum(point_count) AS avg_value,
-        min(min_value) AS min_value,
-        max(max_value) AS max_value
+        sum(point_count) AS total_points,
+        sum(value_sum) / sum(point_count) AS avg_val,
+        min(min_value) AS mn,
+        max(max_value) AS mx
       FROM metrics_hourly_rollup
       WHERE project_id IN {p_pids:Array(String)}
-        AND bucket >= {p_from:DateTime64(3)}
-        AND bucket <= {p_to:DateTime64(3)}
+        AND bucket >= {p_from:DateTime}
+        AND bucket <= {p_to:DateTime}
         ${serviceFilter}
       GROUP BY metric_name, service_name
       ORDER BY service_name, metric_name
@@ -1668,13 +1668,13 @@ export class ClickHouseEngine extends StorageEngine {
       const serviceName = row.service_name as string;
       const item: MetricOverviewItem = {
         metricName: row.metric_name as string,
-        metricType: (row.metric_type as MetricType) || 'gauge',
+        metricType: (row.mt as MetricType) || 'gauge',
         serviceName,
-        latestValue: Number(row.avg_value) ?? 0,
-        avgValue: Number(row.avg_value) ?? 0,
-        minValue: Number(row.min_value) ?? 0,
-        maxValue: Number(row.max_value) ?? 0,
-        pointCount: Number(row.point_count) ?? 0,
+        latestValue: Number(row.avg_val) ?? 0,
+        avgValue: Number(row.avg_val) ?? 0,
+        minValue: Number(row.mn) ?? 0,
+        maxValue: Number(row.mx) ?? 0,
+        pointCount: Number(row.total_points) ?? 0,
       };
       if (!serviceMap.has(serviceName)) serviceMap.set(serviceName, []);
       serviceMap.get(serviceName)!.push(item);
