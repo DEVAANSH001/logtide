@@ -35,15 +35,22 @@ export async function seedSpans(
 
     await engine.ingestSpans(spans);
 
-    // Track only trace IDs whose spans were actually ingested
+    // Batch upsert traces in parallel chunks
     const ingestedTraceIds = new Set(spans.map(s => s.traceId));
-    for (const bundle of bundles) {
-      if (!ingestedTraceIds.has(bundle.trace.traceId)) continue;
-      try {
-        await engine.upsertTrace(bundle.trace);
-        traceIds.push(bundle.trace.traceId);
-      } catch {
-        // some engines may fail on duplicates, that's ok
+    const tracesToUpsert = bundles
+      .filter(b => ingestedTraceIds.has(b.trace.traceId))
+      .map(b => b.trace);
+
+    const upsertBatch = 500;
+    for (let i = 0; i < tracesToUpsert.length; i += upsertBatch) {
+      const batch = tracesToUpsert.slice(i, i + upsertBatch);
+      const results = await Promise.allSettled(
+        batch.map(trace => engine.upsertTrace(trace)),
+      );
+      for (let j = 0; j < results.length; j++) {
+        if (results[j].status === 'fulfilled') {
+          traceIds.push(batch[j].traceId);
+        }
       }
     }
 
