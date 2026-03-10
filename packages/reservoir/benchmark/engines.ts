@@ -1,4 +1,5 @@
 import pg from 'pg';
+import { MongoClient } from 'mongodb';
 import type { EngineType } from '../src/index.js';
 import { StorageEngineFactory } from '../src/index.js';
 import type { StorageEngine } from '../src/index.js';
@@ -10,9 +11,25 @@ export interface EngineHandle {
 }
 
 /**
+ * Drop and recreate MongoDB database to ensure clean state.
+ * Prevents stale time-series collections from blocking text index creation.
+ */
+async function resetMongoDb(config: typeof ENGINE_CONFIGS.mongodb): Promise<void> {
+  const url = `mongodb://${config.username}:${config.password}@${config.host}:${config.port}/${config.database}?authSource=admin`;
+  const client = new MongoClient(url);
+  try {
+    await client.connect();
+    await client.db(config.database).dropDatabase();
+    console.log('  [mongodb] reset database (dropped stale collections)');
+  } finally {
+    await client.close();
+  }
+}
+
+/**
  * TimescaleDB's initialize() only creates the logs table.
  * Spans, traces, and metrics tables are normally created via backend migrations.
- * For the benchmark we create them directly.
+ * For the benchmark we create them directly, plus continuous aggregates.
  */
 async function ensureTimescaleTables(config: typeof ENGINE_CONFIGS.timescale): Promise<void> {
   const pool = new pg.Pool({
@@ -126,7 +143,37 @@ async function ensureTimescaleTables(config: typeof ENGINE_CONFIGS.timescale): P
       await pool.query(`SELECT create_hypertable('public.metric_exemplars', 'time', if_not_exists => TRUE)`);
     } catch { /* already a hypertable */ }
 
-    console.log('  [timescale] created spans/traces/metrics/metric_exemplars tables');
+    // Continuous aggregates for metric aggregation queries
+    try {
+      await pool.query(`
+        CREATE MATERIALIZED VIEW IF NOT EXISTS metrics_hourly_stats
+        WITH (timescaledb.continuous) AS
+        SELECT
+          time_bucket('1 hour', time) AS bucket,
+          project_id,
+          metric_name,
+          metric_type,
+          service_name,
+          COUNT(*) AS point_count,
+          AVG(value) AS avg_value,
+          SUM(value) AS sum_value,
+          MIN(value) AS min_value,
+          MAX(value) AS max_value
+        FROM metrics
+        GROUP BY bucket, project_id, metric_name, metric_type, service_name
+        WITH NO DATA
+      `);
+      await pool.query(`
+        SELECT add_continuous_aggregate_policy('metrics_hourly_stats',
+          start_offset => INTERVAL '3 hours',
+          end_offset => INTERVAL '1 hour',
+          schedule_interval => INTERVAL '1 hour',
+          if_not_exists => TRUE
+        )
+      `);
+    } catch { /* continuous aggregates may already exist */ }
+
+    console.log('  [timescale] created spans/traces/metrics tables + continuous aggregates');
   } finally {
     await pool.end();
   }
@@ -134,7 +181,12 @@ async function ensureTimescaleTables(config: typeof ENGINE_CONFIGS.timescale): P
 
 export async function createEngine(type: EngineType): Promise<EngineHandle> {
   const config = ENGINE_CONFIGS[type];
-  // MongoDB: disable time-series collections so text indexes work for full-text search
+
+  // MongoDB: reset DB to remove stale time-series collections, then use regular collections
+  if (type === 'mongodb') {
+    await resetMongoDb(config);
+  }
+
   const options = type === 'mongodb' ? { useTimeSeries: false } : undefined;
   const engine = StorageEngineFactory.create(type, config, options);
 
