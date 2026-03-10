@@ -1048,9 +1048,9 @@ describe('ClickHouseEngine metric operations (unit)', () => {
     it('should return metrics grouped by service', async () => {
       mockQuery.mockResolvedValueOnce(
         mockQueryResult([
-          { metric_name: 'http.requests', metric_type: 'sum', service_name: 'api', point_count: 100, avg_value: 5.2, min_value: 1, max_value: 10 },
-          { metric_name: 'cpu.usage', metric_type: 'gauge', service_name: 'api', point_count: 50, avg_value: 65.3, min_value: 20, max_value: 95 },
-          { metric_name: 'http.requests', metric_type: 'sum', service_name: 'worker', point_count: 30, avg_value: 2.1, min_value: 0, max_value: 8 },
+          { metric_name: 'http.requests', mt: 'sum', service_name: 'api', total_points: 100, avg_val: 5.2, mn: 1, mx: 10 },
+          { metric_name: 'cpu.usage', mt: 'gauge', service_name: 'api', total_points: 50, avg_val: 65.3, mn: 20, mx: 95 },
+          { metric_name: 'http.requests', mt: 'sum', service_name: 'worker', total_points: 30, avg_val: 2.1, mn: 0, mx: 8 },
         ]),
       );
 
@@ -1099,7 +1099,7 @@ describe('ClickHouseEngine metric operations (unit)', () => {
     it('should query from metrics_hourly_rollup', async () => {
       mockQuery.mockResolvedValueOnce(
         mockQueryResult([
-          { metric_name: 'cpu.usage', metric_type: 'gauge', service_name: 'api', point_count: 50, avg_value: 65.3, min_value: 20, max_value: 95 },
+          { metric_name: 'cpu.usage', mt: 'gauge', service_name: 'api', total_points: 50, avg_val: 65.3, mn: 20, mx: 95 },
         ]),
       );
 
@@ -1116,7 +1116,7 @@ describe('ClickHouseEngine metric operations (unit)', () => {
     it('should map metric fields correctly', async () => {
       mockQuery.mockResolvedValueOnce(
         mockQueryResult([
-          { metric_name: 'http.duration', metric_type: 'gauge', service_name: 'gateway', point_count: 200, avg_value: 42.5, min_value: 1.2, max_value: 150.7 },
+          { metric_name: 'http.duration', mt: 'gauge', service_name: 'gateway', total_points: 200, avg_val: 42.5, mn: 1.2, mx: 150.7 },
         ]),
       );
 
