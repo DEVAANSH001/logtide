@@ -76,6 +76,7 @@ export const ENGINE_CONFIGS: Record<EngineType, StorageConfig> = {
     database: process.env.MONGODB_DB ?? 'bench',
     username: process.env.MONGODB_USER ?? 'bench',
     password: process.env.MONGODB_PASS ?? 'bench',
+    options: { authSource: 'admin' },
   },
 };
 
