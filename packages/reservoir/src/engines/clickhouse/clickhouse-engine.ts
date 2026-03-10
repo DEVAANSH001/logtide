@@ -103,7 +103,7 @@ export class ClickHouseEngine extends StorageEngine {
         async_insert: 1,
         wait_for_async_insert: 1,
         async_insert_busy_timeout_ms: 200,
-        max_threads: 4,
+        max_threads: 2,
       },
     });
   }
@@ -200,6 +200,18 @@ export class ClickHouseEngine extends StorageEngine {
       // index may already exist
     }
 
+    // Projection for fast service+level filtered queries
+    try {
+      await client.command({
+        query: `ALTER TABLE ${t} ADD PROJECTION IF NOT EXISTS proj_service_time (SELECT * ORDER BY project_id, service, level, time)`,
+      });
+      await client.command({
+        query: `ALTER TABLE ${t} MATERIALIZE PROJECTION proj_service_time`,
+      });
+    } catch {
+      // projection may already exist
+    }
+
     // Spans table
     await client.command({
       query: `
@@ -241,6 +253,16 @@ export class ClickHouseEngine extends StorageEngine {
         query: `ALTER TABLE spans ADD INDEX IF NOT EXISTS idx_spans_parent parent_span_id TYPE bloom_filter(0.01) GRANULARITY 1`,
       });
     } catch { /* index may already exist */ }
+
+    // Projection for fast service_name filtered span queries
+    try {
+      await client.command({
+        query: `ALTER TABLE spans ADD PROJECTION IF NOT EXISTS proj_service_time (SELECT * ORDER BY project_id, service_name, status_code, time)`,
+      });
+      await client.command({
+        query: `ALTER TABLE spans MATERIALIZE PROJECTION proj_service_time`,
+      });
+    } catch { /* projection may already exist */ }
 
     // Traces table (ReplacingMergeTree for upsert semantics)
     await client.command({
