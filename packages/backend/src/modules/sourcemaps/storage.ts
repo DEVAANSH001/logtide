@@ -26,7 +26,9 @@ export class FilesystemStorage implements SourceMapStorage {
   constructor(private basePath: string) {}
 
   private getDir(projectId: string, release: string): string {
-    return path.join(this.basePath, projectId, release);
+    // Sanitize release to prevent path traversal (../ etc)
+    const safeRelease = path.basename(release);
+    return path.join(this.basePath, projectId, safeRelease);
   }
 
   private getFilePath(projectId: string, release: string, fileName: string): string {

@@ -72,7 +72,7 @@ export async function exportIncidentToPdf(data: PdfExportData): Promise<void> {
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Incident Report - ${incident.title}</title>
+  <title>Incident Report - ${escapeHtml(incident.title)}</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 12px; line-height: 1.5; color: #1a1a1a; padding: 40px; }
@@ -130,7 +130,7 @@ export async function exportIncidentToPdf(data: PdfExportData): Promise<void> {
       <div class="info-item"><label>Detection Events</label><span>${incident.detectionCount}</span></div>
       <div class="info-item"><label>Status</label><span>${getStatusLabel(incident.status)}</span></div>
       ${incident.resolvedAt ? `<div class="info-item"><label>Resolved</label><span>${formatDate(incident.resolvedAt as string)}</span></div>` : ''}
-      ${incident.affectedServices && incident.affectedServices.length > 0 ? `<div class="info-item"><label>Affected Services</label><span>${incident.affectedServices.join(', ')}</span></div>` : ''}
+      ${incident.affectedServices && incident.affectedServices.length > 0 ? `<div class="info-item"><label>Affected Services</label><span>${incident.affectedServices.map((s) => escapeHtml(s)).join(', ')}</span></div>` : ''}
     </div>
     ${incident.description ? `<div style="margin-top: 16px;"><label style="display: block; font-size: 10px; text-transform: uppercase; color: #6b7280; margin-bottom: 4px;">Description</label><p>${escapeHtml(incident.description)}</p></div>` : ''}
   </div>
@@ -138,8 +138,8 @@ export async function exportIncidentToPdf(data: PdfExportData): Promise<void> {
   ${(incident.mitreTactics && incident.mitreTactics.length > 0) || (incident.mitreTechniques && incident.mitreTechniques.length > 0) ? `
   <div class="section">
     <h2 class="section-title">MITRE ATT&CK Mapping</h2>
-    ${incident.mitreTactics && incident.mitreTactics.length > 0 ? `<div style="margin-bottom: 12px;"><label style="display: block; font-size: 10px; text-transform: uppercase; color: #6b7280; margin-bottom: 4px;">Tactics</label><span>${incident.mitreTactics.map((t) => formatMitreTactic(t)).join(', ')}</span></div>` : ''}
-    ${incident.mitreTechniques && incident.mitreTechniques.length > 0 ? `<div><label style="display: block; font-size: 10px; text-transform: uppercase; color: #6b7280; margin-bottom: 4px;">Techniques</label><span>${incident.mitreTechniques.map((t) => formatMitreTechnique(t)).join(', ')}</span></div>` : ''}
+    ${incident.mitreTactics && incident.mitreTactics.length > 0 ? `<div style="margin-bottom: 12px;"><label style="display: block; font-size: 10px; text-transform: uppercase; color: #6b7280; margin-bottom: 4px;">Tactics</label><span>${incident.mitreTactics.map((t) => escapeHtml(formatMitreTactic(t))).join(', ')}</span></div>` : ''}
+    ${incident.mitreTechniques && incident.mitreTechniques.length > 0 ? `<div><label style="display: block; font-size: 10px; text-transform: uppercase; color: #6b7280; margin-bottom: 4px;">Techniques</label><span>${incident.mitreTechniques.map((t) => escapeHtml(formatMitreTechnique(t))).join(', ')}</span></div>` : ''}
   </div>
   ` : ''}
 

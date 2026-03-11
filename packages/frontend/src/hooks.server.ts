@@ -21,7 +21,7 @@ const configHandle: Handle = async ({ event, resolve }) => {
       const apiUrl = env.PUBLIC_API_URL ?? '';
 
       // Inject the config script before the closing </head> tag
-      const configScript = `<script>window.__LOGTIDE_CONFIG__={apiUrl:"${apiUrl}"}</script>`;
+      const configScript = `<script>window.__LOGTIDE_CONFIG__={apiUrl:${JSON.stringify(apiUrl)}}</script>`;
 
       return html.replace('</head>', `${configScript}</head>`);
     },

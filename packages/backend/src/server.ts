@@ -84,12 +84,11 @@ export async function build(opts = {}) {
       return;
     }
 
-    // Server errors (5xx) or unknown
+    // Server errors (5xx) or unknown — never expose internal details to clients
     request.log.error(error);
     reply.code(statusCode || 500).send({
       statusCode: statusCode || 500,
       error: 'Internal Server Error',
-      message: errMessage,
     });
   });
 

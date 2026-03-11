@@ -140,7 +140,8 @@
     }
 
     // If there's a redirect URL (e.g., invitation), go there; otherwise go to onboarding
-    if (redirectUrl) {
+    // Validate: must be a relative path starting with / and not // (prevent open redirect)
+    if (redirectUrl && redirectUrl.startsWith('/') && !redirectUrl.startsWith('//')) {
       goto(redirectUrl);
     } else if (orgs.length === 0) {
       // New users don't have organizations yet -> redirect to onboarding tutorial
