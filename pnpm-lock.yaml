@@ -165,7 +165,7 @@ importers:
         version: link:../shared
       '@logtide/sveltekit':
         specifier: 0.7.0
-        version: 0.7.0(@sveltejs/kit@2.53.4(@opentelemetry/api@1.9.0)(@sveltejs/vite-plugin-svelte@5.1.1(svelte@5.53.6)(vite@6.4.1(@types/node@22.19.7)(jiti@1.21.7)(tsx@4.21.0)))(svelte@5.53.6)(typescript@5.9.3)(vite@6.4.1(@types/node@22.19.7)(jiti@1.21.7)(tsx@4.21.0)))
+        version: 0.7.0(@sveltejs/kit@2.53.4(@opentelemetry/api@1.9.0)(@sveltejs/vite-plugin-svelte@5.1.1(svelte@5.53.6)(vite@6.4.1(@types/node@22.19.7)(jiti@1.21.7)(tsx@4.21.0)))(svelte@5.53.6)(typescript@5.9.3)(vite@6.4.1(@types/node@22.19.7)(jiti@1.21.7)(tsx@4.21.0)))(web-vitals@4.2.4)
       '@lucide/svelte':
         specifier: ^0.482.0
         version: 0.482.0(svelte@5.53.6)
@@ -184,7 +184,13 @@ importers:
       shiki:
         specifier: ^3.18.0
         version: 3.18.0
+      web-vitals:
+        specifier: ^4.0.0
+        version: 4.2.4
     devDependencies:
+      '@logtide/cli':
+        specifier: 0.7.0
+        version: 0.7.0
       '@playwright/test':
         specifier: ^1.57.0
         version: 1.57.0
@@ -857,6 +863,11 @@ packages:
     peerDependenciesMeta:
       web-vitals:
         optional: true
+
+  '@logtide/cli@0.7.0':
+    resolution: {integrity: sha512-75PHe1azpJUzSN1HAdkb3gX+VHM5Nz7Q4mST/InXNhZz+56e+kESHhHt1Im2BLXKdbFw6fXsPTEhyy8lR6XmbA==}
+    engines: {node: '>=18.0.0'}
+    hasBin: true
 
   '@logtide/core@0.7.0':
     resolution: {integrity: sha512-SBh4p9mW7WD6lif15Ww4BGxYDGOUrLT4vN7h+zseKb/QSai7gRG5FMrpXoZihlCTdkAlEv3wa0iudwA9psjF4w==}
@@ -1779,6 +1790,10 @@ packages:
 
   comma-separated-tokens@2.0.3:
     resolution: {integrity: sha512-Fu4hJdvzeylCfQPp9SGWidpzrMs7tTrlu6Vb8XGaRGck8QSNZJJp538Wrb60Lax4fPwR64ViY468OIUTbRlGZg==}
+
+  commander@12.1.0:
+    resolution: {integrity: sha512-Vw8qHK3bZM9y/P10u3Vib8o/DdkvA2OtPtZvD871QKjy74Wj1WSKFILMPRPSdUSx5RFK1arlJzEtA4PkFgnbuA==}
+    engines: {node: '>=18'}
 
   commander@14.0.2:
     resolution: {integrity: sha512-TywoWNNRbhoD0BXs1P3ZEScW8W5iKrnbithIl0YH+uCmBd0QpPOA8yc82DS3BIE5Ma6FnBVUsJ7wVUDz4dvOWQ==}
@@ -3209,6 +3224,9 @@ packages:
       jsdom:
         optional: true
 
+  web-vitals@4.2.4:
+    resolution: {integrity: sha512-r4DIlprAGwJ7YM11VZp4R884m0Vmgr6EAKe3P+kO0PPj3Unqyvv59rczf6UiGcb9Z8QxZVcqKNwv/g0WNdWwsw==}
+
   webidl-conversions@7.0.0:
     resolution: {integrity: sha512-VwddBukDzu71offAQR975unBIGqfKZpM+8ZX6ySk8nYhVoo5CYaZyzt3YBvYtRtO+aoGlqxPg/B87NGVZ/fu6g==}
     engines: {node: '>=12'}
@@ -3954,10 +3972,16 @@ snapshots:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.5.5
 
-  '@logtide/browser@0.7.0':
+  '@logtide/browser@0.7.0(web-vitals@4.2.4)':
     dependencies:
       '@logtide/core': 0.7.0
       '@logtide/types': 0.7.0
+    optionalDependencies:
+      web-vitals: 4.2.4
+
+  '@logtide/cli@0.7.0':
+    dependencies:
+      commander: 12.1.0
 
   '@logtide/core@0.7.0':
     dependencies:
@@ -3970,9 +3994,9 @@ snapshots:
       fastify: 5.8.1
       fastify-plugin: 5.1.0
 
-  '@logtide/sveltekit@0.7.0(@sveltejs/kit@2.53.4(@opentelemetry/api@1.9.0)(@sveltejs/vite-plugin-svelte@5.1.1(svelte@5.53.6)(vite@6.4.1(@types/node@22.19.7)(jiti@1.21.7)(tsx@4.21.0)))(svelte@5.53.6)(typescript@5.9.3)(vite@6.4.1(@types/node@22.19.7)(jiti@1.21.7)(tsx@4.21.0)))':
+  '@logtide/sveltekit@0.7.0(@sveltejs/kit@2.53.4(@opentelemetry/api@1.9.0)(@sveltejs/vite-plugin-svelte@5.1.1(svelte@5.53.6)(vite@6.4.1(@types/node@22.19.7)(jiti@1.21.7)(tsx@4.21.0)))(svelte@5.53.6)(typescript@5.9.3)(vite@6.4.1(@types/node@22.19.7)(jiti@1.21.7)(tsx@4.21.0)))(web-vitals@4.2.4)':
     dependencies:
-      '@logtide/browser': 0.7.0
+      '@logtide/browser': 0.7.0(web-vitals@4.2.4)
       '@logtide/core': 0.7.0
       '@logtide/types': 0.7.0
       '@sveltejs/kit': 2.53.4(@opentelemetry/api@1.9.0)(@sveltejs/vite-plugin-svelte@5.1.1(svelte@5.53.6)(vite@6.4.1(@types/node@22.19.7)(jiti@1.21.7)(tsx@4.21.0)))(svelte@5.53.6)(typescript@5.9.3)(vite@6.4.1(@types/node@22.19.7)(jiti@1.21.7)(tsx@4.21.0))
@@ -4959,6 +4983,8 @@ snapshots:
       delayed-stream: 1.0.0
 
   comma-separated-tokens@2.0.3: {}
+
+  commander@12.1.0: {}
 
   commander@14.0.2: {}
 
@@ -6442,6 +6468,8 @@ snapshots:
       - sugarss
       - supports-color
       - terser
+
+  web-vitals@4.2.4: {}
 
   webidl-conversions@7.0.0: {}
 

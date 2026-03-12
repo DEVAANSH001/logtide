@@ -1,6 +1,6 @@
 {
   "name": "@logtide/frontend",
-  "version": "0.8.0-rc2",
+  "version": "0.8.0-rc4",
   "private": true,
   "description": "LogTide Frontend Dashboard",
   "type": "module",
@@ -16,12 +16,14 @@
     "test:journeys": "cross-env E2E=true playwright test tests/journeys",
     "test:edge-cases": "cross-env E2E=true playwright test tests/edge-cases",
     "typecheck": "svelte-kit sync && tsc --noEmit",
-    "clean": "rm -rf .svelte-kit build test-results"
+    "clean": "rm -rf .svelte-kit build test-results",
+    "sourcemaps:upload": "logtide sourcemaps upload build/client --release $npm_package_version"
   },
   "dependencies": {
     "@logtide/core": "0.7.0",
     "@logtide/shared": "workspace:*",
     "@logtide/sveltekit": "0.7.0",
+    "web-vitals": "^4.0.0",
     "@lucide/svelte": "^0.482.0",
     "@tanstack/svelte-table": "^8.21.3",
     "canvas-confetti": "^1.9.4",
@@ -30,6 +32,7 @@
     "shiki": "^3.18.0"
   },
   "devDependencies": {
+    "@logtide/cli": "0.7.0",
     "@playwright/test": "^1.57.0",
     "@prgm/sveltekit-progress-bar": "^3.0.2",
     "@sveltejs/adapter-node": "^5.4.0",
