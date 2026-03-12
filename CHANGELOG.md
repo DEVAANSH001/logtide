@@ -64,6 +64,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Frontend admin dashboard updated for 3-engine support (TimescaleDB/ClickHouse/MongoDB)
   - 34 unit tests + 66 integration tests (100 total)
 
+- **Golden Signals with Percentiles** (#163): P50/P95/P99 percentile aggregation across all storage engines
+  - New `percentile` aggregation function for TimescaleDB, ClickHouse, and MongoDB engines
+  - Golden Signals panel with dedicated charts (request rate, error rate, latency percentiles)
+  - Metrics E2E tests
+
+- **Reservoir Benchmark Suite**: comparative benchmarking framework for storage engines
+  - k6-based benchmark scripts for ingestion and query workloads
+  - Support for TimescaleDB, ClickHouse, and MongoDB engines
+  - Seeding scripts with configurable batch sizes (up to 100k)
+
+- **Custom Time Range Picker**: custom time range support in TimeRangePicker synced with URL parameters
+
+- **DSN Copy in API Key Dialog**: copy the DSN connection string (`https://KEY@host`) directly when creating an API key, for quick SDK setup
+
+- **Error Boundaries**: layout-level error boundaries for improved error handling and recovery
+
+### Security
+
+- Validate redirect URLs and sanitize release paths to prevent open redirect attacks
+- Bump fastify (security patch)
+
 ### Optimized
 
 - **Batch ingestion**: `insertMany({ordered: false})` for maximum write throughput
@@ -77,6 +98,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Cursor-based keyset pagination**: `time,id` tuples for consistent pagination
 - **`limit+1` pattern**: detect `hasMore` without extra count query
 - **Single-element `$in` avoidance**: exact match for single values, `$in` only for arrays
+- **ClickHouse projections** for faster query execution, reduced `max_threads` to 2
+- **Parallelized trace upserts** in span seeding (500 concurrent)
+- **Optimized ClickHouse and MongoDB engine settings** for production workloads
+
+### Fixed
+
+- Admin chart missing metrics and live tail search filtering
+- Golden signals: pass serviceName + attributes filter, parallelize fetches
+- ClickHouse `getMetricsOverview` alias collision
+- Sessions query using proper parameterized SQL
+- Timeline events project scoping and derived pattern
+- Web vitals widget missing projectId
+- Fluent Bit: `body_key` requires `headers_key` in HTTP output
+- Fluent Bit metrics config comment parsing error
+- Hardcoded API URL in API key dialog curl example now uses detected host
 
 ## [0.7.0] - 2026-02-26
 
