@@ -380,30 +380,40 @@ export class TimescaleEngine extends StorageEngine {
     // Skip-Scan Optimization for indexed fields (service, level)
     // This provides massive performance gains (100x+) on large datasets by jumping 
     // through the index instead of scanning all matching rows.
-    if ((params.field === 'service' || params.field === 'level') && params.projectId && params.from && params.to) {
+    // Skip-scan only when no extra filters are present (service/level/filters would require CTE changes)
+    if (
+      (params.field === 'service' || params.field === 'level') &&
+      params.projectId &&
+      params.from &&
+      params.to &&
+      !params.service &&
+      !params.level &&
+      !params.filters
+    ) {
       try {
         const fieldName = params.field; // safe, validated above
         const projectIds = Array.isArray(params.projectId) ? params.projectId : [params.projectId];
-        
+
         // Use a recursive CTE to jump through the b-tree index
+        // ORDER BY field only (not project_id) so we get the globally smallest value first
         const query = `
           WITH RECURSIVE t AS (
-             (SELECT ${fieldName} AS value FROM ${this.schema}.${this.tableName} 
-              WHERE project_id = ANY($1) AND time >= $2 AND time <= $3 
-              ORDER BY project_id, ${fieldName}, time DESC LIMIT 1)
+             (SELECT ${fieldName} AS value FROM ${this.schema}.${this.tableName}
+              WHERE project_id = ANY($1) AND time >= $2 AND time <= $3
+              ORDER BY ${fieldName}, time DESC LIMIT 1)
              UNION ALL
-             SELECT (SELECT ${fieldName} AS value FROM ${this.schema}.${this.tableName} 
-                     WHERE project_id = ANY($1) AND time >= $2 AND time <= $3 AND ${fieldName} > t.value 
-                     ORDER BY project_id, ${fieldName}, time DESC LIMIT 1)
+             SELECT (SELECT ${fieldName} AS value FROM ${this.schema}.${this.tableName}
+                     WHERE project_id = ANY($1) AND time >= $2 AND time <= $3 AND ${fieldName} > t.value
+                     ORDER BY ${fieldName}, time DESC LIMIT 1)
              FROM t
              WHERE t.value IS NOT NULL
           )
           SELECT value FROM t WHERE value IS NOT NULL LIMIT $4;
         `;
-        
+
         const limit = params.limit ?? 1000;
         const result = await pool.query(query, [projectIds, params.from, params.to, limit]);
-        
+
         return {
           values: result.rows.map((row) => row.value as string).filter((v) => v != null && v !== ''),
           executionTimeMs: Date.now() - start,
