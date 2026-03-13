@@ -104,6 +104,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Internal Logging Plugin**: fixed bug where `INTERNAL_DSN` was not passed to the `@logtide/fastify` plugin, preventing self-monitoring logs.
+- **Docker Compose Configuration**:
+  - Added missing `LOGTIDE_DSN` and `PUBLIC_LOGTIDE_DSN` to the frontend service.
+  - Added `INTERNAL_DSN` and `FRONTEND_URL` to backend and worker services.
+  - Corrected `worker` service configuration (moved environment variables from healthcheck block and fixed `SERVICE_NAME`).
+- **Protocol Mismatch**: clarified requirement for `http` protocol in DSN when targeting local instances without SSL.
 - Admin chart missing metrics and live tail search filtering
 - Golden signals: pass serviceName + attributes filter, parallelize fetches
 - ClickHouse `getMetricsOverview` alias collision
