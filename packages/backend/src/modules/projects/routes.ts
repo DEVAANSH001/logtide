@@ -91,24 +91,32 @@ export async function projectsRoutes(fastify: FastifyInstance) {
         return reply.send(cached);
       }
 
-      const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+      // PERFORMANCE: Checking 7 days of raw logs for strings and sessions is extremely slow
+      // on high-volume projects.
+      // Optimization:
+      // 1. Check a much shorter window (last 24h) - if they have data, it's likely recent.
+      // 2. Use the most efficient query possible.
+      const recentWindow = new Date(Date.now() - 24 * 60 * 60 * 1000);
       const now = new Date();
 
       // Check for web vitals and sessions in parallel
       const [webVitalsResult, sessionsResult] = await Promise.all([
+        // Substring search on 24h is much faster than 7 days
         reservoir.query({
           projectId: id,
-          from: sevenDaysAgo,
+          from: recentWindow,
           to: now,
           search: 'Web Vital:',
           searchMode: 'substring',
           limit: 1,
         }).catch(() => ({ logs: [] })),
+        
+        // Efficient check for existence of a session_id
         db.selectFrom('logs')
           .select('id')
           .where('project_id', '=', id)
           .where('session_id', 'is not', null)
-          .where('time', '>=', sevenDaysAgo)
+          .where('time', '>=', recentWindow)
           .limit(1)
           .executeTakeFirst()
           .catch(() => null),
@@ -119,8 +127,8 @@ export async function projectsRoutes(fastify: FastifyInstance) {
         hasSessions: !!sessionsResult,
       };
 
-      // Cache for 5 minutes
-      await CacheManager.set(cacheKey, capabilities, CACHE_TTL.STATS);
+      // Cache for 30 minutes (capabilities don't change often)
+      await CacheManager.set(cacheKey, capabilities, CACHE_TTL.STATS * 6);
 
       return reply.send(capabilities);
     } catch (error) {
