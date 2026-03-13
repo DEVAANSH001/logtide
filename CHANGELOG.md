@@ -105,15 +105,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - **Internal Logging Plugin**: fixed bug where `INTERNAL_DSN` was not passed to the `@logtide/fastify` plugin, preventing self-monitoring logs.
+- **Backend Self-Monitoring**:
+  - Improved DSN construction to automatically use `http://backend:8080` when running in Docker.
+  - Added verbose logging at startup to show the connection status for internal logging.
+  - Reduced batching and flush intervals for near real-time self-monitoring.
 - **Docker Compose Configuration**:
   - Added missing `LOGTIDE_DSN` and `PUBLIC_LOGTIDE_DSN` to the frontend service.
-  - Added `INTERNAL_DSN` and `FRONTEND_URL` to backend and worker services.
+  - Added `INTERNAL_DSN`, `FRONTEND_URL`, and `DOCKER_CONTAINER=true` to backend and worker services.
   - Corrected `worker` service configuration (moved environment variables from healthcheck block and fixed `SERVICE_NAME`).
 - **Protocol Mismatch**: clarified requirement for `http` protocol in DSN when targeting local instances without SSL.
 - Admin chart missing metrics and live tail search filtering
 
 ### Optimized
 
+- **Project Capabilities Detection**: reduced scanning range from 7 days to 24 hours and optimized queries for Web Vitals and Sessions, making the initial dashboard load instant.
 - **Dashboard Performance**: implemented a multi-engine intelligent optimization strategy that makes project dashboards instant even with millions of logs.
 - **TimescaleDB Skip-Scan**: implemented Recursive CTEs for `distinct` queries, reducing execution time from minutes to milliseconds on high-cardinality fields like `service`.
 - **Intelligent Volume Estimation**: all engines now support `countEstimate`, allowing the dashboard to bypass heavy operations on high-volume projects.
