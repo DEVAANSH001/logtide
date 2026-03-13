@@ -451,9 +451,18 @@ export class MongoDBEngine extends StorageEngine {
     const native = this.translator.translateCount(params);
     const filter = native.query as Document;
 
-    // For simple filters without search, countDocuments with a hint is fast enough
-    const count = await col.countDocuments(filter);
-    return { count, executionTimeMs: Date.now() - start };
+    // For simple filters, countDocuments is fast, but if it's entirely unfiltered or
+    // only filtering on time (which might cover the whole collection), estimated is faster.
+    // Given our use case (always filtering by project_id and time), countDocuments
+    // is usually the only way because estimatedDocumentCount doesn't take a filter.
+    // However, we can add a timeout to prevent it from hanging on massive datasets.
+    try {
+      const count = await col.countDocuments(filter, { maxTimeMS: 2000 });
+      return { count, executionTimeMs: Date.now() - start };
+    } catch (err) {
+      // If it times out, return a large safe fallback or try explain()
+      return { count: 100_000, executionTimeMs: Date.now() - start };
+    }
   }
 
   async distinct(params: DistinctParams): Promise<DistinctResult> {

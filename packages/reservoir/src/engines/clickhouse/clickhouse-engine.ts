@@ -599,7 +599,13 @@ export class ClickHouseEngine extends StorageEngine {
   }
 
   async countEstimate(params: CountParams): Promise<CountResult> {
-    // ClickHouse COUNT is already fast (columnar storage), use exact count
+    // ClickHouse COUNT is already fast, but for massive datasets (>100M rows)
+    // using a SAMPLE clause provides instant statistical estimates.
+    // NOTE: SAMPLE requires the table to be created with SAMPLE BY.
+    // Since we didn't define SAMPLE BY in the schema, we'll rely on 
+    // ClickHouse's native speed, but we can avoid final deduplication
+    // or complex filtering if possible.
+    // For now, exact count is fast enough for ClickHouse on index keys.
     return this.count(params);
   }
 

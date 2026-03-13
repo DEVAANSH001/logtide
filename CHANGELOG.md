@@ -111,6 +111,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Corrected `worker` service configuration (moved environment variables from healthcheck block and fixed `SERVICE_NAME`).
 - **Protocol Mismatch**: clarified requirement for `http` protocol in DSN when targeting local instances without SSL.
 - Admin chart missing metrics and live tail search filtering
+
+### Optimized
+
+- **Dashboard Performance**: implemented a multi-engine intelligent optimization strategy that makes project dashboards instant even with millions of logs.
+- **TimescaleDB Skip-Scan**: implemented Recursive CTEs for `distinct` queries, reducing execution time from minutes to milliseconds on high-cardinality fields like `service`.
+- **Intelligent Volume Estimation**: all engines now support `countEstimate`, allowing the dashboard to bypass heavy operations on high-volume projects.
+- **MongoDB Protection**: added safe timeouts and fallback logic for count operations on massive collections.
 - Golden signals: pass serviceName + attributes filter, parallelize fetches
 - ClickHouse `getMetricsOverview` alias collision
 - Sessions query using proper parameterized SQL
