@@ -404,4 +404,91 @@ describe('Dashboard Routes', () => {
             expect(body.events.length).toBe(0);
         });
     });
+
+    // =========================================================================
+    // projectId scoping — verifyProjectBelongsToOrg branch
+    // =========================================================================
+
+    describe('projectId parameter scoping', () => {
+        it('stats: returns 200 with projectId scoped to the org', async () => {
+            const res = await app.inject({
+                method: 'GET',
+                url: `/api/v1/dashboard/stats?organizationId=${testOrganization.id}&projectId=${testProject.id}`,
+                headers: authHeaders(),
+            });
+            expect(res.statusCode).toBe(200);
+        });
+
+        it('stats: returns 404 when projectId does not belong to the org', async () => {
+            const res = await app.inject({
+                method: 'GET',
+                url: `/api/v1/dashboard/stats?organizationId=${testOrganization.id}&projectId=00000000-0000-0000-0000-000000000000`,
+                headers: authHeaders(),
+            });
+            expect(res.statusCode).toBe(404);
+        });
+
+        it('timeseries: returns 200 with projectId scoped to the org', async () => {
+            const res = await app.inject({
+                method: 'GET',
+                url: `/api/v1/dashboard/timeseries?organizationId=${testOrganization.id}&projectId=${testProject.id}`,
+                headers: authHeaders(),
+            });
+            expect(res.statusCode).toBe(200);
+        });
+
+        it('timeseries: returns 404 when projectId does not belong to the org', async () => {
+            const res = await app.inject({
+                method: 'GET',
+                url: `/api/v1/dashboard/timeseries?organizationId=${testOrganization.id}&projectId=00000000-0000-0000-0000-000000000000`,
+                headers: authHeaders(),
+            });
+            expect(res.statusCode).toBe(404);
+        });
+
+        it('top-services: returns 200 with projectId scoped to the org', async () => {
+            const res = await app.inject({
+                method: 'GET',
+                url: `/api/v1/dashboard/top-services?organizationId=${testOrganization.id}&projectId=${testProject.id}`,
+                headers: authHeaders(),
+            });
+            expect(res.statusCode).toBe(200);
+        });
+
+        it('top-services: returns 404 when projectId does not belong to the org', async () => {
+            const res = await app.inject({
+                method: 'GET',
+                url: `/api/v1/dashboard/top-services?organizationId=${testOrganization.id}&projectId=00000000-0000-0000-0000-000000000000`,
+                headers: authHeaders(),
+            });
+            expect(res.statusCode).toBe(404);
+        });
+
+        it('timeline-events: returns 200 with projectId scoped to the org', async () => {
+            const res = await app.inject({
+                method: 'GET',
+                url: `/api/v1/dashboard/timeline-events?organizationId=${testOrganization.id}&projectId=${testProject.id}`,
+                headers: authHeaders(),
+            });
+            expect(res.statusCode).toBe(200);
+        });
+
+        it('recent-errors: returns 200 with projectId scoped to the org', async () => {
+            const res = await app.inject({
+                method: 'GET',
+                url: `/api/v1/dashboard/recent-errors?organizationId=${testOrganization.id}&projectId=${testProject.id}`,
+                headers: authHeaders(),
+            });
+            expect(res.statusCode).toBe(200);
+        });
+
+        it('recent-errors: returns 404 when projectId does not belong to the org', async () => {
+            const res = await app.inject({
+                method: 'GET',
+                url: `/api/v1/dashboard/recent-errors?organizationId=${testOrganization.id}&projectId=00000000-0000-0000-0000-000000000000`,
+                headers: authHeaders(),
+            });
+            expect(res.statusCode).toBe(404);
+        });
+    });
 });

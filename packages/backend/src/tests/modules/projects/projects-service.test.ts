@@ -389,4 +389,64 @@ describe('ProjectsService', () => {
             expect(result?.name).toBe('Project 2');
         });
     });
+
+    describe('getProjectDataAvailability', () => {
+        it('should return empty arrays when no data exists', async () => {
+            const { user, organization } = await createTestContext();
+
+            const result = await projectsService.getProjectDataAvailability(organization.id, user.id);
+
+            // Shape: { logs: string[], traces: string[], metrics: string[] }
+            expect(result.logs).toBeDefined();
+            expect(result.traces).toBeDefined();
+            expect(result.metrics).toBeDefined();
+            expect(Array.isArray(result.logs)).toBe(true);
+        });
+
+        it('should throw when user is not a member of the organization', async () => {
+            const { organization } = await createTestContext();
+            const outsider = await createTestUser({ email: 'outsider-da@test.com' });
+
+            await expect(
+                projectsService.getProjectDataAvailability(organization.id, outsider.id)
+            ).rejects.toThrow('do not have access');
+        });
+
+        it('should include project in logs array when logs exist', async () => {
+            const { user, organization, project } = await createTestContext();
+
+            await db.insertInto('logs').values({
+                project_id: project.id,
+                service: 'api',
+                level: 'info',
+                message: 'test log',
+                time: new Date(),
+            }).execute();
+
+            const result = await projectsService.getProjectDataAvailability(organization.id, user.id);
+            expect(result.logs).toContain(project.id);
+        });
+
+        it('should not include project in logs array when no logs exist', async () => {
+            const { user, organization, project } = await createTestContext();
+
+            const result = await projectsService.getProjectDataAvailability(organization.id, user.id);
+            expect(result.logs).not.toContain(project.id);
+        });
+
+        it('should include project in traces array when traces exist', async () => {
+            const { user, organization } = await createTestContext();
+            const { createTestTrace } = await import('../../helpers/factories.js');
+            const traceProject = await projectsService.createProject({
+                organizationId: organization.id,
+                userId: user.id,
+                name: 'Trace Project',
+            });
+
+            await createTestTrace({ projectId: traceProject.id, organizationId: organization.id });
+
+            const result = await projectsService.getProjectDataAvailability(organization.id, user.id);
+            expect(result.traces).toContain(traceProject.id);
+        });
+    });
 });
