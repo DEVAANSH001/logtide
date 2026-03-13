@@ -101,7 +101,8 @@ services:
     ports:
       - "8080:8080"
     environment:
-      NODE_ENV: production
+      TRUST_PROXY: ${TRUST_PROXY:-false}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
       DATABASE_URL: postgresql://${DB_USER}:${DB_PASSWORD}@postgres:5432/${DB_NAME}
       DATABASE_HOST: postgres
       DB_USER: ${DB_USER}
@@ -116,6 +117,7 @@ services:
       SMTP_FROM: ${SMTP_FROM:-noreply@logtide.local}
       INTERNAL_LOGGING_ENABLED: ${INTERNAL_LOGGING_ENABLED:-false}
       INTERNAL_API_KEY: ${INTERNAL_API_KEY:-}
+      INTERNAL_DSN: ${INTERNAL_DSN:-}
       SERVICE_NAME: logtide-backend
       STORAGE_ENGINE: ${STORAGE_ENGINE:-timescale}
       CLICKHOUSE_HOST: ${CLICKHOUSE_HOST:-clickhouse}
@@ -152,11 +154,15 @@ services:
       disable: true
     environment:
       NODE_ENV: production
+      TRUST_PROXY: ${TRUST_PROXY:-false}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
       DATABASE_URL: postgresql://${DB_USER}:${DB_PASSWORD}@postgres:5432/${DB_NAME}
       DATABASE_HOST: postgres
       DB_USER: ${DB_USER}
       REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
       API_KEY_SECRET: ${API_KEY_SECRET}
+      PORT: 8080
+      HOST: 0.0.0.0
       SMTP_HOST: ${SMTP_HOST:-}
       SMTP_PORT: ${SMTP_PORT:-587}
       SMTP_USER: ${SMTP_USER:-}
@@ -164,6 +170,7 @@ services:
       SMTP_FROM: ${SMTP_FROM:-noreply@logtide.local}
       INTERNAL_LOGGING_ENABLED: ${INTERNAL_LOGGING_ENABLED:-false}
       INTERNAL_API_KEY: ${INTERNAL_API_KEY:-}
+      INTERNAL_DSN: ${INTERNAL_DSN:-}
       SERVICE_NAME: logtide-worker
       STORAGE_ENGINE: ${STORAGE_ENGINE:-timescale}
       CLICKHOUSE_HOST: ${CLICKHOUSE_HOST:-clickhouse}
@@ -194,6 +201,8 @@ services:
     environment:
       NODE_ENV: production
       PUBLIC_API_URL: ${PUBLIC_API_URL:-http://localhost:8080}
+      LOGTIDE_DSN: ${LOGTIDE_DSN}
+      PUBLIC_LOGTIDE_DSN: ${PUBLIC_LOGTIDE_DSN}
     depends_on:
       - backend
     restart: unless-stopped
