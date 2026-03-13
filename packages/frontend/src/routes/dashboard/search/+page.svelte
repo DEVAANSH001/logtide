@@ -62,6 +62,7 @@
     message: string;
     metadata?: Record<string, any>;
     traceId?: string;
+    sessionId?: string;
     projectId: string;
   }
 
@@ -78,6 +79,7 @@
   let searchQuery = $state("");
   let searchMode = $state<SearchMode>("fulltext");
   let traceId = $state("");
+  let sessionId = $state("");
   let selectedProjects = $state<string[]>([]);
   let selectedServices = $state<string[]>([]);
   let selectedHostnames = $state<string[]>([]);
@@ -340,6 +342,12 @@
       shouldLoadLogs = true;
     }
 
+    const sessionIdParam = params.get("sessionId");
+    if (sessionIdParam && !sessionId) {
+      sessionId = sessionIdParam;
+      shouldLoadLogs = true;
+    }
+
     const fromParam = params.get("from");
     const toParam = params.get("to");
     if (fromParam && toParam && !customFromTime && !customToTime) {
@@ -350,7 +358,13 @@
 
     if (shouldLoadLogs && selectedProjects.length > 0) {
       urlParamsProcessed = true;
-      Promise.all([loadServices(), loadHostnames()]).then(() => loadLogs());
+      Promise.all([loadServices(), loadHostnames()]).then(() => {
+        // Sync the TimeRangePicker's internal state with URL params before querying
+        if (timeRangePicker && fromParam && toParam) {
+          timeRangePicker.setTimeRange("custom", fromParam, toParam);
+        }
+        loadLogs();
+      });
     }
   });
 
@@ -396,8 +410,14 @@
     }
 
     try {
-      const response = await projectsAPI.getProjects($currentOrganization.id);
-      projects = response.projects;
+      const [response, availability] = await Promise.all([
+        projectsAPI.getProjects($currentOrganization.id),
+        projectsAPI.getProjectDataAvailability($currentOrganization.id).catch(() => null),
+      ]);
+      const logsProjectIds = availability?.logs;
+      projects = logsProjectIds
+        ? response.projects.filter((p) => logsProjectIds.includes(p.id))
+        : response.projects;
 
       if (projects.length > 0 && selectedProjects.length === 0) {
         selectedProjects = projects.map((p) => p.id);
@@ -451,6 +471,7 @@
               : selectedHostnames
             : undefined,
         traceId: traceId || undefined,
+        sessionId: sessionId || undefined,
         q: searchQuery || undefined,
         searchMode: searchQuery ? searchMode : undefined,
         from: timeRange.from.toISOString(),
@@ -635,8 +656,28 @@
         try {
           const data = JSON.parse(event.data);
           if (data.type === "logs") {
-            const newLogs = data.logs;
-            logs = [...newLogs, ...logs].slice(0, liveTailLimit);
+            let newLogs: LogEntry[] = data.logs;
+
+            // Client-side filtering for criteria not sent to WS
+            if (searchQuery) {
+              const q = searchQuery.toLowerCase();
+              newLogs = newLogs.filter((log) => {
+                if (log.message?.toLowerCase().includes(q)) return true;
+                if (log.service?.toLowerCase().includes(q)) return true;
+                if (log.metadata && JSON.stringify(log.metadata).toLowerCase().includes(q)) return true;
+                return false;
+              });
+            }
+            if (traceId) {
+              newLogs = newLogs.filter((log) => log.traceId === traceId);
+            }
+            if (sessionId) {
+              newLogs = newLogs.filter((log) => log.sessionId === sessionId);
+            }
+
+            if (newLogs.length > 0) {
+              logs = [...newLogs, ...logs].slice(0, liveTailLimit);
+            }
           }
         } catch (e) {
           console.error("[LiveTail] Error parsing WS message:", e);
@@ -820,6 +861,7 @@
           : selectedHostnames
         : undefined,
     traceId: traceId || undefined,
+    sessionId: sessionId || undefined,
     q: searchQuery || undefined,
     from: getTimeRange().from.toISOString(),
     to: getTimeRange().to.toISOString(),
@@ -900,6 +942,17 @@
                 type="text"
                 placeholder="Filter by trace ID..."
                 bind:value={traceId}
+                oninput={debouncedSearch}
+              />
+            </div>
+
+            <div class="space-y-2">
+              <Label for="sessionId">Session ID</Label>
+              <Input
+                id="sessionId"
+                type="text"
+                placeholder="Filter by session ID..."
+                bind:value={sessionId}
                 oninput={debouncedSearch}
               />
             </div>
@@ -1569,6 +1622,21 @@
                                   title="Click to filter by this trace ID"
                                 >
                                   {log.traceId}
+                                </button>
+                              </div>
+                            {/if}
+                            {#if log.sessionId}
+                              <div>
+                                <span class="font-semibold">Session ID:</span>
+                                <button
+                                  class="ml-2 text-xs font-mono bg-teal-100 text-teal-800 px-2 py-1 rounded hover:bg-teal-200 transition-colors cursor-pointer"
+                                  onclick={() => {
+                                    sessionId = log.sessionId || "";
+                                    applyFilters();
+                                  }}
+                                  title="Click to filter by this session ID"
+                                >
+                                  {log.sessionId}
                                 </button>
                               </div>
                             {/if}

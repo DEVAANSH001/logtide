@@ -4,7 +4,9 @@
 	import Button from '$lib/components/ui/button/button.svelte';
 	import Spinner from '$lib/components/Spinner.svelte';
 	import { ExceptionDetailsDialog } from '$lib/components/exceptions';
+	import BreadcrumbTimeline from '$lib/components/BreadcrumbTimeline.svelte';
 	import AlertTriangle from '@lucide/svelte/icons/alert-triangle';
+	import ListTree from '@lucide/svelte/icons/list-tree';
 
 	interface LogEntry {
 		id?: string;
@@ -29,6 +31,21 @@
 
 	// Exception dialog state
 	let exceptionDialogOpen = $state(false);
+
+	// Breadcrumbs from metadata
+	let breadcrumbsOpen = $state(false);
+	const breadcrumbs = $derived(
+		Array.isArray(selectedLog?.metadata?.breadcrumbs)
+			? (selectedLog.metadata.breadcrumbs as Array<{
+					type: string;
+					category?: string;
+					message: string;
+					level?: string;
+					timestamp: number;
+					data?: Record<string, unknown>;
+				}>)
+			: []
+	);
 
 	function isErrorLevel(level: string): boolean {
 		return level === 'error' || level === 'critical';
@@ -196,6 +213,27 @@
 									<AlertTriangle class="w-4 h-4 text-red-500" />
 									View Exception Details
 								</Button>
+							</div>
+						{/if}
+						{#if breadcrumbs.length > 0}
+							<div class="mt-3 pt-2 border-t">
+								<button
+									type="button"
+									class="flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors w-full text-left"
+									onclick={() => (breadcrumbsOpen = !breadcrumbsOpen)}
+								>
+									<ListTree class="w-4 h-4" />
+									Breadcrumbs ({breadcrumbs.length})
+									<span class="text-xs ml-auto">{breadcrumbsOpen ? '▾' : '▸'}</span>
+								</button>
+								{#if breadcrumbsOpen}
+									<div class="mt-2 max-h-64 overflow-y-auto">
+										<BreadcrumbTimeline
+											{breadcrumbs}
+											eventTime={selectedLog.time}
+										/>
+									</div>
+								{/if}
 							</div>
 						{/if}
 					</div>

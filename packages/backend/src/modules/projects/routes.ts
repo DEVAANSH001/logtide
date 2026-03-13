@@ -3,6 +3,9 @@ import { z } from 'zod';
 import { projectsService } from './service.js';
 import { authenticate } from '../auth/middleware.js';
 import { auditLogService } from '../audit-log/index.js';
+import { reservoir } from '../../database/reservoir.js';
+import { db } from '../../database/connection.js';
+import { CacheManager, CACHE_TTL } from '../../utils/cache.js';
 
 const createProjectSchema = z.object({
   organizationId: z.string().uuid('Invalid organization ID'),
@@ -41,6 +44,96 @@ export async function projectsRoutes(fastify: FastifyInstance) {
         return reply.status(403).send({
           error: error.message,
         });
+      }
+      throw error;
+    }
+  });
+
+  // Get project data availability per category
+  fastify.get('/data-availability', async (request: any, reply) => {
+    const organizationId = request.query.organizationId;
+
+    if (!organizationId) {
+      return reply.status(400).send({
+        error: 'organizationId query parameter is required',
+      });
+    }
+
+    try {
+      const availability = await projectsService.getProjectDataAvailability(
+        organizationId,
+        request.user.id,
+      );
+      return reply.send(availability);
+    } catch (error) {
+      if (error instanceof Error && error.message.includes('do not have access')) {
+        return reply.status(403).send({ error: error.message });
+      }
+      throw error;
+    }
+  });
+
+  // Get project capabilities (auto-detect browser SDK features)
+  fastify.get('/:id/capabilities', async (request: any, reply) => {
+    try {
+      const { id } = projectIdSchema.parse(request.params);
+
+      // Verify access
+      const project = await projectsService.getProjectById(id, request.user.id);
+      if (!project) {
+        return reply.status(404).send({ error: 'Project not found' });
+      }
+
+      // Check cache first
+      const cacheKey = CacheManager.statsKey(id, 'project-capabilities');
+      const cached = await CacheManager.get<{ hasWebVitals: boolean; hasSessions: boolean }>(cacheKey);
+      if (cached) {
+        return reply.send(cached);
+      }
+
+      // PERFORMANCE: Checking 7 days of raw logs for strings and sessions is extremely slow
+      // on high-volume projects.
+      // Optimization:
+      // 1. Check a much shorter window (last 24h) - if they have data, it's likely recent.
+      // 2. Use the most efficient query possible.
+      const recentWindow = new Date(Date.now() - 24 * 60 * 60 * 1000);
+      const now = new Date();
+
+      // Check for web vitals and sessions in parallel
+      const [webVitalsResult, sessionsResult] = await Promise.all([
+        // Substring search on 24h is much faster than 7 days
+        reservoir.query({
+          projectId: id,
+          from: recentWindow,
+          to: now,
+          search: 'Web Vital:',
+          searchMode: 'substring',
+          limit: 1,
+        }).catch(() => ({ logs: [] })),
+        
+        // Efficient check for existence of a session_id
+        db.selectFrom('logs')
+          .select('id')
+          .where('project_id', '=', id)
+          .where('session_id', 'is not', null)
+          .where('time', '>=', recentWindow)
+          .limit(1)
+          .executeTakeFirst()
+          .catch(() => null),
+      ]);
+
+      const capabilities = {
+        hasWebVitals: webVitalsResult.logs.length > 0,
+        hasSessions: !!sessionsResult,
+      };
+
+      // Cache for 30 minutes (capabilities don't change often)
+      await CacheManager.set(cacheKey, capabilities, CACHE_TTL.STATS * 6);
+
+      return reply.send(capabilities);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return reply.status(400).send({ error: 'Invalid project ID' });
       }
       throw error;
     }

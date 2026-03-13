@@ -17,8 +17,10 @@ const internalLoggingPlugin: FastifyPluginAsync = async (fastify) => {
   try {
     await new Promise<void>((resolve, reject) => {
       // Use 'as any' to bypass strict property checking as the types seem to be out of sync with the implementation.
-      // Configuration is already handled by hub.init() in initializeInternalLogging().
+      // Configuration is already handled by hub.init() in initializeInternalLogging(),
+      // but passing the DSN explicitly ensures the plugin uses the correct connection.
       logtide(fastify, {
+        dsn,
         service: process.env.SERVICE_NAME || 'logtide-backend',
         environment: process.env.NODE_ENV || 'development',
       } as any, (err) => {

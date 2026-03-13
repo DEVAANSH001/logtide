@@ -246,12 +246,7 @@
       items: [
         { label: "Logs", href: "/dashboard/search", icon: FileText },
         { label: "Traces", href: "/dashboard/traces", icon: GitBranch },
-        {
-          label: "Metrics",
-          href: "/dashboard/metrics",
-          icon: BarChart3,
-          badge: { id: 'metrics-feature', type: 'new', showUntil: '2026-09-01' }
-        },
+        { label: "Metrics", href: "/dashboard/metrics", icon: BarChart3 },
         { label: "Errors", href: "/dashboard/errors", icon: Bug },
       ],
     },

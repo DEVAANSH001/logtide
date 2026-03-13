@@ -10,6 +10,8 @@ import { db } from '../../database/connection.js';
 import { ExceptionDetectionService } from '../../modules/exceptions/detection.js';
 import { FingerprintService } from '../../modules/exceptions/fingerprint-service.js';
 import { ExceptionService } from '../../modules/exceptions/service.js';
+import { SourceMapUnminifier } from '../../modules/sourcemaps/unminify.js';
+import { sourceMapsService } from '../../modules/sourcemaps/index.js';
 import { errorNotificationQueue, type ErrorNotificationJobData } from './error-notification.js';
 import type { IJob } from '../abstractions/types.js';
 
@@ -26,6 +28,7 @@ export interface ExceptionParsingJobData {
 }
 
 const exceptionService = new ExceptionService(db);
+const unminifier = new SourceMapUnminifier(sourceMapsService);
 
 /**
  * Process exception parsing job
@@ -56,6 +59,16 @@ export async function processExceptionParsing(job: IJob<ExceptionParsingJobData>
       if (!parsed) {
         stats.skipped++;
         continue;
+      }
+
+      // Source map un-minification: resolve original locations if maps are available
+      const release = log.metadata?.release as string | undefined;
+      if (release && parsed.frames.length > 0) {
+        try {
+          await unminifier.unminifyFrames(parsed.frames, projectId, release);
+        } catch (err) {
+          console.warn(`[ExceptionParsing] Source map unminification failed for ${log.id}:`, err);
+        }
       }
 
       const fingerprint = FingerprintService.generate(parsed);

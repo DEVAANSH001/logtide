@@ -40,6 +40,10 @@ export interface StackFrameRecord {
   isAppCode: boolean;
   codeContext: Record<string, unknown> | null;
   metadata: Record<string, unknown> | null;
+  originalFile: string | null;
+  originalLine: number | null;
+  originalColumn: number | null;
+  originalFunction: string | null;
   createdAt: Date | string;
 }
 

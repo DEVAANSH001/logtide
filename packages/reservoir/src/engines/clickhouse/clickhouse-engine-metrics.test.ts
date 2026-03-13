@@ -473,7 +473,7 @@ describe('ClickHouseEngine metric operations (unit)', () => {
       metricName: 'cpu.usage',
       from: new Date('2024-01-01T00:00:00Z'),
       to: new Date('2024-01-02T00:00:00Z'),
-      interval: '1h' as const,
+      interval: '5m' as const,
     };
 
     it('should use avg aggregation', async () => {
@@ -600,6 +600,266 @@ describe('ClickHouseEngine metric operations (unit)', () => {
       const params = mockQuery.mock.calls[0][0].query_params;
       expect(params.p_attr_key_0).toBe('region');
       expect(params.p_attr_val_0).toBe('us-east');
+    });
+
+    it('should use p50 aggregation (quantile 0.5)', async () => {
+      mockQuery.mockResolvedValueOnce(mockQueryResult([]));
+
+      await engine.aggregateMetrics({
+        ...baseAggParams,
+        aggregation: 'p50',
+        metricType: 'gauge',
+      });
+
+      const query = mockQuery.mock.calls[0][0].query as string;
+      expect(query).toContain('quantile(0.5)(value) AS agg_value');
+    });
+
+    it('should use p95 aggregation (quantile 0.95)', async () => {
+      mockQuery.mockResolvedValueOnce(mockQueryResult([]));
+
+      await engine.aggregateMetrics({
+        ...baseAggParams,
+        aggregation: 'p95',
+        metricType: 'gauge',
+      });
+
+      const query = mockQuery.mock.calls[0][0].query as string;
+      expect(query).toContain('quantile(0.95)(value) AS agg_value');
+    });
+
+    it('should use p99 aggregation (quantile 0.99)', async () => {
+      mockQuery.mockResolvedValueOnce(mockQueryResult([]));
+
+      await engine.aggregateMetrics({
+        ...baseAggParams,
+        aggregation: 'p99',
+        metricType: 'gauge',
+      });
+
+      const query = mockQuery.mock.calls[0][0].query as string;
+      expect(query).toContain('quantile(0.99)(value) AS agg_value');
+    });
+  });
+
+  // ===========================================================================
+  // aggregateMetrics with rollups
+  // ===========================================================================
+
+  describe('aggregateMetrics with rollups', () => {
+    const baseRollupParams = {
+      projectId: 'proj-1' as string | string[],
+      metricName: 'cpu.usage',
+      from: new Date('2024-01-01T00:00:00Z'),
+      to: new Date('2024-01-02T00:00:00Z'),
+      interval: '1h' as const,
+    };
+
+    it('should query from metrics_hourly_rollup for 1h interval with avg', async () => {
+      mockQuery.mockResolvedValueOnce(
+        mockQueryResult([
+          { bucket: '2024-01-01 00:00:00.000', agg_value: 42.5, metric_type: 'gauge' },
+          { bucket: '2024-01-01 01:00:00.000', agg_value: 43.1, metric_type: 'gauge' },
+        ]),
+      );
+
+      const result = await engine.aggregateMetrics({
+        projectId: 'proj-1',
+        metricName: 'http.server.request.duration',
+        from: new Date('2024-01-01T00:00:00Z'),
+        to: new Date('2024-01-02T00:00:00Z'),
+        interval: '1h',
+        aggregation: 'avg',
+      });
+
+      const query = mockQuery.mock.calls[0][0].query as string;
+      expect(query).toContain('metrics_hourly_rollup');
+      expect(query).toContain('sum(value_sum) / sum(point_count)');
+      expect(result.timeseries).toHaveLength(2);
+    });
+
+    it('should query from metrics_daily_rollup for 1d interval', async () => {
+      mockQuery.mockResolvedValueOnce(
+        mockQueryResult([
+          { bucket: '2024-01-01 00:00:00.000', agg_value: 100, metric_type: 'gauge' },
+        ]),
+      );
+
+      await engine.aggregateMetrics({
+        projectId: 'proj-1',
+        metricName: 'cpu.usage',
+        from: new Date('2024-01-01T00:00:00Z'),
+        to: new Date('2024-01-08T00:00:00Z'),
+        interval: '1d',
+        aggregation: 'max',
+      });
+
+      const query = mockQuery.mock.calls[0][0].query as string;
+      expect(query).toContain('metrics_daily_rollup');
+      expect(query).toContain('max(max_value)');
+    });
+
+    it('should use sum(value_sum) for sum aggregation', async () => {
+      mockQuery.mockResolvedValueOnce(
+        mockQueryResult([
+          { bucket: '2024-01-01 00:00:00.000', agg_value: 500, metric_type: 'sum' },
+        ]),
+      );
+
+      await engine.aggregateMetrics({
+        projectId: 'proj-1',
+        metricName: 'http.requests',
+        from: new Date('2024-01-01T00:00:00Z'),
+        to: new Date('2024-01-02T00:00:00Z'),
+        interval: '1h',
+        aggregation: 'sum',
+      });
+
+      const query = mockQuery.mock.calls[0][0].query as string;
+      expect(query).toContain('metrics_hourly_rollup');
+      expect(query).toContain('sum(value_sum)');
+    });
+
+    it('should use sum(point_count) for count aggregation', async () => {
+      mockQuery.mockResolvedValueOnce(
+        mockQueryResult([
+          { bucket: '2024-01-01 00:00:00.000', agg_value: 1000, metric_type: 'gauge' },
+        ]),
+      );
+
+      await engine.aggregateMetrics({
+        projectId: 'proj-1',
+        metricName: 'http.requests',
+        from: new Date('2024-01-01T00:00:00Z'),
+        to: new Date('2024-01-02T00:00:00Z'),
+        interval: '1h',
+        aggregation: 'count',
+      });
+
+      const query = mockQuery.mock.calls[0][0].query as string;
+      expect(query).toContain('metrics_hourly_rollup');
+      expect(query).toContain('sum(point_count)');
+    });
+
+    it('should fall back to raw table for "last" aggregation', async () => {
+      mockQuery.mockResolvedValueOnce(mockQueryResult([]));
+
+      await engine.aggregateMetrics({
+        ...baseRollupParams,
+        aggregation: 'last',
+        metricType: 'gauge',
+      });
+
+      const query = mockQuery.mock.calls[0][0].query as string;
+      expect(query).not.toContain('metrics_hourly_rollup');
+      expect(query).toContain('argMax(value, time)');
+    });
+
+    it('should fall back to raw table for p50 aggregation', async () => {
+      mockQuery.mockResolvedValueOnce(mockQueryResult([]));
+
+      await engine.aggregateMetrics({
+        ...baseRollupParams,
+        aggregation: 'p50',
+        metricType: 'gauge',
+      });
+
+      const query = mockQuery.mock.calls[0][0].query as string;
+      expect(query).not.toContain('metrics_hourly_rollup');
+      expect(query).toContain('quantile(0.5)(value)');
+    });
+
+    it('should fall back to raw table for p95 aggregation', async () => {
+      mockQuery.mockResolvedValueOnce(mockQueryResult([]));
+
+      await engine.aggregateMetrics({
+        ...baseRollupParams,
+        aggregation: 'p95',
+        metricType: 'gauge',
+      });
+
+      const query = mockQuery.mock.calls[0][0].query as string;
+      expect(query).not.toContain('metrics_hourly_rollup');
+      expect(query).toContain('quantile(0.95)(value)');
+    });
+
+    it('should fall back to raw table for p99 aggregation', async () => {
+      mockQuery.mockResolvedValueOnce(mockQueryResult([]));
+
+      await engine.aggregateMetrics({
+        ...baseRollupParams,
+        aggregation: 'p99',
+        metricType: 'gauge',
+      });
+
+      const query = mockQuery.mock.calls[0][0].query as string;
+      expect(query).not.toContain('metrics_hourly_rollup');
+      expect(query).toContain('quantile(0.99)(value)');
+    });
+
+    it('should fall back to raw table when groupBy is used', async () => {
+      mockQuery.mockResolvedValueOnce(mockQueryResult([]));
+
+      await engine.aggregateMetrics({
+        ...baseRollupParams,
+        aggregation: 'avg',
+        metricType: 'gauge',
+        groupBy: ['http.method'],
+      });
+
+      const query = mockQuery.mock.calls[0][0].query as string;
+      expect(query).not.toContain('metrics_hourly_rollup');
+    });
+
+    it('should fall back to raw table when attributes filter is used', async () => {
+      mockQuery.mockResolvedValueOnce(mockQueryResult([]));
+
+      await engine.aggregateMetrics({
+        ...baseRollupParams,
+        aggregation: 'avg',
+        metricType: 'gauge',
+        attributes: { 'http.method': 'GET' },
+      });
+
+      const query = mockQuery.mock.calls[0][0].query as string;
+      expect(query).not.toContain('metrics_hourly_rollup');
+    });
+
+    it('should use raw table for 5m interval', async () => {
+      mockQuery.mockResolvedValueOnce(mockQueryResult([]));
+
+      await engine.aggregateMetrics({
+        ...baseRollupParams,
+        interval: '5m',
+        aggregation: 'avg',
+        metricType: 'gauge',
+      });
+
+      const query = mockQuery.mock.calls[0][0].query as string;
+      expect(query).not.toContain('metrics_hourly_rollup');
+    });
+
+    it('should include service name filter in rollup query', async () => {
+      mockQuery.mockResolvedValueOnce(
+        mockQueryResult([
+          { bucket: '2024-01-01 00:00:00.000', agg_value: 42.5, metric_type: 'gauge' },
+        ]),
+      );
+
+      await engine.aggregateMetrics({
+        projectId: 'proj-1',
+        metricName: 'http.requests',
+        from: new Date('2024-01-01T00:00:00Z'),
+        to: new Date('2024-01-02T00:00:00Z'),
+        interval: '1h',
+        aggregation: 'avg',
+        serviceName: 'api',
+      });
+
+      const query = mockQuery.mock.calls[0][0].query as string;
+      expect(query).toContain('metrics_hourly_rollup');
+      expect(query).toContain('service_name IN {p_services:Array(String)}');
+      expect(mockQuery.mock.calls[0][0].query_params.p_services).toEqual(['api']);
     });
   });
 
@@ -777,6 +1037,118 @@ describe('ClickHouseEngine metric operations (unit)', () => {
 
       expect(result.deleted).toBe(0);
       expect(result.executionTimeMs).toBeGreaterThanOrEqual(0);
+    });
+  });
+
+  // ===========================================================================
+  // getMetricsOverview
+  // ===========================================================================
+
+  describe('getMetricsOverview', () => {
+    it('should return metrics grouped by service', async () => {
+      mockQuery.mockResolvedValueOnce(
+        mockQueryResult([
+          { metric_name: 'http.requests', mt: 'sum', service_name: 'api', total_points: 100, avg_val: 5.2, mn: 1, mx: 10 },
+          { metric_name: 'cpu.usage', mt: 'gauge', service_name: 'api', total_points: 50, avg_val: 65.3, mn: 20, mx: 95 },
+          { metric_name: 'http.requests', mt: 'sum', service_name: 'worker', total_points: 30, avg_val: 2.1, mn: 0, mx: 8 },
+        ]),
+      );
+
+      const result = await engine.getMetricsOverview({
+        projectId: 'proj-1',
+        from: new Date('2024-01-01T00:00:00Z'),
+        to: new Date('2024-01-02T00:00:00Z'),
+      });
+
+      expect(result.services).toHaveLength(2);
+      expect(result.services[0].serviceName).toBe('api');
+      expect(result.services[0].metrics).toHaveLength(2);
+      expect(result.services[1].serviceName).toBe('worker');
+      expect(result.services[1].metrics).toHaveLength(1);
+      expect(result.executionTimeMs).toBeGreaterThanOrEqual(0);
+    });
+
+    it('should filter by serviceName', async () => {
+      mockQuery.mockResolvedValueOnce(mockQueryResult([]));
+
+      await engine.getMetricsOverview({
+        projectId: 'proj-1',
+        from: new Date('2024-01-01T00:00:00Z'),
+        to: new Date('2024-01-02T00:00:00Z'),
+        serviceName: 'api',
+      });
+
+      const query = mockQuery.mock.calls[0][0].query as string;
+      expect(query).toContain('service_name');
+      const params = mockQuery.mock.calls[0][0].query_params;
+      expect(params.p_service).toBe('api');
+    });
+
+    it('should return empty services when no data', async () => {
+      mockQuery.mockResolvedValueOnce(mockQueryResult([]));
+
+      const result = await engine.getMetricsOverview({
+        projectId: 'proj-1',
+        from: new Date('2024-01-01T00:00:00Z'),
+        to: new Date('2024-01-02T00:00:00Z'),
+      });
+
+      expect(result.services).toHaveLength(0);
+    });
+
+    it('should query from metrics_hourly_rollup', async () => {
+      mockQuery.mockResolvedValueOnce(
+        mockQueryResult([
+          { metric_name: 'cpu.usage', mt: 'gauge', service_name: 'api', total_points: 50, avg_val: 65.3, mn: 20, mx: 95 },
+        ]),
+      );
+
+      await engine.getMetricsOverview({
+        projectId: 'proj-1',
+        from: new Date('2024-01-01T00:00:00Z'),
+        to: new Date('2024-01-02T00:00:00Z'),
+      });
+
+      const query = mockQuery.mock.calls[0][0].query as string;
+      expect(query).toContain('metrics_hourly_rollup');
+    });
+
+    it('should map metric fields correctly', async () => {
+      mockQuery.mockResolvedValueOnce(
+        mockQueryResult([
+          { metric_name: 'http.duration', mt: 'gauge', service_name: 'gateway', total_points: 200, avg_val: 42.5, mn: 1.2, mx: 150.7 },
+        ]),
+      );
+
+      const result = await engine.getMetricsOverview({
+        projectId: 'proj-1',
+        from: new Date('2024-01-01T00:00:00Z'),
+        to: new Date('2024-01-02T00:00:00Z'),
+      });
+
+      const metric = result.services[0].metrics[0];
+      expect(metric.metricName).toBe('http.duration');
+      expect(metric.metricType).toBe('gauge');
+      expect(metric.serviceName).toBe('gateway');
+      expect(metric.avgValue).toBe(42.5);
+      expect(metric.minValue).toBe(1.2);
+      expect(metric.maxValue).toBe(150.7);
+      expect(metric.pointCount).toBe(200);
+    });
+
+    it('should include project filter in query', async () => {
+      mockQuery.mockResolvedValueOnce(mockQueryResult([]));
+
+      await engine.getMetricsOverview({
+        projectId: 'proj-1',
+        from: new Date('2024-01-01T00:00:00Z'),
+        to: new Date('2024-01-02T00:00:00Z'),
+      });
+
+      const query = mockQuery.mock.calls[0][0].query as string;
+      expect(query).toContain('project_id IN');
+      const params = mockQuery.mock.calls[0][0].query_params;
+      expect(params.p_pids).toEqual(['proj-1']);
     });
   });
 });

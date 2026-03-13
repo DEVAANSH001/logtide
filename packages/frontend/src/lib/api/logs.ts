@@ -9,6 +9,7 @@ interface LogEntry {
   message: string;
   metadata?: Record<string, any>;
   traceId?: string;
+  sessionId?: string;
   projectId: string;
 }
 
@@ -29,6 +30,7 @@ interface LogFilters {
   level?: string | string[];
   hostname?: string | string[];
   traceId?: string;
+  sessionId?: string;
   from?: string;
   to?: string;
   q?: string;
@@ -114,6 +116,7 @@ export class LogsAPI {
     }
 
     if (filters.traceId) params.append('traceId', filters.traceId);
+    if (filters.sessionId) params.append('sessionId', filters.sessionId);
     if (filters.from) params.append('from', filters.from);
     if (filters.to) params.append('to', filters.to);
     if (filters.q) params.append('q', filters.q);

@@ -157,7 +157,7 @@ export interface RedisStats {
 
 // Health check
 export interface HealthStats {
-    storageEngine: 'timescale' | 'clickhouse';
+    storageEngine: 'timescale' | 'clickhouse' | 'mongodb';
     database: {
         status: 'healthy' | 'degraded' | 'down';
         latency: number; // milliseconds
@@ -1120,6 +1120,22 @@ export class AdminService {
                 }
             }
 
+            // MongoDB health (only when using MongoDB engine)
+            let mongodbHealth: { status: 'healthy' | 'degraded' | 'down'; latency: number } | undefined;
+            if (storageEngine === 'mongodb') {
+                try {
+                    const mgHealth = await reservoir.healthCheck();
+                    mongodbHealth = {
+                        status: mgHealth.status === 'unhealthy' ? 'down'
+                            : mgHealth.status === 'degraded' ? 'degraded'
+                            : 'healthy',
+                        latency: mgHealth.responseTimeMs,
+                    };
+                } catch {
+                    mongodbHealth = { status: 'down', latency: -1 };
+                }
+            }
+
             // Redis health (only if configured)
             const redisStart = Date.now();
             let redisStatus: 'healthy' | 'degraded' | 'down' | 'not_configured' = 'not_configured';
@@ -1146,13 +1162,14 @@ export class AdminService {
             // Redis is not required - only affects overall status if configured and down
             const redisHealthy = redisStatus === 'healthy' || redisStatus === 'not_configured';
 
-            // ClickHouse health affects overall when it's the storage engine
+            // External engine health affects overall when it's the storage engine
             const chHealthy = !clickhouseHealth || clickhouseHealth.status === 'healthy';
+            const mgHealthy = !mongodbHealth || mongodbHealth.status === 'healthy';
 
             const overall: 'healthy' | 'degraded' | 'down' =
-                dbStatus === 'down' || redisStatus === 'down' || clickhouseHealth?.status === 'down'
+                dbStatus === 'down' || redisStatus === 'down' || clickhouseHealth?.status === 'down' || mongodbHealth?.status === 'down'
                     ? 'down'
-                    : dbStatus === 'healthy' && redisHealthy && poolHealthy && chHealthy
+                    : dbStatus === 'healthy' && redisHealthy && poolHealthy && chHealthy && mgHealthy
                         ? 'healthy'
                         : 'degraded';
 
@@ -1164,6 +1181,7 @@ export class AdminService {
                     connections: dbConnections,
                 },
                 ...(clickhouseHealth ? { clickhouse: clickhouseHealth } : {}),
+                ...(mongodbHealth ? { mongodb: mongodbHealth } : {}),
                 redis: {
                     status: redisStatus,
                     latency: redisLatency,
@@ -1184,6 +1202,7 @@ export class AdminService {
                     connections: 0,
                 },
                 ...(storageEngine === 'clickhouse' ? { clickhouse: { status: 'down' as const, latency: -1 } } : {}),
+                ...(storageEngine === 'mongodb' ? { mongodb: { status: 'down' as const, latency: -1 } } : {}),
                 redis: {
                     status: 'down',
                     latency: -1,
@@ -1858,6 +1877,40 @@ export class AdminService {
             }
         }
 
+        // Metrics timeline: use continuous aggregate for TimescaleDB, count from raw table otherwise
+        let metricsTimeline: { rows: Array<{ bucket: string; count: number }> };
+
+        if (reservoir.getEngineType() === 'timescale') {
+            metricsTimeline = await db.executeQuery<{ bucket: string; count: number }>(
+                sql`
+                    SELECT
+                        bucket::text AS bucket,
+                        SUM(point_count)::int AS count
+                    FROM metrics_hourly_stats
+                    WHERE bucket >= ${sql.lit(since)}
+                    GROUP BY bucket
+                    ORDER BY bucket ASC
+                `.compile(db)
+            ).catch(() => ({ rows: [] as Array<{ bucket: string; count: number }> }));
+        } else {
+            // ClickHouse / other: count from raw metrics table
+            try {
+                metricsTimeline = await db.executeQuery<{ bucket: string; count: number }>(
+                    sql`
+                        SELECT
+                            date_trunc('hour', time)::text AS bucket,
+                            COUNT(*)::int AS count
+                        FROM metrics
+                        WHERE time >= ${sql.lit(since)}
+                        GROUP BY bucket
+                        ORDER BY bucket ASC
+                    `.compile(db)
+                );
+            } catch {
+                metricsTimeline = { rows: [] };
+            }
+        }
+
         // Normalize bucket key: parse any format to Date, then use ISO string
         const normalizeBucket = (bucket: string): string =>
             new Date(bucket).toISOString();
@@ -1868,6 +1921,7 @@ export class AdminService {
             logsCount: number;
             detectionsCount: number;
             spansCount: number;
+            metricsCount: number;
         }>();
 
         for (let h = 0; h < hours; h++) {
@@ -1880,6 +1934,7 @@ export class AdminService {
                 logsCount: 0,
                 detectionsCount: 0,
                 spansCount: 0,
+                metricsCount: 0,
             });
         }
 
@@ -1894,6 +1949,7 @@ export class AdminService {
                     logsCount: row.count,
                     detectionsCount: 0,
                     spansCount: 0,
+                    metricsCount: 0,
                 });
             }
         }
@@ -1909,6 +1965,7 @@ export class AdminService {
                     logsCount: 0,
                     detectionsCount: row.count,
                     spansCount: 0,
+                    metricsCount: 0,
                 });
             }
         }
@@ -1924,6 +1981,23 @@ export class AdminService {
                     logsCount: 0,
                     detectionsCount: 0,
                     spansCount: row.count,
+                    metricsCount: 0,
+                });
+            }
+        }
+
+        for (const row of metricsTimeline.rows) {
+            const key = normalizeBucket(row.bucket);
+            const existing = bucketMap.get(key);
+            if (existing) {
+                existing.metricsCount += row.count;
+            } else {
+                bucketMap.set(key, {
+                    bucket: key,
+                    logsCount: 0,
+                    detectionsCount: 0,
+                    spansCount: 0,
+                    metricsCount: row.count,
                 });
             }
         }
@@ -2217,6 +2291,7 @@ export interface PlatformTimeline {
         logsCount: number;
         detectionsCount: number;
         spansCount: number;
+        metricsCount: number;
     }>;
 }
 

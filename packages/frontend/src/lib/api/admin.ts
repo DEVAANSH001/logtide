@@ -121,13 +121,17 @@ export interface RedisStats {
 }
 
 export interface HealthStats {
-    storageEngine: 'timescale' | 'clickhouse';
+    storageEngine: 'timescale' | 'clickhouse' | 'mongodb';
     database: {
         status: 'healthy' | 'degraded' | 'down';
         latency: number;
         connections: number;
     };
     clickhouse?: {
+        status: 'healthy' | 'degraded' | 'down';
+        latency: number;
+    };
+    mongodb?: {
         status: 'healthy' | 'degraded' | 'down';
         latency: number;
     };
@@ -277,6 +281,7 @@ export interface PlatformTimeline {
         logsCount: number;
         detectionsCount: number;
         spansCount: number;
+        metricsCount: number;
     }>;
 }
 

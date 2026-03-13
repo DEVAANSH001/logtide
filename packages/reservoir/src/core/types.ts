@@ -8,7 +8,7 @@
 import type { LogLevel, SpanKind, SpanStatusCode } from '@logtide/shared';
 export type { LogLevel, SpanKind, SpanStatusCode };
 
-export type EngineType = 'timescale' | 'clickhouse';
+export type EngineType = 'timescale' | 'clickhouse' | 'mongodb';
 
 export type StorageTier = 'hot' | 'warm' | 'cold' | 'archive';
 
@@ -40,6 +40,7 @@ export interface LogRecord {
   metadata?: Record<string, unknown>;
   traceId?: string;
   spanId?: string;
+  sessionId?: string;
   hostname?: string;
 }
 
@@ -63,6 +64,7 @@ export interface QueryParams {
   level?: LogLevel | LogLevel[];
   hostname?: string | string[];
   traceId?: string;
+  sessionId?: string;
   from: Date;
   to: Date;
   fromExclusive?: boolean; // time > from (instead of >=)
@@ -193,6 +195,7 @@ export interface CountParams {
   level?: LogLevel | LogLevel[];
   hostname?: string | string[];
   traceId?: string;
+  sessionId?: string;
   from: Date;
   to: Date;
   fromExclusive?: boolean;
@@ -489,7 +492,7 @@ export interface MetricQueryResult {
 }
 
 /** Aggregation function for metric time-series */
-export type MetricAggregationFn = 'avg' | 'sum' | 'min' | 'max' | 'count' | 'last';
+export type MetricAggregationFn = 'avg' | 'sum' | 'min' | 'max' | 'count' | 'last' | 'p50' | 'p95' | 'p99';
 
 /** Parameters for time-series aggregation of metrics */
 export interface MetricAggregateParams {
@@ -570,4 +573,33 @@ export interface DeleteMetricsByTimeRangeParams {
   to: Date;
   metricName?: string | string[];
   serviceName?: string | string[];
+}
+
+/** A metric summary for dashboard overview */
+export interface MetricOverviewItem {
+  metricName: string;
+  metricType: MetricType;
+  serviceName: string;
+  latestValue: number;
+  avgValue: number;
+  minValue: number;
+  maxValue: number;
+  pointCount: number;
+}
+
+/** Parameters for metrics overview */
+export interface MetricsOverviewParams {
+  projectId: string | string[];
+  from: Date;
+  to: Date;
+  serviceName?: string;
+}
+
+/** Result of metrics overview query */
+export interface MetricsOverviewResult {
+  services: Array<{
+    serviceName: string;
+    metrics: MetricOverviewItem[];
+  }>;
+  executionTimeMs?: number;
 }

@@ -2,7 +2,7 @@ import { getApiBaseUrl } from '$lib/config';
 import { getAuthToken } from '$lib/utils/auth';
 
 export type MetricType = 'gauge' | 'sum' | 'histogram' | 'exp_histogram' | 'summary';
-export type MetricAggregationFn = 'avg' | 'sum' | 'min' | 'max' | 'count' | 'last';
+export type MetricAggregationFn = 'avg' | 'sum' | 'min' | 'max' | 'count' | 'last' | 'p50' | 'p95' | 'p99';
 
 export interface MetricName {
   name: string;
@@ -47,6 +47,25 @@ export interface MetricDataResponse {
   hasMore: boolean;
   limit: number;
   offset: number;
+}
+
+export interface MetricOverviewItem {
+  metricName: string;
+  metricType: MetricType;
+  serviceName: string;
+  latestValue: number;
+  avgValue: number;
+  minValue: number;
+  maxValue: number;
+  pointCount: number;
+}
+
+export interface MetricsOverviewResult {
+  services: Array<{
+    serviceName: string;
+    metrics: MetricOverviewItem[];
+  }>;
+  executionTimeMs?: number;
 }
 
 export class MetricsAPI {
@@ -127,6 +146,7 @@ export class MetricsAPI {
     aggregation?: MetricAggregationFn;
     groupBy?: string[];
     attributes?: Record<string, string>;
+    serviceName?: string;
   }): Promise<MetricAggregateResult> {
     const searchParams = new URLSearchParams({
       projectId: params.projectId,
@@ -137,6 +157,7 @@ export class MetricsAPI {
       aggregation: params.aggregation ?? 'avg',
     });
     if (params.groupBy) params.groupBy.forEach(g => searchParams.append('groupBy', g));
+    if (params.serviceName) searchParams.append('serviceName', params.serviceName);
     if (params.attributes) {
       for (const [k, v] of Object.entries(params.attributes)) {
         searchParams.append(`attributes[${k}]`, v);
@@ -144,6 +165,25 @@ export class MetricsAPI {
     }
     const res = await fetch(`${getApiBaseUrl()}/metrics/aggregate?${searchParams}`, { headers: this.getHeaders() });
     if (!res.ok) throw new Error(`Failed to aggregate metrics: ${res.statusText}`);
+    return res.json();
+  }
+
+  async getOverview(params: {
+    projectId: string;
+    from: string;
+    to: string;
+    serviceName?: string;
+  }): Promise<MetricsOverviewResult> {
+    const searchParams = new URLSearchParams({
+      projectId: params.projectId,
+      from: params.from,
+      to: params.to,
+    });
+    if (params.serviceName) searchParams.append('serviceName', params.serviceName);
+    const res = await fetch(`${getApiBaseUrl()}/metrics/overview?${searchParams}`, {
+      headers: this.getHeaders(),
+    });
+    if (!res.ok) throw new Error(`Failed to fetch metrics overview: ${res.statusText}`);
     return res.json();
   }
 }

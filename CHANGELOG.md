@@ -5,6 +5,133 @@ All notable changes to LogTide will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.0] - 2026-03-14
+
+### Added
+
+- **Browser & Frontend SDK Enhancements** (#156): Sentry-level browser observability across all frontend framework SDKs
+  - **`@logtide/browser` package**: new dedicated browser SDK with session tracking, Web Vitals, rich breadcrumbs, and offline resilience
+  - **Session context**: per-tab `session_id` via `sessionStorage` + in-memory cache, wired through full stack (SDK → backend column → reservoir → UI filter)
+  - **Core Web Vitals**: automatic LCP, INP, CLS collection via `web-vitals` library with configurable sampling rate
+  - **Click breadcrumbs**: event-delegation-based click/input tracking with `data-testid` capture, debounced inputs, never captures values
+  - **Network breadcrumbs**: monkey-patched `fetch` + `XMLHttpRequest` recording method/URL/status/duration, query param stripping by default, configurable deny list
+  - **Offline resilience**: `OfflineTransport` wrapper that buffers logs/spans during connectivity loss (bounded queue), flushes on reconnect, `sendBeacon` on page unload
+  - **Source maps**: `@logtide/cli` with `logtide sourcemaps upload` command, backend storage/un-minification service, original file/line/column/function in stack frames, frontend toggle between minified and original frames
+  - **Framework improvements**:
+    - Next.js: RSC error detection (`mechanism: 'react.server-component'`), route params from `__NEXT_DATA__` in navigation breadcrumbs
+    - Nuxt: `logtidePiniaPlugin` for Pinia action breadcrumbs
+    - SvelteKit: route context in `handleError`, `createBoundaryHandler()` for `<svelte:boundary>`
+    - Angular: NgZone context detection (`angular.zone: 'inside'/'outside'`) in error handler
+  - **Project-scoped dashboard**: Overview tab for all projects, auto-detected Performance and Sessions tabs for browser SDK projects
+  - **Capabilities API**: `GET /api/v1/projects/:id/capabilities` auto-detects `hasWebVitals` and `hasSessions` from recent data
+  - Backend: migrations 029-031, `session_id` column on logs, `sourcemaps` table, `original_*` columns on `stack_frames`
+  - SDK: 212 tests across 8 packages (browser: 41, core: 111, nextjs: 17, nuxt: 7, sveltekit: 20, angular: 7, cli: 9)
+
+- **Metrics Dashboard & Rollups** (#150): first-class metrics experience with pre-aggregated rollups and multi-panel dashboard
+  - Redesigned metrics page with **Overview** and **Explorer** tabs
+  - Overview panel: service-grouped metric cards with sparkline charts (ECharts), latest/avg/min/max values
+  - Pre-aggregated rollups for fast dashboard queries:
+    - TimescaleDB: `metrics_hourly_stats` and `metrics_daily_stats` continuous aggregates with refresh policies
+    - ClickHouse: `metrics_hourly_rollup` and `metrics_daily_rollup` materialized views
+    - MongoDB: on-the-fly aggregation pipeline (no materialized views needed)
+  - Smart rollup routing: auto-detects eligible queries (1h/1d interval, compatible aggregation) and falls back to raw table
+  - `GET /api/v1/metrics/overview` endpoint with `serviceName` filter
+  - `serviceName` filter added to `/aggregate` endpoint
+  - Cross-signal correlation: click chart data point → navigate to traces with time window
+  - Project selector in metrics header for quick switching
+  - `ServiceSelector` component with service dropdown and segmented time range buttons
+  - `MetricCard` component with type badge and ECharts sparkline
+  - `OverviewPanel` component with per-service metric groups and cross-links to traces/logs
+  - Frontend API client and store extended with overview support
+  - 13 new reservoir tests (rollups + overview) across TimescaleDB and ClickHouse engines
+
+- **Smart Project Selectors**: project dropdowns now only show projects that have data in the relevant category
+  - `GET /api/v1/projects/data-availability` endpoint returns per-category project IDs (logs, traces, metrics)
+  - Metrics page filters to projects with metrics data
+  - Traces page filters to projects with traces data
+  - Search page filters to projects with logs data
+  - Graceful fallback to all projects if availability check fails
+
+- **MongoDB Storage Adapter** (#157): full MongoDB backend for the `@logtide/reservoir` storage abstraction layer
+  - All 33 `StorageEngine` methods implemented (logs, spans, traces, metrics, exemplars)
+  - `MongoDBQueryTranslator` extending abstract `QueryTranslator` for filter/query translation
+  - `EngineType` union extended: `'timescale' | 'clickhouse' | 'mongodb'`
+  - Factory support with `createStorageEngine('mongodb', config)` and client injection
+  - Sub-path export `@logtide/reservoir/mongodb`
+  - Docker Compose profile-gated MongoDB 7.0 service
+  - Backend `getMongoDBConfig()` with URI parsing and `authSource` support
+  - MongoDB health check in admin service
+  - Frontend admin dashboard updated for 3-engine support (TimescaleDB/ClickHouse/MongoDB)
+  - 34 unit tests + 66 integration tests (100 total)
+
+- **Golden Signals with Percentiles** (#163): P50/P95/P99 percentile aggregation across all storage engines
+  - New `percentile` aggregation function for TimescaleDB, ClickHouse, and MongoDB engines
+  - Golden Signals panel with dedicated charts (request rate, error rate, latency percentiles)
+  - Metrics E2E tests
+
+- **Reservoir Benchmark Suite**: comparative benchmarking framework for storage engines
+  - k6-based benchmark scripts for ingestion and query workloads
+  - Support for TimescaleDB, ClickHouse, and MongoDB engines
+  - Seeding scripts with configurable batch sizes (up to 100k)
+
+- **Custom Time Range Picker**: custom time range support in TimeRangePicker synced with URL parameters
+
+- **DSN Copy in API Key Dialog**: copy the DSN connection string (`https://KEY@host`) directly when creating an API key, for quick SDK setup
+
+- **Error Boundaries**: layout-level error boundaries for improved error handling and recovery
+
+### Security
+
+- Validate redirect URLs and sanitize release paths to prevent open redirect attacks
+- Bump fastify (security patch)
+
+### Optimized
+
+- **Batch ingestion**: `insertMany({ordered: false})` for maximum write throughput
+- **Connection pool**: tuned `maxPoolSize: 100`, `minPoolSize: 5`, `maxIdleTimeMS: 60s`
+- **Index strategy**: compound indexes matching query patterns, sparse indexes for nullable fields
+- **Atomic trace upsert**: single `bulkWrite` with `$min/$max/$inc/$setOnInsert` (1 network round trip)
+- **Auto-detect MongoDB 5.0+ features**: `$dateTrunc` for time bucketing, time-series collections
+- **Client-side join** for service dependencies (O(n) Map vs O(n²) `$lookup`)
+- **Parallel metric + exemplar ingestion**: `Promise.all` for independent collection inserts
+- **Smart search**: `$text` index for clean terms, regex fallback for special characters
+- **Cursor-based keyset pagination**: `time,id` tuples for consistent pagination
+- **`limit+1` pattern**: detect `hasMore` without extra count query
+- **Single-element `$in` avoidance**: exact match for single values, `$in` only for arrays
+- **ClickHouse projections** for faster query execution, reduced `max_threads` to 2
+- **Parallelized trace upserts** in span seeding (500 concurrent)
+- **Optimized ClickHouse and MongoDB engine settings** for production workloads
+
+### Fixed
+
+- **Internal Logging Plugin**: fixed bug where `INTERNAL_DSN` was not passed to the `@logtide/fastify` plugin, preventing self-monitoring logs.
+- **Backend Self-Monitoring**:
+  - Improved DSN construction to automatically use `http://backend:8080` when running in Docker.
+  - Added verbose logging at startup to show the connection status for internal logging.
+  - Reduced batching and flush intervals for near real-time self-monitoring.
+- **Docker Compose Configuration**:
+  - Added missing `LOGTIDE_DSN` and `PUBLIC_LOGTIDE_DSN` to the frontend service.
+  - Added `INTERNAL_DSN`, `FRONTEND_URL`, and `DOCKER_CONTAINER=true` to backend and worker services.
+  - Corrected `worker` service configuration (moved environment variables from healthcheck block and fixed `SERVICE_NAME`).
+- **Protocol Mismatch**: clarified requirement for `http` protocol in DSN when targeting local instances without SSL.
+- Admin chart missing metrics and live tail search filtering
+
+### Optimized
+
+- **Project Capabilities Detection**: reduced scanning range from 7 days to 24 hours and optimized queries for Web Vitals and Sessions, making the initial dashboard load instant.
+- **Dashboard Performance**: implemented a multi-engine intelligent optimization strategy that makes project dashboards instant even with millions of logs.
+- **TimescaleDB Skip-Scan**: implemented Recursive CTEs for `distinct` queries, reducing execution time from minutes to milliseconds on high-cardinality fields like `service`.
+- **Intelligent Volume Estimation**: all engines now support `countEstimate`, allowing the dashboard to bypass heavy operations on high-volume projects.
+- **MongoDB Protection**: added safe timeouts and fallback logic for count operations on massive collections.
+- Golden signals: pass serviceName + attributes filter, parallelize fetches
+- ClickHouse `getMetricsOverview` alias collision
+- Sessions query using proper parameterized SQL
+- Timeline events project scoping and derived pattern
+- Web vitals widget missing projectId
+- Fluent Bit: `body_key` requires `headers_key` in HTTP output
+- Fluent Bit metrics config comment parsing error
+- Hardcoded API URL in API key dialog curl example now uses detected host
+
 ## [0.7.0] - 2026-02-26
 
 ### Added
@@ -58,6 +185,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Admin Dashboard Missing Metrics**: Platform Activity chart now includes a Metrics series alongside Logs, Detections, and Spans, querying `metrics_hourly_stats` continuous aggregate for OTLP metric data points
+- **Live Tail Search Filtering**: incoming logs via WebSocket are now filtered client-side against the active search query, trace ID, and session ID filters — previously live tail showed all incoming logs regardless of search criteria
 - **OTLP Traces Ingestion**: fixed a critical typo in trace transformation where `resource_logs` was used instead of `resource_spans`, preventing proper parsing of OTLP/JSON traces.
 - **OTLP Authentication**: fixed `authPlugin` to correctly handle `/v1/otlp` routes, allowing API Key authentication without requiring a valid user session.
 - **LogTide JavaScript SDKs**: updated `@logtide/core`, `@logtide/fastify`, and `@logtide/sveltekit` to version `0.6.1` for improved OTLP compatibility and TraceID/SpanID serialization.

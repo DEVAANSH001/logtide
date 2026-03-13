@@ -21,10 +21,13 @@ async function buildDsn(): Promise<string | null> {
   }
 
   const apiUrl =
-    process.env.INTERNAL_LOGGING_API_URL || process.env.API_URL || 'http://localhost:8080';
+    process.env.INTERNAL_LOGGING_API_URL || 
+    process.env.API_URL || 
+    (process.env.DOCKER_CONTAINER ? 'http://backend:8080' : 'http://localhost:8080');
 
-  // DSN format: https://key@host/path
-  return `${apiUrl.replace('://', `://${apiKey}@`)}`;
+  // DSN format: http://key@host:port
+  const dsn = `${apiUrl.replace('://', `://${apiKey}@`)}`;
+  return dsn;
 }
 
 /**
@@ -35,6 +38,7 @@ export async function initializeInternalLogging(): Promise<string | null> {
   const enabled = process.env.INTERNAL_LOGGING_ENABLED !== 'false';
 
   if (!enabled) {
+    console.log('[Internal Logging] Self-monitoring is disabled (INTERNAL_LOGGING_ENABLED=false)');
     return null;
   }
 
@@ -42,7 +46,7 @@ export async function initializeInternalLogging(): Promise<string | null> {
     const dsn = await buildDsn();
 
     if (!dsn) {
-      console.warn('[Internal Logging] Skipping internal logging - no DSN available');
+      console.warn('[Internal Logging] Skipping internal logging - no DSN available (API key not found)');
       return null;
     }
 
@@ -54,16 +58,16 @@ export async function initializeInternalLogging(): Promise<string | null> {
       dsn,
       service: process.env.SERVICE_NAME || 'logtide-backend',
       environment: process.env.NODE_ENV || 'development',
-      release: process.env.npm_package_version || '0.7.0',
-      batchSize: 50,
-      flushInterval: 10000,
-      maxBufferSize: 5000,
-      maxRetries: 2,
-      retryDelayMs: 500,
-      circuitBreakerThreshold: 3,
-      circuitBreakerResetMs: 30000,
+      release: process.env.npm_package_version || '0.8.0',
+      batchSize: 5, // Smaller batch for internal logs to see them faster
+      flushInterval: 5000,
+      maxBufferSize: 1000,
+      maxRetries: 3,
+      retryDelayMs: 1000,
       debug: process.env.NODE_ENV === 'development',
     });
+
+    console.log(`[Internal Logging] Initialized! Sending logs to: ${dsn.split('@')[1]} (key masked)`);
 
     return dsn;
   } catch (error) {

@@ -53,6 +53,9 @@ import type {
   MetricType,
   MetricTimeBucket,
   MetricExemplar,
+  MetricOverviewItem,
+  MetricsOverviewParams,
+  MetricsOverviewResult,
 } from '../../core/types.js';
 import { TimescaleQueryTranslator } from './query-translator.js';
 
@@ -373,10 +376,58 @@ export class TimescaleEngine extends StorageEngine {
   async distinct(params: DistinctParams): Promise<DistinctResult> {
     const start = Date.now();
     const pool = this.getPool();
+
+    // Skip-Scan Optimization for indexed fields (service, level)
+    // This provides massive performance gains (100x+) on large datasets by jumping 
+    // through the index instead of scanning all matching rows.
+    // Skip-scan only when no extra filters are present (service/level/filters would require CTE changes)
+    if (
+      (params.field === 'service' || params.field === 'level') &&
+      params.projectId &&
+      params.from &&
+      params.to &&
+      !params.service &&
+      !params.level &&
+      !params.filters
+    ) {
+      try {
+        const fieldName = params.field; // safe, validated above
+        const projectIds = Array.isArray(params.projectId) ? params.projectId : [params.projectId];
+
+        // Use a recursive CTE to jump through the b-tree index
+        // ORDER BY field only (not project_id) so we get the globally smallest value first
+        const query = `
+          WITH RECURSIVE t AS (
+             (SELECT ${fieldName} AS value FROM ${this.schema}.${this.tableName}
+              WHERE project_id = ANY($1) AND time >= $2 AND time <= $3
+              ORDER BY ${fieldName}, time DESC LIMIT 1)
+             UNION ALL
+             SELECT (SELECT ${fieldName} AS value FROM ${this.schema}.${this.tableName}
+                     WHERE project_id = ANY($1) AND time >= $2 AND time <= $3 AND ${fieldName} > t.value
+                     ORDER BY ${fieldName}, time DESC LIMIT 1)
+             FROM t
+             WHERE t.value IS NOT NULL
+          )
+          SELECT value FROM t WHERE value IS NOT NULL LIMIT $4;
+        `;
+
+        const limit = params.limit ?? 1000;
+        const result = await pool.query(query, [projectIds, params.from, params.to, limit]);
+
+        return {
+          values: result.rows.map((row) => row.value as string).filter((v) => v != null && v !== ''),
+          executionTimeMs: Date.now() - start,
+        };
+      } catch (err) {
+        console.warn('[Reservoir] Skip-Scan CTE failed, falling back to standard distinct:', err);
+        // Fallback to standard distinct logic if CTE fails
+      }
+    }
+
     const native = this.translator.translateDistinct(params);
     const result = await pool.query(native.query as string, native.parameters);
     return {
-      values: result.rows.map((row: Record<string, unknown>) => row.value as string).filter((v) => v != null),
+      values: result.rows.map((row: Record<string, unknown>) => row.value as string).filter((v) => v != null && v !== ''),
       executionTimeMs: Date.now() - start,
     };
   }
@@ -446,6 +497,7 @@ export class TimescaleEngine extends StorageEngine {
     const metadatas: (string | null)[] = [];
     const traceIds: (string | null)[] = [];
     const spanIds: (string | null)[] = [];
+    const sessionIds: (string | null)[] = [];
 
     for (const log of logs) {
       if (hasIds) ids.push(log.id!);
@@ -457,6 +509,7 @@ export class TimescaleEngine extends StorageEngine {
       metadatas.push(log.metadata ? JSON.stringify(log.metadata) : null);
       traceIds.push(log.traceId ?? null);
       spanIds.push(log.spanId ?? null);
+      sessionIds.push(log.sessionId ?? null);
     }
 
     let query: string;
@@ -464,11 +517,11 @@ export class TimescaleEngine extends StorageEngine {
     const pidType = this.options.projectIdType === 'uuid' ? 'uuid' : 'text';
 
     if (hasIds) {
-      query = `INSERT INTO ${s}.${t} (id, time, project_id, service, level, message, metadata, trace_id, span_id) SELECT * FROM UNNEST($1::uuid[], $2::timestamptz[], $3::${pidType}[], $4::text[], $5::text[], $6::text[], $7::jsonb[], $8::text[], $9::text[])`;
-      values = [ids, times, projectIds, services, levels, messages, metadatas, traceIds, spanIds];
+      query = `INSERT INTO ${s}.${t} (id, time, project_id, service, level, message, metadata, trace_id, span_id, session_id) SELECT * FROM UNNEST($1::uuid[], $2::timestamptz[], $3::${pidType}[], $4::text[], $5::text[], $6::text[], $7::jsonb[], $8::text[], $9::text[], $10::text[])`;
+      values = [ids, times, projectIds, services, levels, messages, metadatas, traceIds, spanIds, sessionIds];
     } else {
-      query = `INSERT INTO ${s}.${t} (time, project_id, service, level, message, metadata, trace_id, span_id) SELECT * FROM UNNEST($1::timestamptz[], $2::${pidType}[], $3::text[], $4::text[], $5::text[], $6::jsonb[], $7::text[], $8::text[])`;
-      values = [times, projectIds, services, levels, messages, metadatas, traceIds, spanIds];
+      query = `INSERT INTO ${s}.${t} (time, project_id, service, level, message, metadata, trace_id, span_id, session_id) SELECT * FROM UNNEST($1::timestamptz[], $2::${pidType}[], $3::text[], $4::text[], $5::text[], $6::jsonb[], $7::text[], $8::text[], $9::text[])`;
+      values = [times, projectIds, services, levels, messages, metadatas, traceIds, spanIds, sessionIds];
     }
 
     if (returning) {
@@ -1070,6 +1123,12 @@ export class TimescaleEngine extends StorageEngine {
 
   async aggregateMetrics(params: MetricAggregateParams): Promise<MetricAggregateResult> {
     const start = Date.now();
+
+    // Use pre-aggregated rollups when eligible
+    if (this.canUseMetricRollup(params)) {
+      return this.aggregateMetricsFromRollup(params, start);
+    }
+
     const pool = this.getPool();
     const s = this.schema;
 
@@ -1136,6 +1195,15 @@ export class TimescaleEngine extends StorageEngine {
       case 'last':
         aggExpr = '(array_agg(value ORDER BY time DESC))[1]';
         break;
+      case 'p50':
+        aggExpr = 'percentile_cont(0.5) WITHIN GROUP (ORDER BY value)';
+        break;
+      case 'p95':
+        aggExpr = 'percentile_cont(0.95) WITHIN GROUP (ORDER BY value)';
+        break;
+      case 'p99':
+        aggExpr = 'percentile_cont(0.99) WITHIN GROUP (ORDER BY value)';
+        break;
       default:
         aggExpr = 'AVG(value)';
     }
@@ -1188,6 +1256,77 @@ export class TimescaleEngine extends StorageEngine {
       metricName: params.metricName,
       metricType: params.metricType ?? 'gauge',
       timeseries,
+      executionTimeMs: Date.now() - start,
+    };
+  }
+
+  private canUseMetricRollup(params: MetricAggregateParams): boolean {
+    if (params.interval !== '1h' && params.interval !== '1d') return false;
+    if (params.aggregation === 'last' || params.aggregation === 'p50' || params.aggregation === 'p95' || params.aggregation === 'p99') return false;
+    if (params.groupBy && params.groupBy.length > 0) return false;
+    if (params.attributes && Object.keys(params.attributes).length > 0) return false;
+    return true;
+  }
+
+  private async aggregateMetricsFromRollup(
+    params: MetricAggregateParams,
+    start: number,
+  ): Promise<MetricAggregateResult> {
+    const pool = this.getPool();
+    const s = this.schema;
+
+    const rollupTable = params.interval === '1d'
+      ? 'metrics_daily_stats'
+      : 'metrics_hourly_stats';
+
+    const aggColumn: Record<string, string> = {
+      avg: 'avg_value',
+      sum: 'sum_value',
+      min: 'min_value',
+      max: 'max_value',
+      count: 'point_count',
+    };
+    const col = aggColumn[params.aggregation] || 'avg_value';
+
+    const projectIds = Array.isArray(params.projectId) ? params.projectId : [params.projectId];
+    const placeholders: unknown[] = [params.from, params.to, projectIds, params.metricName];
+
+    let serviceFilter = '';
+    if (params.serviceName) {
+      const services = Array.isArray(params.serviceName) ? params.serviceName : [params.serviceName];
+      placeholders.push(services);
+      serviceFilter = ` AND service_name = ANY($${placeholders.length})`;
+    }
+
+    const sql = `
+      SELECT bucket, ${col} AS agg_value
+      FROM ${s}.${rollupTable}
+      WHERE bucket >= $1 AND bucket <= $2
+        AND project_id = ANY($3)
+        AND metric_name = $4
+        ${serviceFilter}
+      ORDER BY bucket ASC
+    `;
+
+    const { rows } = await pool.query(sql, placeholders);
+
+    // Resolve metric type
+    let metricType = params.metricType;
+    if (!metricType && rows.length > 0) {
+      const typeRes = await pool.query(
+        `SELECT metric_type FROM ${s}.${rollupTable} WHERE metric_name = $1 LIMIT 1`,
+        [params.metricName],
+      );
+      metricType = typeRes.rows[0]?.metric_type || 'gauge';
+    }
+
+    return {
+      metricName: params.metricName,
+      metricType: (metricType || 'gauge') as MetricType,
+      timeseries: rows.map((r: Record<string, unknown>) => ({
+        bucket: new Date(r.bucket as string),
+        value: Number(r.agg_value) || 0,
+      })),
       executionTimeMs: Date.now() - start,
     };
   }
@@ -1400,6 +1539,117 @@ export class TimescaleEngine extends StorageEngine {
       executionTimeMs: Date.now() - start,
     };
   }
+
+  async getMetricsOverview(params: MetricsOverviewParams): Promise<MetricsOverviewResult> {
+    const start = Date.now();
+    const pool = this.getPool();
+    const s = this.schema;
+    const projectIds = Array.isArray(params.projectId) ? params.projectId : [params.projectId];
+    const placeholders: unknown[] = [params.from, params.to, projectIds];
+
+    let serviceFilter = '';
+    if (params.serviceName) {
+      placeholders.push(params.serviceName);
+      serviceFilter = ` AND service_name = $${placeholders.length}`;
+    }
+
+    // Try continuous aggregate first
+    let rows: Record<string, unknown>[];
+    try {
+      const sql = `
+        SELECT
+          metric_name, metric_type, service_name,
+          SUM(point_count)::bigint AS point_count,
+          CASE WHEN SUM(point_count) > 0
+            THEN SUM(sum_value) / SUM(point_count)
+            ELSE 0
+          END AS avg_value,
+          MIN(min_value) AS min_value,
+          MAX(max_value) AS max_value
+        FROM ${s}.metrics_hourly_stats
+        WHERE bucket >= $1 AND bucket <= $2
+          AND project_id = ANY($3)
+          ${serviceFilter}
+        GROUP BY metric_name, metric_type, service_name
+        ORDER BY service_name, metric_name
+      `;
+      const result = await pool.query(sql, placeholders);
+      rows = result.rows;
+    } catch {
+      // Fallback to raw metrics table
+      const sql = `
+        SELECT
+          metric_name, metric_type, service_name,
+          COUNT(*)::bigint AS point_count,
+          AVG(value) AS avg_value,
+          MIN(value) AS min_value,
+          MAX(value) AS max_value
+        FROM ${s}.metrics
+        WHERE time >= $1 AND time <= $2
+          AND project_id = ANY($3)
+          ${serviceFilter}
+        GROUP BY metric_name, metric_type, service_name
+        ORDER BY service_name, metric_name
+      `;
+      const result = await pool.query(sql, placeholders);
+      rows = result.rows;
+    }
+
+    // Get latest value per metric (from raw table, last 5 min)
+    const latestPlaceholders: unknown[] = [new Date(Date.now() - 5 * 60 * 1000), projectIds];
+    let latestServiceFilter = '';
+    if (params.serviceName) {
+      latestPlaceholders.push(params.serviceName);
+      latestServiceFilter = ` AND service_name = $${latestPlaceholders.length}`;
+    }
+
+    let latestMap = new Map<string, number>();
+    try {
+      const latestSql = `
+        SELECT DISTINCT ON (metric_name, service_name)
+          metric_name, service_name, value AS latest_value
+        FROM ${s}.metrics
+        WHERE time >= $1 AND project_id = ANY($2)
+          ${latestServiceFilter}
+        ORDER BY metric_name, service_name, time DESC
+      `;
+      const { rows: latestRows } = await pool.query(latestSql, latestPlaceholders);
+      latestMap = new Map(
+        latestRows.map((r: Record<string, unknown>) => [
+          `${r.metric_name}:${r.service_name}`,
+          Number(r.latest_value),
+        ]),
+      );
+    } catch {
+      // If latest value query fails, just use avg from the aggregate
+    }
+
+    const serviceMap = new Map<string, MetricOverviewItem[]>();
+    for (const row of rows) {
+      const serviceName = row.service_name as string;
+      const key = `${row.metric_name}:${serviceName}`;
+      const item: MetricOverviewItem = {
+        metricName: row.metric_name as string,
+        metricType: (row.metric_type as MetricType) || 'gauge',
+        serviceName,
+        latestValue: latestMap.get(key) ?? Number(row.avg_value) ?? 0,
+        avgValue: Number(row.avg_value) ?? 0,
+        minValue: Number(row.min_value) ?? 0,
+        maxValue: Number(row.max_value) ?? 0,
+        pointCount: Number(row.point_count) ?? 0,
+      };
+      if (!serviceMap.has(serviceName)) serviceMap.set(serviceName, []);
+      serviceMap.get(serviceName)!.push(item);
+    }
+
+    return {
+      services: Array.from(serviceMap.entries()).map(([serviceName, metrics]) => ({
+        serviceName,
+        metrics,
+      })),
+      executionTimeMs: Date.now() - start,
+    };
+  }
 }
 
 function mapRowToLogRecord(row: Record<string, unknown>): LogRecord {
@@ -1413,6 +1663,7 @@ function mapRowToLogRecord(row: Record<string, unknown>): LogRecord {
     metadata: row.metadata as Record<string, unknown> | undefined,
     traceId: row.trace_id as string | undefined,
     spanId: row.span_id as string | undefined,
+    sessionId: row.session_id as string | undefined,
     hostname: row.hostname as string | undefined,
   };
 }

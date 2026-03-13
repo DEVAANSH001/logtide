@@ -1,5 +1,5 @@
 import { writable, derived } from 'svelte/store';
-import { metricsAPI, type MetricName, type MetricAggregateResult, type MetricDataResponse, type MetricAggregationFn } from '$lib/api/metrics';
+import { metricsAPI, type MetricName, type MetricAggregateResult, type MetricDataResponse, type MetricAggregationFn, type MetricsOverviewResult } from '$lib/api/metrics';
 
 interface MetricsState {
   metricNames: MetricName[];
@@ -17,6 +17,11 @@ interface MetricsState {
   labelValues: Record<string, string[]>;
   dataPoints: MetricDataResponse | null;
   dataPointsLoading: boolean;
+  activeTab: 'overview' | 'explorer' | 'golden';
+  overview: MetricsOverviewResult | null;
+  overviewLoading: boolean;
+  overviewError: string | null;
+  selectedService: string | null;
 }
 
 const initialState: MetricsState = {
@@ -35,6 +40,11 @@ const initialState: MetricsState = {
   labelValues: {},
   dataPoints: null,
   dataPointsLoading: false,
+  activeTab: 'overview',
+  overview: null,
+  overviewLoading: false,
+  overviewError: null,
+  selectedService: null,
 };
 
 function createMetricsStore() {
@@ -144,6 +154,24 @@ function createMetricsStore() {
       });
     },
 
+    async loadOverview(projectId: string, from: string, to: string, serviceName?: string) {
+      update(s => ({ ...s, overviewLoading: true, overviewError: null }));
+      try {
+        const result = await metricsAPI.getOverview({ projectId, from, to, serviceName });
+        update(s => ({ ...s, overview: result, overviewLoading: false }));
+      } catch (error) {
+        update(s => ({ ...s, overviewError: (error as Error).message, overviewLoading: false }));
+      }
+    },
+
+    setActiveTab(tab: 'overview' | 'explorer' | 'golden') {
+      update(s => ({ ...s, activeTab: tab }));
+    },
+
+    setSelectedService(service: string | null) {
+      update(s => ({ ...s, selectedService: service }));
+    },
+
     reset() {
       set(initialState);
     },
@@ -155,3 +183,6 @@ export const metricNames = derived({ subscribe: metricsStore.subscribe }, $s => 
 export const selectedMetric = derived({ subscribe: metricsStore.subscribe }, $s => $s.selectedMetric);
 export const timeseries = derived({ subscribe: metricsStore.subscribe }, $s => $s.timeseries);
 export const timeseriesLoading = derived({ subscribe: metricsStore.subscribe }, $s => $s.timeseriesLoading);
+export const overview = derived({ subscribe: metricsStore.subscribe }, $s => $s.overview);
+export const overviewLoading = derived({ subscribe: metricsStore.subscribe }, $s => $s.overviewLoading);
+export const activeTab = derived({ subscribe: metricsStore.subscribe }, $s => $s.activeTab);

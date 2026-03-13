@@ -58,6 +58,10 @@ export class ClickHouseQueryTranslator extends QueryTranslator {
       prewhere.push(`trace_id = {p_trace_id:String}`);
       queryParams.p_trace_id = params.traceId;
     }
+    if (params.sessionId !== undefined) {
+      prewhere.push(`session_id = {p_session_id:String}`);
+      queryParams.p_session_id = params.sessionId;
+    }
 
     // Lower-selectivity filters go in WHERE
     if (params.organizationId !== undefined) {
@@ -194,6 +198,10 @@ export class ClickHouseQueryTranslator extends QueryTranslator {
     if (params.traceId !== undefined) {
       conditions.push(`trace_id = {p_trace_id:String}`);
       queryParams.p_trace_id = params.traceId;
+    }
+    if (params.sessionId !== undefined) {
+      conditions.push(`session_id = {p_session_id:String}`);
+      queryParams.p_session_id = params.sessionId;
     }
 
     if (params.search) {

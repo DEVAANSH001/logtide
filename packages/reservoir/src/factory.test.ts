@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { StorageEngineFactory } from './factory.js';
 import { TimescaleEngine } from './engines/timescale/timescale-engine.js';
 import { ClickHouseEngine } from './engines/clickhouse/clickhouse-engine.js';
+import { MongoDBEngine } from './engines/mongodb/mongodb-engine.js';
 import type { StorageConfig, EngineType } from './core/types.js';
 
 const validConfig: StorageConfig = {
@@ -21,6 +22,11 @@ describe('StorageEngineFactory', () => {
   it('creates a ClickHouseEngine for clickhouse type', () => {
     const engine = StorageEngineFactory.create('clickhouse', validConfig);
     expect(engine).toBeInstanceOf(ClickHouseEngine);
+  });
+
+  it('creates a MongoDBEngine for mongodb type', () => {
+    const engine = StorageEngineFactory.create('mongodb', validConfig);
+    expect(engine).toBeInstanceOf(MongoDBEngine);
   });
 
   it('throws for missing host', () => {

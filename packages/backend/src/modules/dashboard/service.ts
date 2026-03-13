@@ -51,7 +51,31 @@ export interface TimelineEvent {
 
 class DashboardService {
   /**
-   * Get dashboard statistics for an organization
+   * Resolve project IDs from org or single project.
+   * When projectId is provided, returns [projectId] directly (skips org lookup).
+   */
+  private async resolveProjectIds(organizationId: string, projectId?: string): Promise<string[]> {
+    if (projectId) {
+      return [projectId];
+    }
+    const projects = await db
+      .selectFrom('projects')
+      .select('id')
+      .where('organization_id', '=', organizationId)
+      .execute();
+    return projects.map((p) => p.id);
+  }
+
+  /**
+   * Build a cache key that includes projectId when scoped to a single project.
+   */
+  private buildCacheKey(organizationId: string, metric: string, projectId?: string, extra?: Record<string, unknown>): string {
+    const scope = projectId ? `project-${projectId}` : organizationId;
+    return CacheManager.statsKey(scope, `dashboard-${metric}`, extra);
+  }
+
+  /**
+   * Get dashboard statistics for an organization or a single project.
    *
    * PERFORMANCE: Uses continuous aggregates (logs_hourly_stats) for historical data
    * and real-time queries only for the last hour. This provides 10-50x speedup
@@ -63,23 +87,16 @@ class DashboardService {
    * - Active services (count distinct from aggregate - approximation)
    * - Throughput (logs/sec in last hour - real-time)
    */
-  async getStats(organizationId: string): Promise<DashboardStats> {
+  async getStats(organizationId: string, projectId?: string): Promise<DashboardStats> {
     // Try cache first (dashboard stats don't need to be real-time)
-    const cacheKey = CacheManager.statsKey(organizationId, 'dashboard-stats');
+    const cacheKey = this.buildCacheKey(organizationId, 'stats', projectId);
     const cached = await CacheManager.get<DashboardStats>(cacheKey);
 
     if (cached) {
       return cached;
     }
 
-    // Get all project IDs for this organization
-    const projects = await db
-      .selectFrom('projects')
-      .select('id')
-      .where('organization_id', '=', organizationId)
-      .execute();
-
-    const projectIds = projects.map((p) => p.id);
+    const projectIds = await this.resolveProjectIds(organizationId, projectId);
 
     if (projectIds.length === 0) {
       return {
@@ -124,6 +141,11 @@ class DashboardService {
 
   /**
    * Get stats using continuous aggregates (fast path)
+   *
+   * PERFORMANCE: This is the critical path for dashboard speed.
+   * 1. Uses pre-computed aggregates for 95% of the data.
+   * 2. Uses countEstimate for the last hour to avoid scanning millions of rows on TimescaleDB.
+   * 3. Falls back to exact count only if estimate is unavailable or volume is very low.
    */
   private async getStatsFromAggregate(
     projectIds: string[],
@@ -132,7 +154,16 @@ class DashboardService {
     lastHourStart: Date,
     prevHourStart: Date
   ): Promise<DashboardStats> {
-    // Query aggregate for historical data (>1 hour old) and reservoir for recent data in parallel
+    // 1. Get an initial estimate of the recent log volume.
+    // countEstimate is fast on Timescale (EXPLAIN) and ClickHouse (Columnar).
+    const recentTotalResult = await reservoir.countEstimate({ 
+      projectId: projectIds, 
+      from: lastHourStart, 
+      to: new Date() 
+    });
+    const recentVolume = recentTotalResult.count;
+
+    // 2. Query aggregate for historical data and reservoir for recent data in parallel
     const [todayAggregateStats, recentTotal, recentErrors, recentServices, yesterdayAggregateStats, prevHourCount] = await Promise.all([
       // Today's historical stats from aggregate (today start to 1 hour ago)
       db
@@ -148,9 +179,21 @@ class DashboardService {
         .executeTakeFirst(),
 
       // Recent stats from reservoir (last hour)
-      reservoir.count({ projectId: projectIds, from: lastHourStart, to: new Date() }),
-      reservoir.count({ projectId: projectIds, from: lastHourStart, to: new Date(), level: ['error', 'critical'] }),
-      reservoir.distinct({ field: 'service', projectId: projectIds, from: lastHourStart, to: new Date() }),
+      // If volume is high (>50k), use the estimate we already got to save a query.
+      recentVolume > 50000 
+        ? Promise.resolve(recentTotalResult) 
+        : reservoir.count({ projectId: projectIds, from: lastHourStart, to: new Date() }),
+      
+      // Errors in last hour: use estimate if volume is high
+      recentVolume > 50000
+        ? reservoir.countEstimate({ projectId: projectIds, from: lastHourStart, to: new Date(), level: ['error', 'critical'] })
+        : reservoir.count({ projectId: projectIds, from: lastHourStart, to: new Date(), level: ['error', 'critical'] }),
+      
+      // Active services: scanning millions of rows for DISTINCT is the #1 cause of dashboard lag.
+      // We skip real-time distinct if volume is high and rely on the aggregate data.
+      recentVolume > 20000 
+        ? Promise.resolve({ values: [], executionTimeMs: 0 }) 
+        : reservoir.distinct({ field: 'service', projectId: projectIds, from: lastHourStart, to: new Date() }),
 
       // Yesterday's stats from aggregate
       db
@@ -165,8 +208,10 @@ class DashboardService {
         .where('bucket', '<', todayStart)
         .executeTakeFirst(),
 
-      // Previous hour from reservoir (for throughput trend)
-      reservoir.count({ projectId: projectIds, from: prevHourStart, to: lastHourStart }),
+      // Previous hour count (for throughput trend)
+      recentVolume > 50000
+        ? reservoir.countEstimate({ projectId: projectIds, from: prevHourStart, to: lastHourStart })
+        : reservoir.count({ projectId: projectIds, from: prevHourStart, to: lastHourStart }),
     ]);
 
     // Combine aggregate + recent stats
@@ -175,7 +220,7 @@ class DashboardService {
     const yesterdayCount = Number(yesterdayAggregateStats?.total ?? 0);
     const yesterdayErrorCount = Number(yesterdayAggregateStats?.errors ?? 0);
 
-    // Approximate: aggregate distinct + recent distinct (may overcount)
+    // Approximate: aggregate distinct + recent distinct (may overcount slightly)
     const todayServiceCount = Number(todayAggregateStats?.services ?? 0) + recentServices.values.length;
     const yesterdayServiceCount = Number(yesterdayAggregateStats?.services ?? 0);
 
@@ -278,23 +323,16 @@ class DashboardService {
    * for historical data (>1 hour old), with real-time query for the most recent hour.
    * This provides 10-50x faster queries for dashboard charts.
    */
-  async getTimeseries(organizationId: string): Promise<TimeseriesDataPoint[]> {
+  async getTimeseries(organizationId: string, projectId?: string): Promise<TimeseriesDataPoint[]> {
     // Try cache first
-    const cacheKey = CacheManager.statsKey(organizationId, 'dashboard-timeseries');
+    const cacheKey = this.buildCacheKey(organizationId, 'timeseries', projectId);
     const cached = await CacheManager.get<TimeseriesDataPoint[]>(cacheKey);
 
     if (cached) {
       return cached;
     }
 
-    // Get all project IDs for this organization
-    const projects = await db
-      .selectFrom('projects')
-      .select('id')
-      .where('organization_id', '=', organizationId)
-      .execute();
-
-    const projectIds = projects.map((p) => p.id);
+    const projectIds = await this.resolveProjectIds(organizationId, projectId);
 
     if (projectIds.length === 0) {
       return [];
@@ -425,22 +463,16 @@ class DashboardService {
    * PERFORMANCE: Uses continuous aggregate (logs_daily_stats) for historical data
    * and raw logs only for the most recent day. This provides 10-50x speedup.
    */
-  async getTopServices(organizationId: string, limit: number = 5): Promise<Array<{ name: string; count: number; percentage: number }>> {
+  async getTopServices(organizationId: string, limit: number = 5, projectId?: string): Promise<Array<{ name: string; count: number; percentage: number }>> {
     // Try cache first
-    const cacheKey = CacheManager.statsKey(organizationId, 'dashboard-top-services', { limit });
+    const cacheKey = this.buildCacheKey(organizationId, 'top-services', projectId, { limit });
     const cached = await CacheManager.get<Array<{ name: string; count: number; percentage: number }>>(cacheKey);
 
     if (cached) {
       return cached;
     }
 
-    const projects = await db
-      .selectFrom('projects')
-      .select('id')
-      .where('organization_id', '=', organizationId)
-      .execute();
-
-    const projectIds = projects.map((p) => p.id);
+    const projectIds = await this.resolveProjectIds(organizationId, projectId);
 
     if (projectIds.length === 0) {
       return [];
@@ -551,14 +583,8 @@ class DashboardService {
    * Get timeline events (alerts + detections) for last 24 hours, bucketed by hour.
    * Used to overlay markers on the dashboard logs chart.
    */
-  async getTimelineEvents(organizationId: string): Promise<TimelineEvent[]> {
-    const projects = await db
-      .selectFrom('projects')
-      .select('id')
-      .where('organization_id', '=', organizationId)
-      .execute();
-
-    const projectIds = projects.map((p) => p.id);
+  async getTimelineEvents(organizationId: string, projectId?: string): Promise<TimelineEvent[]> {
+    const projectIds = await this.resolveProjectIds(organizationId, projectId);
 
     if (projectIds.length === 0) {
       return [];
@@ -569,7 +595,7 @@ class DashboardService {
     const lastHour = new Date(now.getTime() - 60 * 60 * 1000);
 
     // Query alerts from alert_history JOIN alert_rules (last 24h)
-    const alertRows = await db
+    let alertQuery = db
       .selectFrom('alert_history')
       .innerJoin('alert_rules', 'alert_rules.id', 'alert_history.rule_id')
       .select([
@@ -579,45 +605,31 @@ class DashboardService {
         'alert_history.log_count',
       ])
       .where('alert_rules.organization_id', '=', organizationId)
-      .where('alert_history.triggered_at', '>=', last24Hours)
-      .execute();
+      .where('alert_history.triggered_at', '>=', last24Hours);
+
+    if (projectId) {
+      alertQuery = alertQuery.where('alert_rules.project_id', '=', projectId);
+    }
+
+    const alertRows = await alertQuery.execute();
 
     // Query detections - try continuous aggregate first, fallback to raw
     let detectionRows: Array<{ bucket: string | Date; severity: string; count: string }> = [];
 
     try {
       // Historical from aggregate + recent from raw
-      const [historicalDetections, recentDetections] = await Promise.all([
-        db
-          .selectFrom('detection_events_hourly_stats')
-          .select([
-            'bucket',
-            'severity',
-            sql<string>`SUM(detection_count)`.as('count'),
-          ])
-          .where('organization_id', '=', organizationId)
-          .where('bucket', '>=', last24Hours)
-          .where('bucket', '<', lastHour)
-          .groupBy(['bucket', 'severity'])
-          .execute(),
+      let histQuery = db
+        .selectFrom('detection_events_hourly_stats')
+        .select([
+          'bucket',
+          'severity',
+          sql<string>`SUM(detection_count)`.as('count'),
+        ])
+        .where('organization_id', '=', organizationId)
+        .where('bucket', '>=', last24Hours)
+        .where('bucket', '<', lastHour);
 
-        db
-          .selectFrom('detection_events')
-          .select([
-            sql<string>`time_bucket('1 hour', time)`.as('bucket'),
-            'severity',
-            sql<string>`COUNT(*)`.as('count'),
-          ])
-          .where('organization_id', '=', organizationId)
-          .where('time', '>=', lastHour)
-          .groupBy(['bucket', 'severity'])
-          .execute(),
-      ]);
-
-      detectionRows = [...historicalDetections, ...recentDetections];
-    } catch {
-      // Fallback: query raw detection_events for full 24h
-      detectionRows = await db
+      let recentQuery = db
         .selectFrom('detection_events')
         .select([
           sql<string>`time_bucket('1 hour', time)`.as('bucket'),
@@ -625,7 +637,36 @@ class DashboardService {
           sql<string>`COUNT(*)`.as('count'),
         ])
         .where('organization_id', '=', organizationId)
-        .where('time', '>=', last24Hours)
+        .where('time', '>=', lastHour);
+
+      if (projectId) {
+        histQuery = histQuery.where('project_id', '=', projectId);
+        recentQuery = recentQuery.where('project_id', '=', projectId);
+      }
+
+      const [historicalDetections, recentDetections] = await Promise.all([
+        histQuery.groupBy(['bucket', 'severity']).execute(),
+        recentQuery.groupBy(['bucket', 'severity']).execute(),
+      ]);
+
+      detectionRows = [...historicalDetections, ...recentDetections];
+    } catch {
+      // Fallback: query raw detection_events for full 24h
+      let fallbackQuery = db
+        .selectFrom('detection_events')
+        .select([
+          sql<string>`time_bucket('1 hour', time)`.as('bucket'),
+          'severity',
+          sql<string>`COUNT(*)`.as('count'),
+        ])
+        .where('organization_id', '=', organizationId)
+        .where('time', '>=', last24Hours);
+
+      if (projectId) {
+        fallbackQuery = fallbackQuery.where('project_id', '=', projectId);
+      }
+
+      detectionRows = await fallbackQuery
         .groupBy(['bucket', 'severity'])
         .execute();
     }
@@ -685,23 +726,16 @@ class DashboardService {
    * idx_logs_project_errors instead of scanning the entire table.
    * Results are cached for 1 minute.
    */
-  async getRecentErrors(organizationId: string): Promise<RecentError[]> {
+  async getRecentErrors(organizationId: string, projectId?: string): Promise<RecentError[]> {
     // Try cache first
-    const cacheKey = CacheManager.statsKey(organizationId, 'dashboard-recent-errors');
+    const cacheKey = this.buildCacheKey(organizationId, 'recent-errors', projectId);
     const cached = await CacheManager.get<RecentError[]>(cacheKey);
 
     if (cached) {
       return cached;
     }
 
-    // Get all project IDs for this organization
-    const projects = await db
-      .selectFrom('projects')
-      .select('id')
-      .where('organization_id', '=', organizationId)
-      .execute();
-
-    const projectIds = projects.map((p) => p.id);
+    const projectIds = await this.resolveProjectIds(organizationId, projectId);
 
     if (projectIds.length === 0) {
       return [];

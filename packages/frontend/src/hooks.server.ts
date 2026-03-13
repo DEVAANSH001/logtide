@@ -21,7 +21,7 @@ const configHandle: Handle = async ({ event, resolve }) => {
       const apiUrl = env.PUBLIC_API_URL ?? '';
 
       // Inject the config script before the closing </head> tag
-      const configScript = `<script>window.__LOGTIDE_CONFIG__={apiUrl:"${apiUrl}"}</script>`;
+      const configScript = `<script>window.__LOGTIDE_CONFIG__={apiUrl:${JSON.stringify(apiUrl)}}</script>`;
 
       return html.replace('</head>', `${configScript}</head>`);
     },
@@ -82,7 +82,7 @@ export const handle = dsn
         dsn,
         service: 'logtide-frontend',
         environment: privateEnv?.NODE_ENV || 'production',
-      }) as unknown as Handle,
+        release: process.env.npm_package_version || '0.8.0',      }) as unknown as Handle,
       requestLogHandle,
       configHandle
     )

@@ -93,15 +93,23 @@
   // Local project and time range state
   let projects = $state<Project[]>([]);
   let selectedProject = $state<string | null>(null);
-  let timeRangeType = $state<'last_hour' | 'last_24h' | 'last_7d'>('last_24h');
+  let timeRangeType = $state<'last_hour' | 'last_24h' | 'last_7d' | 'custom'>('last_24h');
+  let customFrom = $state<string | null>(null);
+  let customTo = $state<string | null>(null);
 
   let projectsAPI = $derived(new ProjectsAPI(() => token));
 
   async function loadProjects() {
     if (!$currentOrganization) return;
     try {
-      const res = await projectsAPI.getProjects($currentOrganization.id);
-      projects = res.projects;
+      const [res, availability] = await Promise.all([
+        projectsAPI.getProjects($currentOrganization.id),
+        projectsAPI.getProjectDataAvailability($currentOrganization.id).catch(() => null),
+      ]);
+      const tracesProjectIds = availability?.traces;
+      projects = tracesProjectIds
+        ? res.projects.filter((p) => tracesProjectIds.includes(p.id))
+        : res.projects;
       if (projects.length > 0 && !selectedProject) {
         selectedProject = projects[0].id;
       }
@@ -119,6 +127,11 @@
         return { from: new Date(now.getTime() - 24 * 60 * 60 * 1000), to: now };
       case 'last_7d':
         return { from: new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000), to: now };
+      case 'custom':
+        return {
+          from: customFrom ? new Date(customFrom) : new Date(now.getTime() - 24 * 60 * 60 * 1000),
+          to: customTo ? new Date(customTo) : now,
+        };
       default:
         return { from: new Date(now.getTime() - 24 * 60 * 60 * 1000), to: now };
     }
@@ -135,6 +148,8 @@
     // Read URL params for cross-page links
     const urlService = page.url.searchParams.get('service');
     const urlProjectId = page.url.searchParams.get('projectId');
+    const urlFrom = page.url.searchParams.get('from');
+    const urlTo = page.url.searchParams.get('to');
 
     if (urlService) {
       selectedService = urlService;
@@ -142,6 +157,12 @@
 
     if (urlProjectId) {
       selectedProject = urlProjectId;
+    }
+
+    if (urlFrom && urlTo) {
+      timeRangeType = 'custom';
+      customFrom = urlFrom;
+      customTo = urlTo;
     }
 
     loadProjects();
@@ -510,12 +531,15 @@
             }}
           >
             <Select.Trigger class="w-full">
-              {timeRangeType === 'last_hour' ? 'Last Hour' : timeRangeType === 'last_24h' ? 'Last 24 Hours' : 'Last 7 Days'}
+              {timeRangeType === 'last_hour' ? 'Last Hour' : timeRangeType === 'last_24h' ? 'Last 24 Hours' : timeRangeType === 'last_7d' ? 'Last 7 Days' : 'Custom'}
             </Select.Trigger>
             <Select.Content>
               <Select.Item value="last_hour">Last Hour</Select.Item>
               <Select.Item value="last_24h">Last 24 Hours</Select.Item>
               <Select.Item value="last_7d">Last 7 Days</Select.Item>
+              {#if timeRangeType === 'custom'}
+                <Select.Item value="custom">Custom</Select.Item>
+              {/if}
             </Select.Content>
           </Select.Root>
         </div>

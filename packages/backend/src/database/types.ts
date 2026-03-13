@@ -58,6 +58,7 @@ export interface LogsTable {
   >;
   trace_id: string | null;
   span_id: string | null;
+  session_id: string | null;
   created_at: Generated<Timestamp>;
 }
 
@@ -485,7 +486,22 @@ export interface StackFramesTable {
   is_app_code: boolean;
   code_context: ColumnType<Record<string, unknown> | null, Record<string, unknown> | null, Record<string, unknown> | null>;
   metadata: ColumnType<Record<string, unknown> | null, Record<string, unknown> | null, Record<string, unknown> | null>;
+  original_file: string | null;
+  original_line: number | null;
+  original_column: number | null;
+  original_function: string | null;
   created_at: Generated<Timestamp>;
+}
+
+export interface SourceMapsTable {
+  id: Generated<string>;
+  project_id: string;
+  organization_id: string;
+  release: string;
+  file_name: string;
+  file_size: number;
+  storage_path: string;
+  uploaded_at: Generated<Timestamp>;
 }
 
 export interface ErrorGroupsTable {
@@ -759,6 +775,36 @@ export interface AuditLogTable {
 // METRICS TABLES (OTLP Metrics Ingestion)
 // ============================================================================
 
+// ============================================================================
+// METRICS CONTINUOUS AGGREGATES
+// ============================================================================
+
+export interface MetricsHourlyStatsTable {
+  bucket: Timestamp;
+  project_id: string;
+  metric_name: string;
+  metric_type: string;
+  service_name: string;
+  point_count: number;
+  avg_value: number | null;
+  sum_value: number | null;
+  min_value: number | null;
+  max_value: number | null;
+}
+
+export interface MetricsDailyStatsTable {
+  bucket: Timestamp;
+  project_id: string;
+  metric_name: string;
+  metric_type: string;
+  service_name: string;
+  point_count: number;
+  avg_value: number | null;
+  sum_value: number | null;
+  min_value: number | null;
+  max_value: number | null;
+}
+
 export interface MetricsTable {
   time: Timestamp;
   id: Generated<string>;
@@ -818,6 +864,8 @@ export interface Database {
   detection_events_hourly_stats: DetectionEventsHourlyStatsTable;
   detection_events_daily_stats: DetectionEventsDailyStatsTable;
   detection_events_rule_stats: DetectionEventsRuleStatsTable;
+  metrics_hourly_stats: MetricsHourlyStatsTable;
+  metrics_daily_stats: MetricsDailyStatsTable;
   // Exception tracking tables
   exceptions: ExceptionsTable;
   stack_frames: StackFramesTable;
@@ -845,6 +893,8 @@ export interface Database {
   organization_pii_salts: OrganizationPiiSaltsTable;
   // Audit log
   audit_log: AuditLogTable;
+  // Source maps
+  sourcemaps: SourceMapsTable;
   // Metrics (OTLP)
   metrics: MetricsTable;
   metric_exemplars: MetricExemplarsTable;

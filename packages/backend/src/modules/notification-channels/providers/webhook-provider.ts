@@ -6,6 +6,22 @@
 import type { NotificationProvider, NotificationContext, DeliveryResult } from './interface.js';
 import type { WebhookChannelConfig, ChannelConfig } from '@logtide/shared';
 
+const BLOCKED_HOSTS = ['localhost', '127.0.0.1', '0.0.0.0', '[::1]', 'metadata.google.internal'];
+
+function isPrivateIP(hostname: string): boolean {
+  // Block link-local, loopback, and private ranges
+  if (BLOCKED_HOSTS.includes(hostname.toLowerCase())) return true;
+  const parts = hostname.split('.').map(Number);
+  if (parts.length !== 4 || parts.some(isNaN)) return false;
+  // 10.x.x.x, 172.16-31.x.x, 192.168.x.x, 169.254.x.x
+  if (parts[0] === 10) return true;
+  if (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31) return true;
+  if (parts[0] === 192 && parts[1] === 168) return true;
+  if (parts[0] === 169 && parts[1] === 254) return true;
+  if (parts[0] === 127) return true;
+  return false;
+}
+
 export class WebhookProvider implements NotificationProvider {
   readonly type = 'webhook' as const;
 
@@ -17,6 +33,10 @@ export class WebhookProvider implements NotificationProvider {
     const webhookConfig = channelConfig as WebhookChannelConfig;
 
     try {
+      const url = new URL(webhookConfig.url);
+      if (isPrivateIP(url.hostname)) {
+        return { success: false, error: 'Webhook URLs pointing to private/internal addresses are not allowed' };
+      }
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
         'User-Agent': 'LogTide/1.0',

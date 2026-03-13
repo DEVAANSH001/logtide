@@ -2,15 +2,17 @@ import type { EngineType, StorageConfig } from './core/types.js';
 import type { StorageEngine } from './core/storage-engine.js';
 import { TimescaleEngine, type TimescaleEngineOptions } from './engines/timescale/timescale-engine.js';
 import { ClickHouseEngine, type ClickHouseEngineOptions } from './engines/clickhouse/clickhouse-engine.js';
+import { MongoDBEngine, type MongoDBEngineOptions } from './engines/mongodb/mongodb-engine.js';
 
-export type EngineOptions = TimescaleEngineOptions | ClickHouseEngineOptions;
+export type EngineOptions = TimescaleEngineOptions | ClickHouseEngineOptions | MongoDBEngineOptions;
 
 export class StorageEngineFactory {
   static create(type: EngineType, config: StorageConfig, options?: EngineOptions): StorageEngine {
     // Skip validation when using an injected pool/client
     const skipValidation =
       (type === 'timescale' && (options as TimescaleEngineOptions)?.pool) ||
-      (type === 'clickhouse' && (options as ClickHouseEngineOptions)?.client);
+      (type === 'clickhouse' && (options as ClickHouseEngineOptions)?.client) ||
+      (type === 'mongodb' && (options as MongoDBEngineOptions)?.client);
 
     if (!skipValidation) {
       this.validateConfig(config);
@@ -22,6 +24,9 @@ export class StorageEngineFactory {
 
       case 'clickhouse':
         return new ClickHouseEngine(config, options as ClickHouseEngineOptions);
+
+      case 'mongodb':
+        return new MongoDBEngine(config, options as MongoDBEngineOptions);
 
       default: {
         const _exhaustive: never = type;

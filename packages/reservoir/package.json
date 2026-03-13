@@ -1,6 +1,6 @@
 {
   "name": "@logtide/reservoir",
-  "version": "0.7.0",
+  "version": "0.8.0-rc6",
   "description": "Pluggable storage abstraction for Logtide log management",
   "type": "module",
   "main": "./dist/index.js",
@@ -17,6 +17,10 @@
     "./engines/clickhouse": {
       "types": "./dist/engines/clickhouse/index.d.ts",
       "import": "./dist/engines/clickhouse/index.js"
+    },
+    "./engines/mongodb": {
+      "types": "./dist/engines/mongodb/index.d.ts",
+      "import": "./dist/engines/mongodb/index.js"
     }
   },
   "scripts": {
@@ -25,11 +29,20 @@
     "test": "vitest",
     "test:watch": "vitest --watch",
     "typecheck": "tsc --noEmit",
-    "clean": "rimraf dist"
+    "clean": "rimraf dist",
+    "bench": "tsx benchmark/run.ts",
+    "bench:logs": "tsx benchmark/run.ts -s logs",
+    "bench:spans": "tsx benchmark/run.ts -s spans",
+    "bench:metrics": "tsx benchmark/run.ts -s metrics",
+    "bench:quick": "tsx benchmark/run.ts -v 1k,10k -i 3 -w 1",
+    "bench:full": "tsx benchmark/run.ts -v 1k,10k,100k,1m,10m,50m",
+    "bench:infra": "docker compose -f benchmark/docker-compose.benchmark.yml up -d",
+    "bench:infra:down": "docker compose -f benchmark/docker-compose.benchmark.yml down -v"
   },
   "dependencies": {
     "@clickhouse/client": "^1.17.0",
-    "@logtide/shared": "workspace:*"
+    "@logtide/shared": "workspace:*",
+    "mongodb": "^6.21.0"
   },
   "peerDependencies": {
     "pg": "^8.11.0"
@@ -42,6 +55,7 @@
   "devDependencies": {
     "@types/node": "^20.11.0",
     "@types/pg": "^8.11.0",
+    "tsx": "^4.21.0",
     "typescript": "^5.9.3",
     "vitest": "^2.1.0"
   },

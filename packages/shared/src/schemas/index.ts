@@ -33,6 +33,7 @@ export const logSchema = z.object({
     .string()
     .regex(/^[a-f0-9]{16}$/i)
     .optional(),
+  session_id: z.string().uuid().optional(),
 });
 
 export const ingestRequestSchema = z.object({

@@ -11,6 +11,7 @@
   import Check from '@lucide/svelte/icons/check';
   import { checklistStore } from '$lib/stores/checklist';
   import { copyToClipboard } from '$lib/utils/clipboard';
+  import { getApiUrl } from '$lib/config';
   import type { ApiKeyType } from '$lib/api/api-keys';
 
   interface Props {
@@ -27,6 +28,18 @@
   let generatedApiKey = $state<string | null>(null);
   let generatedKeyType = $state<ApiKeyType>('write');
   let copied = $state(false);
+  let copiedDsn = $state(false);
+  let apiUrlValue = $state('http://localhost:8080');
+
+  $effect(() => {
+    apiUrlValue = getApiUrl() || window.location.origin;
+  });
+
+  let dsn = $derived.by(() => {
+    if (!generatedApiKey) return '';
+    const host = apiUrlValue.replace('https://', '').replace('http://', '');
+    return `https://${generatedApiKey}@${host}`;
+  });
 
   function parseOrigins(raw: string): string[] | null {
     const list = raw
@@ -75,6 +88,21 @@
     }
   }
 
+  async function handleCopyDsn() {
+    if (!dsn) return;
+
+    const success = await copyToClipboard(dsn);
+
+    if (success) {
+      copiedDsn = true;
+      setTimeout(() => {
+        copiedDsn = false;
+      }, 2000);
+    } else {
+      error = 'Could not copy to clipboard. Please select the DSN and copy manually (Ctrl+C / Cmd+C).';
+    }
+  }
+
   function handleClose() {
     name = '';
     keyType = 'write';
@@ -83,6 +111,7 @@
     generatedKeyType = 'write';
     error = '';
     copied = false;
+    copiedDsn = false;
     open = false;
   }
 
@@ -95,6 +124,7 @@
       generatedKeyType = 'write';
       error = '';
       copied = false;
+      copiedDsn = false;
     }
   });
 </script>
@@ -247,6 +277,30 @@
           </div>
         </div>
 
+        <div class="space-y-2">
+          <Label>DSN <span class="text-muted-foreground font-normal text-xs">(for @logtide/core SDK)</span></Label>
+          <div class="flex gap-2 items-start">
+            <div class="flex-1 min-w-0">
+              <div class="font-mono text-xs bg-muted border border-input rounded-md px-3 py-2 break-all select-all cursor-text overflow-x-auto">
+                {dsn}
+              </div>
+            </div>
+            <Button
+              variant="outline"
+              onclick={handleCopyDsn}
+              class="gap-2 shrink-0"
+            >
+              {#if copiedDsn}
+                <Check class="w-4 h-4" />
+                Copied
+              {:else}
+                <Copy class="w-4 h-4" />
+                Copy
+              {/if}
+            </Button>
+          </div>
+        </div>
+
         <div class="text-sm text-muted-foreground">
           Key type: <span class="font-medium">
             {generatedKeyType === 'write' ? 'Write-Only' : 'Full Access'}
@@ -255,7 +309,7 @@
 
         <div class="bg-muted p-3 rounded-md space-y-1">
           <p class="text-xs font-medium">Usage Example:</p>
-          <pre class="text-xs text-muted-foreground overflow-x-auto whitespace-pre-wrap break-all"><code>curl -X POST https://api.logtide.dev/api/v1/ingest \
+          <pre class="text-xs text-muted-foreground overflow-x-auto whitespace-pre-wrap break-all"><code>curl -X POST {apiUrlValue}/api/v1/ingest \
   -H "X-API-Key: {generatedApiKey}" \
   -d '{`{"logs": [...]}`}'</code></pre>
         </div>
