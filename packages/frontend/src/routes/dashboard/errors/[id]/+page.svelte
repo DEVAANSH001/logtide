@@ -33,7 +33,10 @@
 	import BarChart from '@lucide/svelte/icons/bar-chart-2';
 	import Copy from '@lucide/svelte/icons/copy';
 	import Check from '@lucide/svelte/icons/check';
+	import Folder from '@lucide/svelte/icons/folder';
+	import Key from '@lucide/svelte/icons/key';
 	import { layoutStore } from '$lib/stores/layout';
+	import { apiKeysAPI, type ApiKey } from '$lib/api/api-keys';
 
 	// Get group ID from URL
 	const groupId = $derived(page.params.id);
@@ -43,6 +46,7 @@
 	let trend = $state<ErrorGroupTrendBucket[]>([]);
 	let logs = $state<ErrorGroupLog[]>([]);
 	let logsTotal = $state(0);
+	let apiKeys = $state<ApiKey[]>([]);
 	let sampleException = $state<ExceptionWithFrames | null>(null);
 	let loading = $state(true);
 	let error = $state('');
@@ -94,15 +98,25 @@
 			}
 			group = groupData;
 
-			// Load trend data and logs in parallel
-			const [trendData, logsData] = await Promise.all([
+			// Load trend data, logs and API keys in parallel
+			const promises: [Promise<any>, Promise<any>, Promise<{ apiKeys: ApiKey[] }> | undefined] = [
 				getErrorGroupTrend({ groupId, organizationId, interval: '1d', days: 7 }),
 				getErrorGroupLogs({ groupId, organizationId, limit: logsPerPage, offset: 0 }),
-			]);
+				group.projectId ? apiKeysAPI.list(group.projectId) : undefined,
+			];
+
+			const [trendData, logsData, apiKeysData] = await Promise.all(promises);
+
+			console.log('--- Debug Error Group Logs ---');
+			console.log('logsData.logs[0]', logsData.logs[0]);
+			console.log('apiKeysData', apiKeysData);
 
 			trend = trendData.trend;
 			logs = logsData.logs;
 			logsTotal = logsData.total;
+			if (apiKeysData) {
+				apiKeys = apiKeysData.apiKeys;
+			}
 
 			// Load sample exception from first log
 			if (group.sampleLogId) {
@@ -118,6 +132,14 @@
 		} finally {
 			loading = false;
 		}
+	}
+
+	function getApiKeyName(log: ErrorGroupLog): string | null {
+		const apiKeyId = log.metadata?.api_key_id;
+		if (!apiKeyId) return null;
+
+		const key = apiKeys.find((k) => k.id === apiKeyId);
+		return key ? key.name : apiKeyId.slice(0, 8);
 	}
 
 	async function loadMoreLogs() {
@@ -234,6 +256,12 @@
 						</code>
 						<LanguageBadge language={group.language} size="md" />
 						<ErrorGroupStatusBadge status={group.status} size="md" />
+						{#if group.projectName}
+							<Badge variant="outline" class="gap-1 font-normal text-muted-foreground ml-2">
+								<Folder class="w-3 h-3" />
+								{group.projectName}
+							</Badge>
+						{/if}
 					</div>
 					{#if group.exceptionMessage}
 						<p class="text-muted-foreground font-mono text-sm mt-2">
@@ -400,6 +428,12 @@
 													{formatDate(log.time)}
 												</span>
 												<Badge variant="outline" class="font-mono">{log.service}</Badge>
+												{#if getApiKeyName(log)}
+													<Badge variant="secondary" class="gap-1 font-normal py-0 h-5">
+														<Key class="w-3 h-3" />
+														{getApiKeyName(log)}
+													</Badge>
+												{/if}
 											</div>
 											<Button
 												variant="ghost"

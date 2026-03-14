@@ -54,3 +54,4 @@ claude.md
 /packages/backend/coverage-output.txt
 /docs/plans/
 /test-vector/
+/.env.prod

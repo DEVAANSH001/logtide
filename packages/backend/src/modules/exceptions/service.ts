@@ -197,27 +197,47 @@ export class ExceptionService {
   async getErrorGroups(filters: ErrorGroupFilters): Promise<{ groups: ErrorGroup[]; total: number }> {
     let query = this.db
       .selectFrom('error_groups')
-      .selectAll()
-      .where('organization_id', '=', filters.organizationId)
-      .orderBy('last_seen', 'desc');
+      .leftJoin('projects', 'projects.id', 'error_groups.project_id')
+      .select([
+        'error_groups.id',
+        'error_groups.organization_id',
+        'error_groups.project_id',
+        'projects.name as project_name',
+        'error_groups.fingerprint',
+        'error_groups.exception_type',
+        'error_groups.exception_message',
+        'error_groups.language',
+        'error_groups.occurrence_count',
+        'error_groups.first_seen',
+        'error_groups.last_seen',
+        'error_groups.status',
+        'error_groups.resolved_at',
+        'error_groups.resolved_by',
+        'error_groups.affected_services',
+        'error_groups.sample_log_id',
+        'error_groups.created_at',
+        'error_groups.updated_at',
+      ])
+      .where('error_groups.organization_id', '=', filters.organizationId)
+      .orderBy('error_groups.last_seen', 'desc');
 
     if (filters.projectId) {
-      query = query.where('project_id', '=', filters.projectId);
+      query = query.where('error_groups.project_id', '=', filters.projectId);
     }
 
     if (filters.status) {
-      query = query.where('status', '=', filters.status);
+      query = query.where('error_groups.status', '=', filters.status);
     }
 
     if (filters.language) {
-      query = query.where('language', '=', filters.language);
+      query = query.where('error_groups.language', '=', filters.language);
     }
 
     if (filters.search) {
       query = query.where((eb) =>
         eb.or([
-          eb('exception_type', 'ilike', `%${filters.search}%`),
-          eb('exception_message', 'ilike', `%${filters.search}%`),
+          eb('error_groups.exception_type', 'ilike', `%${filters.search}%`),
+          eb('error_groups.exception_message', 'ilike', `%${filters.search}%`),
         ])
       );
     }
@@ -261,6 +281,7 @@ export class ExceptionService {
       id: r.id,
       organizationId: r.organization_id,
       projectId: r.project_id,
+      projectName: r.project_name,
       fingerprint: r.fingerprint,
       exceptionType: r.exception_type,
       exceptionMessage: r.exception_message,
@@ -286,8 +307,28 @@ export class ExceptionService {
   async getErrorGroupById(groupId: string): Promise<ErrorGroup | null> {
     const result = await this.db
       .selectFrom('error_groups')
-      .selectAll()
-      .where('id', '=', groupId)
+      .leftJoin('projects', 'projects.id', 'error_groups.project_id')
+      .select([
+        'error_groups.id',
+        'error_groups.organization_id',
+        'error_groups.project_id',
+        'projects.name as project_name',
+        'error_groups.fingerprint',
+        'error_groups.exception_type',
+        'error_groups.exception_message',
+        'error_groups.language',
+        'error_groups.occurrence_count',
+        'error_groups.first_seen',
+        'error_groups.last_seen',
+        'error_groups.status',
+        'error_groups.resolved_at',
+        'error_groups.resolved_by',
+        'error_groups.affected_services',
+        'error_groups.sample_log_id',
+        'error_groups.created_at',
+        'error_groups.updated_at',
+      ])
+      .where('error_groups.id', '=', groupId)
       .executeTakeFirst();
 
     if (!result) return null;
@@ -296,6 +337,7 @@ export class ExceptionService {
       id: result.id,
       organizationId: result.organization_id,
       projectId: result.project_id,
+      projectName: result.project_name,
       fingerprint: result.fingerprint,
       exceptionType: result.exception_type,
       exceptionMessage: result.exception_message,
@@ -334,25 +376,8 @@ export class ExceptionService {
 
     if (!result) return null;
 
-    return {
-      id: result.id,
-      organizationId: result.organization_id,
-      projectId: result.project_id,
-      fingerprint: result.fingerprint,
-      exceptionType: result.exception_type,
-      exceptionMessage: result.exception_message,
-      language: result.language as ExceptionLanguage,
-      occurrenceCount: result.occurrence_count,
-      firstSeen: result.first_seen,
-      lastSeen: result.last_seen,
-      status: result.status as ErrorGroupStatus,
-      resolvedAt: result.resolved_at,
-      resolvedBy: result.resolved_by,
-      affectedServices: result.affected_services || [],
-      sampleLogId: result.sample_log_id,
-      createdAt: result.created_at,
-      updatedAt: result.updated_at,
-    };
+    // Fetch again with project name
+    return this.getErrorGroupById(groupId);
   }
 
   /**
@@ -410,14 +435,34 @@ export class ExceptionService {
   }): Promise<ErrorGroup[]> {
     let query = this.db
       .selectFrom('error_groups')
-      .selectAll()
-      .where('organization_id', '=', params.organizationId)
-      .where('status', '=', 'open')
-      .orderBy('occurrence_count', 'desc')
+      .leftJoin('projects', 'projects.id', 'error_groups.project_id')
+      .select([
+        'error_groups.id',
+        'error_groups.organization_id',
+        'error_groups.project_id',
+        'projects.name as project_name',
+        'error_groups.fingerprint',
+        'error_groups.exception_type',
+        'error_groups.exception_message',
+        'error_groups.language',
+        'error_groups.occurrence_count',
+        'error_groups.first_seen',
+        'error_groups.last_seen',
+        'error_groups.status',
+        'error_groups.resolved_at',
+        'error_groups.resolved_by',
+        'error_groups.affected_services',
+        'error_groups.sample_log_id',
+        'error_groups.created_at',
+        'error_groups.updated_at',
+      ])
+      .where('error_groups.organization_id', '=', params.organizationId)
+      .where('error_groups.status', '=', 'open')
+      .orderBy('error_groups.occurrence_count', 'desc')
       .limit(params.limit || 5);
 
     if (params.projectId) {
-      query = query.where('project_id', '=', params.projectId);
+      query = query.where('error_groups.project_id', '=', params.projectId);
     }
 
     const results = await query.execute();
@@ -426,6 +471,7 @@ export class ExceptionService {
       id: r.id,
       organizationId: r.organization_id,
       projectId: r.project_id,
+      projectName: r.project_name,
       fingerprint: r.fingerprint,
       exceptionType: r.exception_type,
       exceptionMessage: r.exception_message,
@@ -456,7 +502,7 @@ export class ExceptionService {
     occurrenceCount: number;
     limit?: number;
     offset?: number;
-  }): Promise<{ logs: Array<{ id: string; time: Date; service: string; message: string }>; total: number }> {
+  }): Promise<{ logs: Array<{ id: string; time: Date; service: string; message: string; metadata?: Record<string, unknown> }>; total: number }> {
     const limit = params.limit || 10;
     const offset = params.offset || 0;
 
@@ -486,15 +532,16 @@ export class ExceptionService {
     const storedLogs = await reservoir.getByIds({ ids: logIds, projectId });
 
     // Build lookup map and return in the same order
-    const logMap = new Map(storedLogs.map((l: { id: string; time: Date; service: string; message: string }) => [l.id, l]));
+    const logMap = new Map(storedLogs.map((l: { id: string; time: Date; service: string; message: string; metadata?: any }) => [l.id, l]));
     const logs = logIds
       .map(id => logMap.get(id))
-      .filter((l): l is { id: string; time: Date; service: string; message: string } => Boolean(l))
+      .filter((l): l is { id: string; time: Date; service: string; message: string; metadata?: any } => Boolean(l))
       .map(l => ({
         id: l.id,
         time: l.time,
         service: l.service,
         message: l.message,
+        metadata: l.metadata,
       }));
 
     return {
