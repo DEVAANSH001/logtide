@@ -29,6 +29,16 @@ beforeAll(async () => {
  * This ensures test isolation
  */
 beforeEach(async () => {
+    // Safety guard: refuse to wipe data if not pointing at the test database
+    const dbUrl = process.env.DATABASE_URL ?? '';
+    if (!dbUrl.includes(':5433') && !dbUrl.includes('test')) {
+        throw new Error(
+            `ABORT: DATABASE_URL does not look like a test database.\n` +
+            `Got: ${dbUrl}\n` +
+            `Tests must run against the test DB (port 5433). Do NOT run tests with .env.prod loaded.`
+        );
+    }
+
     // Clear Redis rate limit keys to prevent 429 errors in tests
     // @fastify/rate-limit uses keys starting with 'rl:'
     const redis = getConnection();

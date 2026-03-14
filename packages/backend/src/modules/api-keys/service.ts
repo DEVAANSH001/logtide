@@ -22,6 +22,7 @@ export interface CreateApiKeyInput {
 }
 
 export interface VerifiedApiKey {
+  id: string;
   projectId: string;
   organizationId: string;
   type: ApiKeyType;
@@ -91,6 +92,7 @@ export class ApiKeysService {
       // Update last_used timestamp asynchronously (don't block the response)
       this.updateLastUsedAsync(cached.keyId).catch(() => {});
       return {
+        id: cached.keyId,
         projectId: cached.projectId,
         organizationId: cached.organizationId,
         type: cached.type,
@@ -134,6 +136,7 @@ export class ApiKeysService {
     this.updateLastUsedAsync(result.id).catch(() => {});
 
     return {
+      id: result.id,
       projectId: result.project_id,
       organizationId: result.organization_id,
       type: result.type,

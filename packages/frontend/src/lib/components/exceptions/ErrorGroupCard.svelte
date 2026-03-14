@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { Card, CardContent } from '$lib/components/ui/card';
+	import { Badge } from '$lib/components/ui/badge';
 	import LanguageBadge from './shared/LanguageBadge.svelte';
 	import ErrorGroupStatusBadge from './shared/ErrorGroupStatusBadge.svelte';
 	import type { ErrorGroup } from '$lib/api/exceptions';
@@ -50,6 +51,8 @@
 		}
 		return count.toString();
 	}
+
+	import Folder from '@lucide/svelte/icons/folder';
 </script>
 
 <Card
@@ -74,6 +77,12 @@
 					</code>
 					<LanguageBadge language={group.language} />
 					<ErrorGroupStatusBadge status={group.status} />
+					{#if group.projectName}
+						<Badge variant="outline" class="gap-1 font-normal text-muted-foreground">
+							<Folder class="w-3 h-3" />
+							{group.projectName}
+						</Badge>
+					{/if}
 				</div>
 
 				<!-- Exception message -->

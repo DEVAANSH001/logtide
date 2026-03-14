@@ -23,9 +23,10 @@ import type {
 
 export interface ErrorGroupLog {
   id: string;
-  time: string;
+  time: string | Date;
   service: string;
   message: string;
+  metadata?: Record<string, any>;
 }
 
 export async function getExceptionByLogId(

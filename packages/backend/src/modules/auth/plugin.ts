@@ -11,6 +11,7 @@ declare module 'fastify' {
     authenticated: boolean;
     projectId?: string;
     organizationId?: string;
+    apiKeyId?: string;
     apiKeyType?: ApiKeyType;
   }
 }
@@ -70,6 +71,7 @@ const authPlugin: FastifyPluginAsync = async (fastify) => {
   fastify.decorateRequest('authenticated', false);
   fastify.decorateRequest('projectId', undefined);
   fastify.decorateRequest('organizationId', undefined);
+  fastify.decorateRequest('apiKeyId', undefined);
   fastify.decorateRequest('apiKeyType', undefined);
 
   fastify.addHook('onRequest', async (request: FastifyRequest, reply: FastifyReply) => {
@@ -144,6 +146,7 @@ const authPlugin: FastifyPluginAsync = async (fastify) => {
       request.authenticated = true;
       request.projectId = result.projectId;
       request.organizationId = result.organizationId;
+      request.apiKeyId = result.id;
       request.apiKeyType = result.type;
       return;
     }

@@ -65,6 +65,7 @@ export interface ErrorGroup {
   id: string;
   organizationId: string;
   projectId: string | null;
+  projectName?: string | null;
   fingerprint: string;
   exceptionType: string;
   exceptionMessage: string | null;

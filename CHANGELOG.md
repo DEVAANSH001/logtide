@@ -5,6 +5,18 @@ All notable changes to LogTide will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.1] - 2026-03-15
+
+### Added
+
+- **Project visibility in Exceptions**: The `/dashboard/errors` list and the individual error group detail pages now explicitly display the name of the project that generated the error.
+- **API Key visibility in Exception logs**: The recent logs tab within an error group detail page now displays the specific API Key name used to ingest the log. Ingestion now injects the `api_key_id` into log metadata.
+
+### Fixed
+
+- **Project data-availability ignoring storage engine**: `GET /api/v1/projects/data-availability` was always querying the PostgreSQL `logs` table via Kysely, returning `logs: []` when `STORAGE_ENGINE` was set to `clickhouse` or `mongodb`. The logs check now uses `reservoir.distinct()` which routes to the correct storage backend.
+- **Search page showing no projects when `logs` is empty array**: the project filter guard `logsProjectIds ?` was truthy for `[]`, filtering out all projects. Changed to `logsProjectIds?.length` so an empty array correctly falls back to showing all projects.
+
 ## [0.8.0] - 2026-03-14
 
 ### Added
