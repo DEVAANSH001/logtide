@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterAll, beforeAll } from 'vitest';
 import Fastify, { FastifyInstance } from 'fastify';
 import { db } from '../../database/index.js';
 import { adminRoutes } from '../../modules/admin/routes.js';
-import { createTestUser, createTestOrganization, createTestProject } from '../helpers/factories.js';
+import { createTestUser, createTestOrganization } from '../helpers/factories.js';
 import crypto from 'crypto';
 
 async function createTestSession(userId: string) {
@@ -97,6 +97,7 @@ describe('Admin pagination bounds', () => {
         });
         expect(response.statusCode).toBe(200);
         const body = response.json();
+        expect(body.limit).toBe(200);
         expect(body.organizations.length).toBeLessThanOrEqual(200);
     });
 
@@ -108,6 +109,7 @@ describe('Admin pagination bounds', () => {
         });
         expect(response.statusCode).toBe(200);
         const body = response.json();
+        expect(body.limit).toBe(200);
         expect(body.projects.length).toBeLessThanOrEqual(200);
     });
 });
