@@ -4,10 +4,20 @@ import { ingestionService } from './service.js';
 import { config } from '../../config/index.js';
 import { requireFullAccess } from '../auth/guards.js';
 
+const MAX_LINE_BYTES = 1_000_000; // 1MB per NDJSON line
+
 // Parse NDJSON body into array of log objects
 const parseNdjson = (body: string): object[] => {
   const lines = body.toString().trim().split('\n').filter(line => line.trim());
-  return lines.map(line => JSON.parse(line));
+  return lines.map((line, i) => {
+    if (Buffer.byteLength(line, 'utf8') > MAX_LINE_BYTES) {
+      throw Object.assign(
+        new Error(`NDJSON line ${i + 1} exceeds maximum size of ${MAX_LINE_BYTES} bytes`),
+        { statusCode: 400 }
+      );
+    }
+    return JSON.parse(line);
+  });
 };
 
 // Detect if this is a systemd-journald formatted log
