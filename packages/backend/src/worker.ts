@@ -12,6 +12,7 @@ import { processErrorNotification, type ErrorNotificationJobData } from './queue
 import { alertsService } from './modules/alerts/index.js';
 import { enrichmentService } from './modules/siem/enrichment-service.js';
 import { retentionService } from './modules/retention/index.js';
+import { sigmaSyncService } from './modules/sigma/sync-service.js';
 import { initializeWorkerLogging, shutdownInternalLogging, isInternalLoggingEnabled } from './utils/internal-logger.js';
 import { hub } from '@logtide/core';
 import { reservoirReady } from './database/reservoir.js';
@@ -461,6 +462,92 @@ scheduleNextRetentionCleanup();
 
 // Also run on startup (after 2 minutes delay to let system stabilize)
 setTimeout(runRetentionCleanup, 2 * 60 * 1000);
+
+// ============================================================================
+// SigmaHQ Daily Sync (Daily at 2:30 AM — 30 min after retention cleanup)
+// ============================================================================
+
+let isSyncingSigmaRules = false;
+
+async function syncSigmaRules() {
+  if (isSyncingSigmaRules) {
+    console.warn('[Worker] SigmaHQ sync already in progress, skipping...');
+    return;
+  }
+
+  isSyncingSigmaRules = true;
+
+  try {
+    const { db } = await import('./database/connection.js');
+    const orgs = await db
+      .selectFrom('sigma_rules')
+      .select('organization_id')
+      .distinct()
+      .where('sigmahq_path', 'is not', null)
+      .execute();
+
+    if (orgs.length === 0) {
+      console.log('[Worker] No organizations with SigmaHQ rules, skipping sync');
+      return;
+    }
+
+    console.log(`[Worker] Starting SigmaHQ sync for ${orgs.length} organization(s)`);
+
+    for (const org of orgs) {
+      try {
+        const result = await sigmaSyncService.syncFromSigmaHQ({
+          organizationId: org.organization_id,
+          autoCreateAlerts: true,
+        });
+
+        console.log(`[Worker] SigmaHQ sync for org ${org.organization_id}: ${result.imported} imported, ${result.skipped} skipped, ${result.failed} failed`);
+
+        if (isInternalLoggingEnabled()) {
+          hub.captureLog('info', `SigmaHQ sync completed for org ${org.organization_id}`, {
+            organizationId: org.organization_id,
+            imported: result.imported,
+            skipped: result.skipped,
+            failed: result.failed,
+          });
+        }
+      } catch (orgError) {
+        console.error(`[Worker] SigmaHQ sync failed for org ${org.organization_id}:`, orgError);
+
+        if (isInternalLoggingEnabled()) {
+          hub.captureLog('error', `SigmaHQ sync failed for org ${org.organization_id}: ${(orgError as Error).message}`, {
+            organizationId: org.organization_id,
+            error: orgError instanceof Error ? { name: orgError.name, message: orgError.message, stack: orgError.stack } : { message: String(orgError) },
+          });
+        }
+      }
+    }
+  } catch (error) {
+    console.error('[Worker] SigmaHQ sync aborted:', error);
+
+    if (isInternalLoggingEnabled()) {
+      hub.captureLog('error', `SigmaHQ sync aborted: ${(error as Error).message}`, {
+        error: error instanceof Error ? { name: error.name, message: error.message, stack: error.stack } : { message: String(error) },
+      });
+    }
+  } finally {
+    isSyncingSigmaRules = false;
+  }
+}
+
+function scheduleNextSigmaSync() {
+  const msUntilNext2AM = getMillisecondsUntil2AM();
+  const offsetMs = 30 * 60 * 1000; // +30 minutes → 2:30 AM
+  const nextRun = new Date(Date.now() + msUntilNext2AM + offsetMs);
+
+  console.log(`[Worker] Next SigmaHQ sync scheduled for ${nextRun.toLocaleString()}`);
+
+  setTimeout(() => {
+    syncSigmaRules();
+    scheduleNextSigmaSync();
+  }, msUntilNext2AM + offsetMs);
+}
+
+scheduleNextSigmaSync();
 
 // Graceful shutdown
 async function gracefulShutdown(signal: string) {
