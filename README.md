@@ -110,7 +110,7 @@ Ready-to-use SDKs with auto-instrumentation and distributed tracing.
 | **Node.js** | ✅ Ready | [`@logtide/sdk-node`](https://www.npmjs.com/package/@logtide/sdk-node) |
 | **Python** | ✅ Ready | [`logtide-sdk`](https://pypi.org/project/logtide-sdk/) |
 | **Go** | ✅ Ready | [`logtide-sdk-go`](https://github.com/logtide-dev/logtide-sdk-go) |
-| **PHP** | ✅ Ready | [`logtide-dev/sdk-php`](https://packagist.org/packages/logtide-dev/sdk-php) |
+| **PHP** | ✅ Ready | [`logtide/logtide`](https://packagist.org/packages/logtide/logtide) |
 | **Kotlin** | ✅ Ready | [`logtide-sdk-kotlin`](https://github.com/logtide-dev/logtide-sdk-kotlin) |
 | **C# / .NET** | ✅ Ready | [`LogTide.SDK`](https://github.com/logtide-dev/logtide-sdk-csharp) |
 | **Docker** | ✅ Ready | [Fluent Bit / Syslog Guide](#option-a-self-hosted-docker---recommended) |
