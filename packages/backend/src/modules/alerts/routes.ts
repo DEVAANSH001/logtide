@@ -5,6 +5,7 @@ import { alertsService } from './service.js';
 import { authenticate } from '../auth/middleware.js';
 import { OrganizationsService } from '../organizations/service.js';
 import { notificationChannelsService } from '../notification-channels/index.js';
+import { auditLogService } from '../audit-log/index.js';
 
 const organizationsService = new OrganizationsService();
 
@@ -171,6 +172,20 @@ export async function alertsRoutes(fastify: FastifyInstance) {
       }
 
       const enrichedRule = await enrichAlertRuleWithChannels(alertRule);
+
+      auditLogService.log({
+        organizationId: body.organizationId,
+        userId: request.user.id,
+        userEmail: request.user.email,
+        action: 'create_alert_rule',
+        category: 'config_change',
+        resourceType: 'alert_rule',
+        resourceId: alertRule.id,
+        ipAddress: request.ip,
+        userAgent: request.headers['user-agent'],
+        metadata: { name: alertRule.name, threshold: alertRule.threshold },
+      });
+
       return reply.status(201).send({ alertRule: enrichedRule });
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -378,6 +393,20 @@ export async function alertsRoutes(fastify: FastifyInstance) {
       }
 
       const enrichedRule = await enrichAlertRuleWithChannels(alertRule);
+
+      auditLogService.log({
+        organizationId,
+        userId: request.user.id,
+        userEmail: request.user.email,
+        action: 'update_alert_rule',
+        category: 'config_change',
+        resourceType: 'alert_rule',
+        resourceId: id,
+        ipAddress: request.ip,
+        userAgent: request.headers['user-agent'],
+        metadata: { updatedFields: Object.keys(body) },
+      });
+
       return reply.send({ alertRule: enrichedRule });
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -418,6 +447,18 @@ export async function alertsRoutes(fastify: FastifyInstance) {
           error: 'Alert rule not found',
         });
       }
+
+      auditLogService.log({
+        organizationId,
+        userId: request.user.id,
+        userEmail: request.user.email,
+        action: 'delete_alert_rule',
+        category: 'config_change',
+        resourceType: 'alert_rule',
+        resourceId: id,
+        ipAddress: request.ip,
+        userAgent: request.headers['user-agent'],
+      });
 
       return reply.status(204).send();
     } catch (error) {
