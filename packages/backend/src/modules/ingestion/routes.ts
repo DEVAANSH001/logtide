@@ -300,7 +300,6 @@ const ingestionRoutes: FastifyPluginAsync = async (fastify) => {
     handler: async (request: any, reply) => {
       // Get projectId from authenticated request (set by auth plugin)
       const projectId = request.projectId;
-      const apiKeyId = request.apiKeyId;
 
       if (!projectId) {
         return reply.code(401).send({
@@ -401,7 +400,6 @@ const ingestionRoutes: FastifyPluginAsync = async (fastify) => {
     handler: async (request: any, reply) => {
       // Get projectId from authenticated request (set by auth plugin)
       const projectId = request.projectId;
-      const apiKeyId = request.apiKeyId;
 
       if (!projectId) {
         return reply.code(401).send({
