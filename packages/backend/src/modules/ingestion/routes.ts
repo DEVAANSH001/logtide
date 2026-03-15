@@ -319,14 +319,6 @@ const ingestionRoutes: FastifyPluginAsync = async (fastify) => {
 
       for (const logData of rawLogs) {
         const log = normalizeLogData(logData);
-        
-        // Inject apiKeyId into metadata if available
-        if (apiKeyId) {
-          log.metadata = {
-            ...log.metadata,
-            api_key_id: apiKeyId,
-          };
-        }
 
         const parseResult = logSchema.safeParse(log);
 
@@ -445,14 +437,6 @@ const ingestionRoutes: FastifyPluginAsync = async (fastify) => {
         for (const logData of rawLogs) {
           const log = normalizeLogData(logData);
 
-          // Inject apiKeyId into metadata if available
-          if (apiKeyId) {
-            log.metadata = {
-              ...log.metadata,
-              api_key_id: apiKeyId,
-            };
-          }
-
           const parseResult = logSchema.safeParse(log);
 
           if (parseResult.success) {
@@ -484,16 +468,6 @@ const ingestionRoutes: FastifyPluginAsync = async (fastify) => {
       }
 
       const { logs } = parseResult.data;
-
-      // Inject apiKeyId into metadata for each log
-      if (apiKeyId) {
-        for (const log of logs) {
-          log.metadata = {
-            ...(log.metadata as object),
-            api_key_id: apiKeyId,
-          };
-        }
-      }
 
       // Ingest logs
       const received = await ingestionService.ingestLogs(logs, projectId);
