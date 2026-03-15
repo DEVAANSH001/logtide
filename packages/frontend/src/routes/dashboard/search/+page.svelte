@@ -1623,9 +1623,9 @@
                                 >
                                   {log.traceId}
                                 </button>
-                                {#if selectedProjects.length > 0}
+                                {#if log.projectId}
                                   <a
-                                    href="/dashboard/traces/{log.traceId}?projectId={selectedProjects[0]}"
+                                    href="/dashboard/traces/{log.traceId}?projectId={log.projectId}"
                                     class="text-xs text-purple-600 hover:text-purple-900 underline underline-offset-2"
                                     title="Open trace timeline"
                                   >
