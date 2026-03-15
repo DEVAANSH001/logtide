@@ -234,8 +234,8 @@ const ingestionRoutes: FastifyPluginAsync = async (fastify) => {
       // Check if it looks like NDJSON (multiple lines, each starting with {)
       const lines = bodyStr.split('\n').filter(line => line.trim());
       if (lines.length > 1 && lines.every(line => line.trim().startsWith('{'))) {
-        // It's NDJSON disguised as JSON
-        const logs = lines.map(line => JSON.parse(line));
+        // It's NDJSON disguised as JSON - use parseNdjson to apply size guard
+        const logs = parseNdjson(bodyStr);
         done(null, { _ndjsonLogs: logs });
       } else {
         // Regular JSON
