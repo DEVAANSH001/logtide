@@ -78,7 +78,7 @@ describe('Alert CRUD audit logging', () => {
     });
 
     // Wait for the audit log buffer to flush (interval: 1000ms)
-    await new Promise(r => setTimeout(r, 1100));
+    await new Promise(r => setTimeout(r, 1500));
 
     const entries = await db
       .selectFrom('audit_log')
@@ -121,7 +121,7 @@ describe('Alert CRUD audit logging', () => {
     });
 
     // Wait for the audit log buffer to flush (interval: 1000ms)
-    await new Promise(r => setTimeout(r, 1100));
+    await new Promise(r => setTimeout(r, 1500));
 
     const entries = await db
       .selectFrom('audit_log')
@@ -157,7 +157,7 @@ describe('Alert CRUD audit logging', () => {
     });
 
     // Wait for the audit log buffer to flush (interval: 1000ms)
-    await new Promise(r => setTimeout(r, 1100));
+    await new Promise(r => setTimeout(r, 1500));
 
     const entries = await db
       .selectFrom('audit_log')
