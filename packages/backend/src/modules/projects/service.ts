@@ -220,7 +220,7 @@ export class ProjectsService {
     ]);
 
     return {
-      logs: logsResult.map((r) => r.project_id),
+      logs: logsResult.map((r) => r.project_id).filter((id): id is string => id !== null),
       traces: tracesResult.map((r) => r.project_id),
       metrics: metricsResult.map((r) => r.project_id),
     };
