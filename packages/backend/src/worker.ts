@@ -16,6 +16,7 @@ import { sigmaSyncService } from './modules/sigma/sync-service.js';
 import { initializeWorkerLogging, shutdownInternalLogging, isInternalLoggingEnabled } from './utils/internal-logger.js';
 import { hub } from '@logtide/core';
 import { reservoirReady } from './database/reservoir.js';
+import { db } from './database/connection.js';
 
 // Initialize internal logging via @logtide/core hub
 await initializeWorkerLogging();
@@ -478,7 +479,6 @@ async function syncSigmaRules() {
   isSyncingSigmaRules = true;
 
   try {
-    const { db } = await import('./database/connection.js');
     const orgs = await db
       .selectFrom('sigma_rules')
       .select('organization_id')

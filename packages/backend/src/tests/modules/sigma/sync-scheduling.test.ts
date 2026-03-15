@@ -38,13 +38,6 @@ describe('SigmaHQ sync - org discovery', () => {
     expect(orgs.map(o => o.organization_id)).toContain(organization.id);
   });
 
-  it('sync is skipped when commitHash matches existing rules', async () => {
-    const service = new SigmaSyncService();
-    const syncSpy = vi.spyOn(service as unknown as { syncFromSigmaHQ: () => void }, 'syncFromSigmaHQ');
-    expect(typeof service.syncFromSigmaHQ).toBe('function');
-    syncSpy.mockRestore();
-  });
-
   it('returns empty array when no organizations have SigmaHQ rules', async () => {
     const orgs = await db
       .selectFrom('sigma_rules')
