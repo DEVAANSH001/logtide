@@ -1,5 +1,4 @@
 import { db } from '../../database/connection.js';
-import { reservoir } from '../../database/reservoir.js';
 import type { Project } from '@logtide/shared';
 
 export interface CreateProjectInput {
@@ -197,9 +196,13 @@ export class ProjectsService {
     }
 
     const [logsResult, tracesResult, metricsResult] = await Promise.all([
-      reservoir
-        .distinct({ field: 'project_id', projectId: projectIds, from: new Date(0), to: new Date() })
-        .catch(() => ({ values: [] as string[] })),
+      db
+        .selectFrom('logs')
+        .select('project_id')
+        .where('project_id', 'in', projectIds)
+        .groupBy('project_id')
+        .execute()
+        .catch(() => []),
       db
         .selectFrom('traces')
         .select('project_id')
@@ -217,7 +220,7 @@ export class ProjectsService {
     ]);
 
     return {
-      logs: logsResult.values.filter((id): id is string => id !== null && id !== ''),
+      logs: logsResult.map((r) => r.project_id),
       traces: tracesResult.map((r) => r.project_id),
       metrics: metricsResult.map((r) => r.project_id),
     };
