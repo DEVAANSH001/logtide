@@ -4,10 +4,20 @@ import { ingestionService } from './service.js';
 import { config } from '../../config/index.js';
 import { requireFullAccess } from '../auth/guards.js';
 
+const MAX_LINE_BYTES = 1_000_000; // 1MB per NDJSON line
+
 // Parse NDJSON body into array of log objects
 const parseNdjson = (body: string): object[] => {
   const lines = body.toString().trim().split('\n').filter(line => line.trim());
-  return lines.map(line => JSON.parse(line));
+  return lines.map((line, i) => {
+    if (Buffer.byteLength(line, 'utf8') > MAX_LINE_BYTES) {
+      throw Object.assign(
+        new Error(`NDJSON line ${i + 1} exceeds maximum size of ${MAX_LINE_BYTES} bytes`),
+        { statusCode: 400 }
+      );
+    }
+    return JSON.parse(line);
+  });
 };
 
 // Detect if this is a systemd-journald formatted log
@@ -224,8 +234,8 @@ const ingestionRoutes: FastifyPluginAsync = async (fastify) => {
       // Check if it looks like NDJSON (multiple lines, each starting with {)
       const lines = bodyStr.split('\n').filter(line => line.trim());
       if (lines.length > 1 && lines.every(line => line.trim().startsWith('{'))) {
-        // It's NDJSON disguised as JSON
-        const logs = lines.map(line => JSON.parse(line));
+        // It's NDJSON disguised as JSON - use parseNdjson to apply size guard
+        const logs = parseNdjson(bodyStr);
         done(null, { _ndjsonLogs: logs });
       } else {
         // Regular JSON
@@ -290,7 +300,6 @@ const ingestionRoutes: FastifyPluginAsync = async (fastify) => {
     handler: async (request: any, reply) => {
       // Get projectId from authenticated request (set by auth plugin)
       const projectId = request.projectId;
-      const apiKeyId = request.apiKeyId;
 
       if (!projectId) {
         return reply.code(401).send({
@@ -309,14 +318,6 @@ const ingestionRoutes: FastifyPluginAsync = async (fastify) => {
 
       for (const logData of rawLogs) {
         const log = normalizeLogData(logData);
-        
-        // Inject apiKeyId into metadata if available
-        if (apiKeyId) {
-          log.metadata = {
-            ...log.metadata,
-            api_key_id: apiKeyId,
-          };
-        }
 
         const parseResult = logSchema.safeParse(log);
 
@@ -399,7 +400,6 @@ const ingestionRoutes: FastifyPluginAsync = async (fastify) => {
     handler: async (request: any, reply) => {
       // Get projectId from authenticated request (set by auth plugin)
       const projectId = request.projectId;
-      const apiKeyId = request.apiKeyId;
 
       if (!projectId) {
         return reply.code(401).send({
@@ -435,14 +435,6 @@ const ingestionRoutes: FastifyPluginAsync = async (fastify) => {
         for (const logData of rawLogs) {
           const log = normalizeLogData(logData);
 
-          // Inject apiKeyId into metadata if available
-          if (apiKeyId) {
-            log.metadata = {
-              ...log.metadata,
-              api_key_id: apiKeyId,
-            };
-          }
-
           const parseResult = logSchema.safeParse(log);
 
           if (parseResult.success) {
@@ -474,16 +466,6 @@ const ingestionRoutes: FastifyPluginAsync = async (fastify) => {
       }
 
       const { logs } = parseResult.data;
-
-      // Inject apiKeyId into metadata for each log
-      if (apiKeyId) {
-        for (const log of logs) {
-          log.metadata = {
-            ...(log.metadata as object),
-            api_key_id: apiKeyId,
-          };
-        }
-      }
 
       // Ingest logs
       const received = await ingestionService.ingestLogs(logs, projectId);

@@ -4,6 +4,16 @@ import { authenticate } from '../auth/middleware.js';
 import { requireAdmin } from './middleware.js';
 import { auditLogService } from '../audit-log/index.js';
 
+function parsePage(value: string | undefined, defaultVal = 1): number {
+    const n = parseInt(value ?? String(defaultVal), 10);
+    return isNaN(n) || n < 1 ? defaultVal : n;
+}
+
+function parseLimit(value: string | undefined, defaultVal = 50, max = 200): number {
+    const n = parseInt(value ?? String(defaultVal), 10);
+    return isNaN(n) || n < 1 ? defaultVal : Math.min(n, max);
+}
+
 export async function adminRoutes(fastify: FastifyInstance) {
     // All routes require session authentication + admin role
     fastify.addHook('onRequest', authenticate);
@@ -179,8 +189,8 @@ export async function adminRoutes(fastify: FastifyInstance) {
                 };
 
                 const result = await adminService.getUsers(
-                    page ? parseInt(page) : 1,
-                    limit ? parseInt(limit) : 50,
+                    parsePage(page),
+                    parseLimit(limit),
                     search
                 );
 
@@ -394,8 +404,8 @@ export async function adminRoutes(fastify: FastifyInstance) {
                 };
 
                 const result = await adminService.getOrganizations(
-                    parseInt(page),
-                    parseInt(limit),
+                    parsePage(page),
+                    parseLimit(limit),
                     search
                 );
 
@@ -499,8 +509,8 @@ export async function adminRoutes(fastify: FastifyInstance) {
                 };
 
                 const result = await adminService.getProjects(
-                    parseInt(page),
-                    parseInt(limit),
+                    parsePage(page),
+                    parseLimit(limit),
                     search
                 );
 
