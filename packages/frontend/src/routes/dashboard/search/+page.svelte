@@ -1611,10 +1611,10 @@
                               </div>
                             </div>
                             {#if log.traceId}
-                              <div>
+                              <div class="flex items-center flex-wrap gap-1">
                                 <span class="font-semibold">Trace ID:</span>
                                 <button
-                                  class="ml-2 text-xs font-mono bg-purple-100 text-purple-800 px-2 py-1 rounded hover:bg-purple-200 transition-colors cursor-pointer"
+                                  class="text-xs font-mono bg-purple-100 text-purple-800 px-2 py-1 rounded hover:bg-purple-200 transition-colors cursor-pointer"
                                   onclick={() => {
                                     traceId = log.traceId || "";
                                     applyFilters();
@@ -1623,6 +1623,15 @@
                                 >
                                   {log.traceId}
                                 </button>
+                                {#if log.projectId}
+                                  <a
+                                    href="/dashboard/traces/{log.traceId}?projectId={log.projectId}"
+                                    class="text-xs text-purple-600 hover:text-purple-900 underline underline-offset-2"
+                                    title="Open trace timeline"
+                                  >
+                                    View Trace →
+                                  </a>
+                                {/if}
                               </div>
                             {/if}
                             {#if log.sessionId}

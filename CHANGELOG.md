@@ -5,6 +5,18 @@ All notable changes to LogTide will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.2] - 2026-03-16
+
+### Fixed
+- Admin pagination: `limit` is now capped at 200, preventing oversized result set allocation
+- NDJSON ingestion: lines exceeding 1MB are now rejected with HTTP 400
+- Log metadata: `api_key_id` no longer stored in log metadata (information disclosure)
+
+### Added
+- SigmaHQ rules now auto-sync daily at 2:30 AM for organizations with existing community rules
+- Log detail panel: "View Trace →" link navigates directly to the trace timeline when a `trace_id` is present
+- Audit log entries for alert rule create, update, and delete operations
+
 ## [0.8.1] - 2026-03-15
 
 ### Added
