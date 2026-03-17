@@ -8,6 +8,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.8.3] - 2026-03-18
 
 ### Added
+- **Comprehensive Audit Logging**: major expansion of the audit trail system to cover all critical platform actions for improved compliance (GDPR/SOC2) and security monitoring.
+  - **Log Access Auditing**: every log search, trace view, context lookup, single log detail view, and live stream connection is now recorded with user identity, IP address, and query parameters.
+  - **External Authentication Auditing**: successful logins via OIDC and LDAP providers are now tracked, including new user registration events.
+  - **Identity Management Auditing**: linking and unlinking of external identities (Google, GitHub, LDAP, etc.) to user accounts is now recorded.
+  - **Authentication Provider Auditing**: all administrative actions on auth providers (create, update, delete, reorder) are now fully audited with configuration change summaries.
+  - **System Settings Auditing**: any changes to global platform settings (auth mode, signup status, default users) are now tracked with before/after metadata.
+  - **Session Auditing**: viewing of active session lists and individual session event timelines is now recorded.
+  - Audit metadata now includes detailed context like search queries (`q`), filter parameters, and updated keys for configuration changes.
 - OIDC login page now shows brand icons for well-known providers (Google, Microsoft/Azure, GitHub, GitLab, Okta, Auth0, Keycloak, Authentik); unknown providers fall back to the generic icon
 - Backend auto-detects the provider icon from the issuer URL when creating or updating an OIDC provider, with name/slug matching as fallback for self-hosted setups
 

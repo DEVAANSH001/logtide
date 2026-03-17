@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { authenticate } from '../auth/middleware.js';
 import { sessionsService } from './service.js';
 import { db } from '../../database/index.js';
+import { auditLogService } from '../audit-log/service.js';
 
 async function verifyProjectAccess(projectId: string, userId: string): Promise<boolean> {
   const result = await db
@@ -51,6 +52,21 @@ export async function sessionsRoutes(fastify: FastifyInstance) {
         offset: Number(offset),
       });
 
+      if (request.user?.id) {
+        auditLogService.log({
+          organizationId: null,
+          userId: request.user.id,
+          userEmail: request.user.email,
+          action: 'list_sessions',
+          category: 'log_access',
+          resourceType: 'project',
+          resourceId: projectId,
+          ipAddress: request.ip,
+          userAgent: request.headers['user-agent'],
+          metadata: { from, to, hasErrors, service },
+        });
+      }
+
       return result;
     },
   });
@@ -87,6 +103,21 @@ export async function sessionsRoutes(fastify: FastifyInstance) {
         sessionId,
         limit: Number(limit),
       });
+
+      if (request.user?.id) {
+        auditLogService.log({
+          organizationId: null,
+          userId: request.user.id,
+          userEmail: request.user.email,
+          action: 'view_session_events',
+          category: 'log_access',
+          resourceType: 'session',
+          resourceId: sessionId,
+          ipAddress: request.ip,
+          userAgent: request.headers['user-agent'],
+          metadata: { projectId, limit },
+        });
+      }
 
       return { events };
     },

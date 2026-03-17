@@ -3,6 +3,7 @@ import { queryService, type SearchMode } from './service.js';
 import type { LogLevel } from '@logtide/shared';
 import { db } from '../../database/index.js';
 import { requireFullAccess } from '../auth/guards.js';
+import { auditLogService } from '../audit-log/service.js';
 
 
 async function verifyProjectAccess(projectId: string, userId: string): Promise<boolean> {
@@ -118,7 +119,7 @@ const queryRoutes: FastifyPluginAsync = async (fastify) => {
         }
       }
 
-      return queryService.queryLogs({
+      const logs = await queryService.queryLogs({
         projectId,
         service,
         level,
@@ -133,6 +134,23 @@ const queryRoutes: FastifyPluginAsync = async (fastify) => {
         offset: offset || 0,
         cursor,
       });
+
+      if (request.user?.id) {
+        auditLogService.log({
+          organizationId: null, // Project context, organizationId will be resolved if needed or kept null for global/multi-project
+          userId: request.user.id,
+          userEmail: request.user.email,
+          action: 'search_logs',
+          category: 'log_access',
+          resourceType: 'project',
+          resourceId: Array.isArray(projectId) ? projectId.join(',') : projectId,
+          ipAddress: request.ip,
+          userAgent: request.headers['user-agent'],
+          metadata: { q, service, level, traceId, sessionId, searchMode },
+        });
+      }
+
+      return logs;
     },
   });
 
@@ -181,6 +199,22 @@ const queryRoutes: FastifyPluginAsync = async (fastify) => {
       }
 
       const logs = await queryService.getLogsByTraceId(projectId, traceId);
+
+      if (request.user?.id) {
+        auditLogService.log({
+          organizationId: null,
+          userId: request.user.id,
+          userEmail: request.user.email,
+          action: 'view_trace_logs',
+          category: 'log_access',
+          resourceType: 'trace',
+          resourceId: traceId,
+          ipAddress: request.ip,
+          userAgent: request.headers['user-agent'],
+          metadata: { projectId },
+        });
+      }
+
       return { logs };
     },
   });
@@ -236,6 +270,21 @@ const queryRoutes: FastifyPluginAsync = async (fastify) => {
         before: before || 10,
         after: after || 10,
       });
+
+      if (request.user?.id) {
+        auditLogService.log({
+          organizationId: null,
+          userId: request.user.id,
+          userEmail: request.user.email,
+          action: 'view_log_context',
+          category: 'log_access',
+          resourceType: 'project',
+          resourceId: projectId,
+          ipAddress: request.ip,
+          userAgent: request.headers['user-agent'],
+          metadata: { time, before, after },
+        });
+      }
 
       return context;
     },
@@ -293,6 +342,21 @@ const queryRoutes: FastifyPluginAsync = async (fastify) => {
         });
       }
 
+      if (request.user?.id) {
+        auditLogService.log({
+          organizationId: null,
+          userId: request.user.id,
+          userEmail: request.user.email,
+          action: 'view_log_detail',
+          category: 'log_access',
+          resourceType: 'log',
+          resourceId: logId,
+          ipAddress: request.ip,
+          userAgent: request.headers['user-agent'],
+          metadata: { projectId, service: log.service, level: log.level },
+        });
+      }
+
       return { log };
     },
   });
@@ -344,13 +408,30 @@ const queryRoutes: FastifyPluginAsync = async (fastify) => {
         }
       }
 
-      return queryService.getAggregatedStats({
+      const stats = await queryService.getAggregatedStats({
         projectId,
         service,
         from: new Date(from),
         to: new Date(to),
         interval: interval || '1h',
       });
+
+      if (request.user?.id) {
+        auditLogService.log({
+          organizationId: null,
+          userId: request.user.id,
+          userEmail: request.user.email,
+          action: 'view_aggregated_stats',
+          category: 'log_access',
+          resourceType: 'project',
+          resourceId: projectId,
+          ipAddress: request.ip,
+          userAgent: request.headers['user-agent'],
+          metadata: { service, from, to, interval },
+        });
+      }
+
+      return stats;
     },
   });
 
@@ -404,6 +485,21 @@ const queryRoutes: FastifyPluginAsync = async (fastify) => {
         from ? new Date(from) : undefined,
         to ? new Date(to) : undefined
       );
+
+      if (request.user?.id) {
+        auditLogService.log({
+          organizationId: null,
+          userId: request.user.id,
+          userEmail: request.user.email,
+          action: 'view_top_services',
+          category: 'log_access',
+          resourceType: 'project',
+          resourceId: projectId,
+          ipAddress: request.ip,
+          userAgent: request.headers['user-agent'],
+          metadata: { limit, from, to },
+        });
+      }
 
       return { services };
     },
@@ -486,6 +582,21 @@ const queryRoutes: FastifyPluginAsync = async (fastify) => {
         toDate
       );
 
+      if (request.user?.id) {
+        auditLogService.log({
+          organizationId: null,
+          userId: request.user.id,
+          userEmail: request.user.email,
+          action: 'list_services',
+          category: 'log_access',
+          resourceType: 'project',
+          resourceId: Array.isArray(projectId) ? projectId.join(',') : projectId,
+          ipAddress: request.ip,
+          userAgent: request.headers['user-agent'],
+          metadata: { from, to },
+        });
+      }
+
       return { services };
     },
   });
@@ -567,6 +678,21 @@ const queryRoutes: FastifyPluginAsync = async (fastify) => {
         toDate
       );
 
+      if (request.user?.id) {
+        auditLogService.log({
+          organizationId: null,
+          userId: request.user.id,
+          userEmail: request.user.email,
+          action: 'list_hostnames',
+          category: 'log_access',
+          resourceType: 'project',
+          resourceId: Array.isArray(projectId) ? projectId.join(',') : projectId,
+          ipAddress: request.ip,
+          userAgent: request.headers['user-agent'],
+          metadata: { from, to },
+        });
+      }
+
       return { hostnames };
     },
   });
@@ -610,6 +736,21 @@ const queryRoutes: FastifyPluginAsync = async (fastify) => {
             error: 'Access denied - you do not have access to this project',
           });
         }
+      }
+
+      if (request.user?.id) {
+        auditLogService.log({
+          organizationId: null,
+          userId: request.user.id,
+          userEmail: request.user.email,
+          action: 'stream_logs',
+          category: 'log_access',
+          resourceType: 'project',
+          resourceId: projectId,
+          ipAddress: request.ip,
+          userAgent: request.headers['user-agent'],
+          metadata: { service, level },
+        });
       }
 
       reply.raw.setHeader('Access-Control-Allow-Origin', '*');
@@ -717,6 +858,21 @@ const queryRoutes: FastifyPluginAsync = async (fastify) => {
         from ? new Date(from) : undefined,
         to ? new Date(to) : undefined
       );
+
+      if (request.user?.id) {
+        auditLogService.log({
+          organizationId: null,
+          userId: request.user.id,
+          userEmail: request.user.email,
+          action: 'view_top_errors',
+          category: 'log_access',
+          resourceType: 'project',
+          resourceId: projectId,
+          ipAddress: request.ip,
+          userAgent: request.headers['user-agent'],
+          metadata: { limit, from, to },
+        });
+      }
 
       return { errors };
     },
