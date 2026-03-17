@@ -82,7 +82,6 @@
     function formatNumber(num: number) {
         return new Intl.NumberFormat(undefined).format(num);
     }
-    }
 
     onMount(() => {
         if ($authStore.user?.is_admin) {
