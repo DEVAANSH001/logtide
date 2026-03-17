@@ -5,6 +5,12 @@ All notable changes to LogTide will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.3] - 2026-03-18
+
+### Added
+- OIDC login page now shows brand icons for well-known providers (Google, Microsoft/Azure, GitHub, GitLab, Okta, Auth0, Keycloak, Authentik); unknown providers fall back to the generic icon
+- Backend auto-detects the provider icon from the issuer URL when creating or updating an OIDC provider, with name/slug matching as fallback for self-hosted setups
+
 ## [0.8.2] - 2026-03-16
 
 ### Fixed
