@@ -215,7 +215,7 @@
 	}
 
 	function formatTime(iso: string): string {
-		return new Date(iso).toLocaleString('en-US', {
+		return new Date(iso).toLocaleString(undefined, {
 			month: 'short',
 			day: 'numeric',
 			hour: '2-digit',
@@ -226,7 +226,7 @@
 	}
 
 	function formatTimestamp(ts: number): string {
-		return new Date(ts).toLocaleTimeString('en-US', {
+		return new Date(ts).toLocaleTimeString(undefined, {
 			hour12: false,
 			hour: '2-digit',
 			minute: '2-digit',

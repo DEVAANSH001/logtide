@@ -1,4 +1,5 @@
 import { db } from '../../database/connection.js';
+import { reservoir } from '../../database/reservoir.js';
 import type { Project } from '@logtide/shared';
 
 export interface CreateProjectInput {
@@ -195,34 +196,74 @@ export class ProjectsService {
       return { logs: [], traces: [], metrics: [] };
     }
 
-    const [logsResult, tracesResult, metricsResult] = await Promise.all([
-      db
-        .selectFrom('logs')
-        .select('project_id')
-        .where('project_id', 'in', projectIds)
-        .groupBy('project_id')
-        .execute()
-        .catch(() => []),
-      db
-        .selectFrom('traces')
-        .select('project_id')
-        .where('project_id', 'in', projectIds)
-        .groupBy('project_id')
-        .execute()
-        .catch(() => []),
-      db
-        .selectFrom('metrics')
-        .select('project_id')
-        .where('project_id', 'in', projectIds)
-        .groupBy('project_id')
-        .execute()
-        .catch(() => []),
+    const isTimescale = reservoir.getEngineType() === 'timescale';
+    const epoch = new Date(0);
+    const now = new Date();
+
+    if (isTimescale) {
+      const [logsResult, tracesResult, metricsResult] = await Promise.all([
+        db
+          .selectFrom('logs')
+          .select('project_id')
+          .where('project_id', 'in', projectIds)
+          .groupBy('project_id')
+          .execute()
+          .catch(() => []),
+        db
+          .selectFrom('traces')
+          .select('project_id')
+          .where('project_id', 'in', projectIds)
+          .groupBy('project_id')
+          .execute()
+          .catch(() => []),
+        db
+          .selectFrom('metrics')
+          .select('project_id')
+          .where('project_id', 'in', projectIds)
+          .groupBy('project_id')
+          .execute()
+          .catch(() => []),
+      ]);
+
+      return {
+        logs: logsResult.map((r) => r.project_id).filter((id): id is string => id !== null),
+        traces: tracesResult.map((r) => r.project_id),
+        metrics: metricsResult.map((r) => r.project_id),
+      };
+    }
+
+    // Non-timescale (ClickHouse/MongoDB): query via reservoir
+    const [logChecks, traceChecks, metricChecks] = await Promise.all([
+      Promise.all(
+        projectIds.map((id) =>
+          reservoir
+            .count({ projectId: id, from: epoch, to: now })
+            .then((r) => (r.count > 0 ? id : null))
+            .catch(() => null),
+        ),
+      ),
+      Promise.all(
+        projectIds.map((id) =>
+          reservoir
+            .queryTraces({ projectId: id, from: epoch, to: now, limit: 1 })
+            .then((r) => (r.traces.length > 0 ? id : null))
+            .catch(() => null),
+        ),
+      ),
+      Promise.all(
+        projectIds.map((id) =>
+          reservoir
+            .queryMetrics({ projectId: id, from: epoch, to: now, limit: 1 })
+            .then((r) => (r.metrics.length > 0 ? id : null))
+            .catch(() => null),
+        ),
+      ),
     ]);
 
     return {
-      logs: logsResult.map((r) => r.project_id).filter((id): id is string => id !== null),
-      traces: tracesResult.map((r) => r.project_id),
-      metrics: metricsResult.map((r) => r.project_id),
+      logs: logChecks.filter((id): id is string => id !== null),
+      traces: traceChecks.filter((id): id is string => id !== null),
+      metrics: metricChecks.filter((id): id is string => id !== null),
     };
   }
 

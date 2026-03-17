@@ -191,7 +191,7 @@
 
 	function formatDate(dateStr: string | Date): string {
 		const date = typeof dateStr === 'string' ? new Date(dateStr) : dateStr;
-		return date.toLocaleDateString('en-US', {
+		return date.toLocaleDateString(undefined, {
 			month: 'short',
 			day: 'numeric',
 			year: 'numeric',
@@ -390,7 +390,7 @@
 											title="{bucket.count} occurrences on {new Date(bucket.timestamp).toLocaleDateString()}"
 										></div>
 										<span class="text-xs text-muted-foreground">
-											{new Date(bucket.timestamp).toLocaleDateString('en-US', { weekday: 'short' })}
+											{new Date(bucket.timestamp).toLocaleDateString(undefined, { weekday: 'short' })}
 										</span>
 									</div>
 								{/each}

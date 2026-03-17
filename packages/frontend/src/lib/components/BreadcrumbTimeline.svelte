@@ -50,7 +50,7 @@
 	}
 
 	function formatAbsoluteTime(timestamp: number): string {
-		return new Date(timestamp).toLocaleTimeString('en-US', {
+		return new Date(timestamp).toLocaleTimeString(undefined, {
 			hour12: false,
 			hour: '2-digit',
 			minute: '2-digit',

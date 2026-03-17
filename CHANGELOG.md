@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - OIDC login page now shows brand icons for well-known providers (Google, Microsoft/Azure, GitHub, GitLab, Okta, Auth0, Keycloak, Authentik); unknown providers fall back to the generic icon
 - Backend auto-detects the provider icon from the issuer URL when creating or updating an OIDC provider, with name/slug matching as fallback for self-hosted setups
 
+### Fixed
+- Date and number formatting localization: removed hardcoded locales (`it-IT`, `en-US`) from the frontend (SIEM, Search, Admin, etc.) to ensure the application automatically respects the user's browser/system language settings.
+- `GET /api/v1/projects/data-availability` returned `logs: []` (and incorrect traces/metrics) when `STORAGE_ENGINE=clickhouse` or `mongodb`; the endpoint now routes all three checks through the reservoir so they hit the correct backend
+
 ## [0.8.2] - 2026-03-16
 
 ### Fixed

@@ -35,8 +35,8 @@
                     const item = timeline[idx];
                     if (!item) return '';
                     const d = new Date(item.bucket);
-                    const dateStr = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-                    const timeStr = d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
+                    const dateStr = d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+                    const timeStr = d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', hour12: false });
                     let html = `<div style="font-weight:600;margin-bottom:4px">${dateStr} ${timeStr}</div>`;
                     for (const p of params) {
                         html += `<div style="display:flex;justify-content:space-between;gap:16px">`;

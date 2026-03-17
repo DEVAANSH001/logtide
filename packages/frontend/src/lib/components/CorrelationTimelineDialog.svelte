@@ -73,7 +73,7 @@
   function formatShortTime(timestamp: string): string {
     const date = new Date(timestamp);
     // Include milliseconds manually since fractionalSecondDigits may not be supported
-    const timeStr = date.toLocaleTimeString('en-US', {
+    const timeStr = date.toLocaleTimeString(undefined, {
       hour: '2-digit',
       minute: '2-digit',
       second: '2-digit',
