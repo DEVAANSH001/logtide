@@ -125,6 +125,7 @@ export async function publicAuthRoutes(fastify: FastifyInstance) {
     const frontendUrl = config.FRONTEND_URL || (config.NODE_ENV === 'production' ? '' : 'http://localhost:3000');
 
     try {
+      const { slug } = request.params;
       const { code, state, error, error_description } = request.query;
 
       if (error) {
