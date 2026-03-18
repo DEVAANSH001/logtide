@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.8.4] - 2026-03-19
 
+### Added
+- **Skeleton loaders and loading overlays**: all dashboard pages now show content-shaped loading states instead of blank spinners
+  - New `Skeleton`, `SkeletonTable`, and `TableLoadingOverlay` components (`src/lib/components/ui/skeleton/`)
+  - Directional shimmer animation via `@keyframes shimmer` using design tokens — works in light and dark mode, disabled for `prefers-reduced-motion`
+  - **Initial load** (no data yet): animated skeleton rows mirroring the page layout — stat cards on `/dashboard`, project cards on `/dashboard/projects`, table rows on search, traces, errors, admin tables, incidents, alerts history, and members
+  - **Re-fetch** (filter change, pagination): existing content dims with a translucent overlay and centered spinner, preventing layout shift and context loss
+  - Pages updated: `/dashboard`, `/dashboard/search`, `/dashboard/projects`, `/dashboard/alerts`, `/dashboard/errors`, `/dashboard/traces`, `/dashboard/security`, `/dashboard/security/incidents`, `/dashboard/admin/organizations`, `/dashboard/admin/users`, `/dashboard/admin/projects`, `/dashboard/settings/members`
+
 ### Fixed
 - Admin pages returned 502 Bad Gateway on direct load/reload: the admin layout (`+layout@.svelte`) breaks out of the dashboard layout chain, so `ssr = false` was not inherited; added a dedicated `+layout.ts` to the admin section
 - `/dashboard/admin/projects/[id]` crashed with "Something went wrong" due to `formatDate` being called but not defined (function was named `formatTimestamp`)
