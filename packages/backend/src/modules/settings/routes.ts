@@ -10,6 +10,7 @@ import { settingsService, SETTING_KEYS } from './service.js';
 import { usersService } from '../users/service.js';
 import { bootstrapService } from '../bootstrap/service.js';
 import type { UserProfile } from '../users/service.js';
+import { auditLogService } from '../audit-log/service.js';
 
 // Validation schemas
 const updateSettingSchema = z.object({
@@ -120,6 +121,22 @@ export async function settingsRoutes(fastify: FastifyInstance) {
 
         await settingsService.set(key as any, body.value as any, userId);
 
+        const user = (request as any).user;
+        if (user) {
+          auditLogService.log({
+            organizationId: null,
+            userId: user.id,
+            userEmail: user.email,
+            action: 'update_system_setting',
+            category: 'config_change',
+            resourceType: 'system_setting',
+            resourceId: key,
+            ipAddress: request.ip,
+            userAgent: request.headers['user-agent'],
+            metadata: { value: body.value },
+          });
+        }
+
         return reply.send({
           success: true,
           key,
@@ -149,6 +166,22 @@ export async function settingsRoutes(fastify: FastifyInstance) {
         const userId = (request as any).user?.id;
 
         await settingsService.setMany(body, userId);
+
+        const user = (request as any).user;
+        if (user) {
+          auditLogService.log({
+            organizationId: null,
+            userId: user.id,
+            userEmail: user.email,
+            action: 'update_system_settings_bulk',
+            category: 'config_change',
+            resourceType: 'system_setting',
+            resourceId: 'multiple',
+            ipAddress: request.ip,
+            userAgent: request.headers['user-agent'],
+            metadata: { keys: Object.keys(body) },
+          });
+        }
 
         // Clear bootstrap cache if auth settings changed
         if ('auth.mode' in body || 'auth.default_user_id' in body) {
@@ -186,6 +219,22 @@ export async function settingsRoutes(fastify: FastifyInstance) {
         const { key } = request.params;
 
         await settingsService.delete(key);
+
+        const user = (request as any).user;
+        if (user) {
+          auditLogService.log({
+            organizationId: null,
+            userId: user.id,
+            userEmail: user.email,
+            action: 'reset_system_setting',
+            category: 'config_change',
+            resourceType: 'system_setting',
+            resourceId: key,
+            ipAddress: request.ip,
+            userAgent: request.headers['user-agent'],
+            metadata: {},
+          });
+        }
 
         return reply.status(204).send();
       } catch (error) {

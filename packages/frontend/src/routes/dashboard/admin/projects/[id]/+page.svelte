@@ -70,18 +70,17 @@
         }
     }
 
-    function formatDate(date: string) {
-        return new Date(date).toLocaleString("en-US", {
-            year: "numeric",
+    function formatTimestamp(date: string) {
+        return new Date(date).toLocaleString(undefined, {
             month: "short",
             day: "numeric",
             hour: "2-digit",
-            minute: "2-digit",
+            minute: "2-digit"
         });
     }
 
     function formatNumber(num: number) {
-        return new Intl.NumberFormat("en-US").format(num);
+        return new Intl.NumberFormat(undefined).format(num);
     }
 
     onMount(() => {

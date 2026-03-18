@@ -18,6 +18,7 @@ import { usersService } from '../users/service.js';
 import { config } from '../../config/index.js';
 import { settingsService } from '../settings/service.js';
 import { bootstrapService } from '../bootstrap/service.js';
+import { auditLogService } from '../audit-log/service.js';
 
 // Validation schemas
 const ldapLoginSchema = z.object({
@@ -124,6 +125,7 @@ export async function publicAuthRoutes(fastify: FastifyInstance) {
     const frontendUrl = config.FRONTEND_URL || (config.NODE_ENV === 'production' ? '' : 'http://localhost:3000');
 
     try {
+      const { slug } = request.params;
       const { code, state, error, error_description } = request.query;
 
       if (error) {
@@ -137,6 +139,19 @@ export async function publicAuthRoutes(fastify: FastifyInstance) {
       }
 
       const result = await authenticationService.handleOidcCallback(code, state);
+
+      auditLogService.log({
+        organizationId: null,
+        userId: result.session.userId,
+        userEmail: result.user.email,
+        action: 'login_oidc',
+        category: 'user_management',
+        resourceType: 'user',
+        resourceId: result.session.userId,
+        ipAddress: request.ip,
+        userAgent: request.headers['user-agent'],
+        metadata: { provider: slug, isNewUser: result.isNewUser },
+      });
 
       // Redirect to frontend with session token
       // The frontend will store the token and redirect to dashboard
@@ -166,6 +181,19 @@ export async function publicAuthRoutes(fastify: FastifyInstance) {
         const body = ldapLoginSchema.parse(request.body);
 
         const result = await authenticationService.authenticateWithProvider(slug, body);
+
+        auditLogService.log({
+          organizationId: null,
+          userId: result.user.id,
+          userEmail: result.user.email,
+          action: 'login_ldap',
+          category: 'user_management',
+          resourceType: 'user',
+          resourceId: result.user.id,
+          ipAddress: request.ip,
+          userAgent: request.headers['user-agent'],
+          metadata: { provider: slug, isNewUser: result.isNewUser },
+        });
 
         return reply.send({
           user: {
@@ -253,6 +281,19 @@ export async function authenticatedAuthRoutes(fastify: FastifyInstance) {
 
       const identity = await authenticationService.linkIdentity(user.id, slug, body);
 
+      auditLogService.log({
+        organizationId: null,
+        userId: user.id,
+        userEmail: user.email,
+        action: 'link_identity',
+        category: 'user_management',
+        resourceType: 'user',
+        resourceId: user.id,
+        ipAddress: request.ip,
+        userAgent: request.headers['user-agent'],
+        metadata: { provider: slug, providerUserId: identity.providerUserId },
+      });
+
       return reply.status(201).send({ identity });
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -279,6 +320,19 @@ export async function authenticatedAuthRoutes(fastify: FastifyInstance) {
 
       const { id } = request.params;
       await authenticationService.unlinkIdentity(user.id, id);
+
+      auditLogService.log({
+        organizationId: null,
+        userId: user.id,
+        userEmail: user.email,
+        action: 'unlink_identity',
+        category: 'user_management',
+        resourceType: 'user_identity',
+        resourceId: id,
+        ipAddress: request.ip,
+        userAgent: request.headers['user-agent'],
+        metadata: {},
+      });
 
       return reply.status(204).send();
     } catch (error) {
@@ -354,10 +408,23 @@ export async function adminAuthRoutes(fastify: FastifyInstance) {
   });
 
   // Create provider
-  fastify.post('/', async (request, reply) => {
+  fastify.post('/', async (request: any, reply) => {
     try {
       const body = createProviderSchema.parse(request.body);
       const provider = await providerService.createProvider(body);
+
+      auditLogService.log({
+        organizationId: null,
+        userId: request.user.id,
+        userEmail: request.user.email,
+        action: 'create_auth_provider',
+        category: 'config_change',
+        resourceType: 'auth_provider',
+        resourceId: provider.id,
+        ipAddress: request.ip,
+        userAgent: request.headers['user-agent'],
+        metadata: { type: body.type, slug: body.slug, name: body.name },
+      });
 
       return reply.status(201).send({ provider });
     } catch (error) {
@@ -374,12 +441,25 @@ export async function adminAuthRoutes(fastify: FastifyInstance) {
   });
 
   // Update provider
-  fastify.put<{ Params: { id: string } }>('/providers/:id', async (request, reply) => {
+  fastify.put<{ Params: { id: string } }>('/providers/:id', async (request: any, reply) => {
     try {
       const { id } = request.params;
       const body = updateProviderSchema.parse(request.body);
 
       const provider = await providerService.updateProvider(id, body);
+
+      auditLogService.log({
+        organizationId: null,
+        userId: request.user.id,
+        userEmail: request.user.email,
+        action: 'update_auth_provider',
+        category: 'config_change',
+        resourceType: 'auth_provider',
+        resourceId: id,
+        ipAddress: request.ip,
+        userAgent: request.headers['user-agent'],
+        metadata: { updates: Object.keys(body) },
+      });
 
       return reply.send({ provider });
     } catch (error) {
@@ -396,10 +476,23 @@ export async function adminAuthRoutes(fastify: FastifyInstance) {
   });
 
   // Delete provider
-  fastify.delete<{ Params: { id: string } }>('/providers/:id', async (request, reply) => {
+  fastify.delete<{ Params: { id: string } }>('/providers/:id', async (request: any, reply) => {
     try {
       const { id } = request.params;
       await providerService.deleteProvider(id);
+
+      auditLogService.log({
+        organizationId: null,
+        userId: request.user.id,
+        userEmail: request.user.email,
+        action: 'delete_auth_provider',
+        category: 'config_change',
+        resourceType: 'auth_provider',
+        resourceId: id,
+        ipAddress: request.ip,
+        userAgent: request.headers['user-agent'],
+        metadata: {},
+      });
 
       return reply.status(204).send();
     } catch (error) {
@@ -417,10 +510,23 @@ export async function adminAuthRoutes(fastify: FastifyInstance) {
   });
 
   // Reorder providers
-  fastify.post<{ Body: { order: string[] } }>('/providers/reorder', async (request, reply) => {
+  fastify.post<{ Body: { order: string[] } }>('/providers/reorder', async (request: any, reply) => {
     try {
       const { order } = request.body as { order: string[] };
       await providerService.reorderProviders(order);
+
+      auditLogService.log({
+        organizationId: null,
+        userId: request.user.id,
+        userEmail: request.user.email,
+        action: 'reorder_auth_providers',
+        category: 'config_change',
+        resourceType: 'auth_provider',
+        resourceId: 'all',
+        ipAddress: request.ip,
+        userAgent: request.headers['user-agent'],
+        metadata: { order },
+      });
 
       return reply.send({ success: true });
     } catch (error) {

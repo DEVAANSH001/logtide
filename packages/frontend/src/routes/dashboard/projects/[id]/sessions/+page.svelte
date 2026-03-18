@@ -102,8 +102,8 @@
 		return `${(ms / 3_600_000).toFixed(1)}h`;
 	}
 
-	function formatTime(iso: string): string {
-		return new Date(iso).toLocaleString('en-US', {
+	function formatTimestamp(iso: string) {
+		return new Date(iso).toLocaleString(undefined, {
 			month: 'short',
 			day: 'numeric',
 			hour: '2-digit',

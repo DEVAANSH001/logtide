@@ -2,7 +2,8 @@
   import { authAPI, type AuthProvider } from '$lib/api/auth';
   import Button from '$lib/components/ui/button/button.svelte';
   import Spinner from '$lib/components/Spinner.svelte';
-  import { KeyRound, Building2, Server } from '@lucide/svelte';
+  import { Server } from '@lucide/svelte';
+  import ProviderBrandIcon from '$lib/components/auth/ProviderBrandIcon.svelte';
 
   interface Props {
     onSelectLocal?: () => void;
@@ -52,16 +53,6 @@
     }
   }
 
-  function getProviderIcon(provider: AuthProvider) {
-    if (provider.icon === 'mail' || provider.type === 'local') {
-      return KeyRound;
-    } else if (provider.type === 'ldap') {
-      return Server;
-    } else {
-      return Building2; // Default for OIDC
-    }
-  }
-
   // Filter providers: show non-local providers as buttons, local is handled separately
   let externalProviders = $derived(providers.filter((p) => p.type !== 'local'));
   let localProvider = $derived(providers.find((p) => p.type === 'local'));
@@ -79,13 +70,16 @@
 {:else if hasExternalProviders}
   <div class="space-y-3">
     {#each externalProviders as provider}
-      {@const ProviderIcon = getProviderIcon(provider)}
       <Button
         variant="outline"
         class="w-full gap-2"
         onclick={() => handleProviderClick(provider)}
       >
-        <ProviderIcon class="h-4 w-4" />
+        {#if provider.type === 'ldap'}
+          <Server class="h-4 w-4" />
+        {:else}
+          <ProviderBrandIcon icon={provider.icon} class="h-4 w-4" />
+        {/if}
         {actionLabel} with {provider.name}
       </Button>
     {/each}
