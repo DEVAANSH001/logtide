@@ -5,6 +5,13 @@ All notable changes to LogTide will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.4] - 2026-03-19
+
+### Fixed
+- Admin pages returned 502 Bad Gateway on direct load/reload: the admin layout (`+layout@.svelte`) breaks out of the dashboard layout chain, so `ssr = false` was not inherited; added a dedicated `+layout.ts` to the admin section
+- `/dashboard/admin/projects/[id]` crashed with "Something went wrong" due to `formatDate` being called but not defined (function was named `formatTimestamp`)
+- `GET /api/v1/logs/hostnames` taking 8+ seconds: the 6h window cap was only applied when `from` was absent — explicit `from` params (e.g. 24h range from the search page) bypassed it and triggered a full-range metadata scan; cap now clamps any window to 6h max. Added `limit: 500` to the distinct call. Per-engine optimizations: **ClickHouse** adds a `hostname` materialized column (computed at ingest, eliminates `JSONExtractString` at query time) and uses it directly in distinct queries; **TimescaleDB** adds a composite expression index `(project_id, (metadata->>'hostname'), time)` (migration 032); **MongoDB** adds a sparse compound index on `metadata.hostname`. All three engines also now extract the metadata field in a subquery (once per row vs 3×)
+
 ## [0.8.3] - 2026-03-18
 
 ### Added

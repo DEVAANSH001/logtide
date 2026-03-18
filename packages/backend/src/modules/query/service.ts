@@ -450,16 +450,20 @@ export class QueryService {
    * Hostnames are extracted from metadata.hostname field.
    * Cached for performance - used for filter dropdowns.
    *
-   * PERFORMANCE: Defaults to last 6 hours. Metadata extraction is expensive
-   * on large windows. With 5-minute cache, most requests are served from cache.
+   * PERFORMANCE: Window is capped at 6 hours regardless of what the caller passes.
+   * JSONB extraction is expensive on large datasets — 6h ≈ 350ms, 24h+ ≈ 8s+.
+   * For a filter dropdown this is an acceptable trade-off: hostnames are stable.
+   * With 5-minute cache, most requests are served from cache after the first hit.
    */
   async getDistinctHostnames(
     projectId: string | string[],
     from?: Date,
     to?: Date
   ): Promise<string[]> {
-    // PERFORMANCE: Default to last 6 hours
-    const effectiveFrom = from || new Date(Date.now() - 6 * 60 * 60 * 1000);
+    // PERFORMANCE: Cap window to 6h max. If the caller requests a longer window
+    // (e.g. 24h), silently clamp it — JSONB distinct over large ranges is O(rows).
+    const sixHoursAgo = new Date(Date.now() - 6 * 60 * 60 * 1000);
+    const effectiveFrom = !from || from < sixHoursAgo ? sixHoursAgo : from;
 
     // Try cache first
     const cacheKey = CacheManager.statsKey(
@@ -482,6 +486,7 @@ export class QueryService {
       projectId,
       from: effectiveFrom,
       to: to ?? new Date(),
+      limit: 500,
     });
 
     const hostnames = result.values;

@@ -212,6 +212,20 @@ export class ClickHouseEngine extends StorageEngine {
       // projection may already exist
     }
 
+    // Materialized column for hostname — extracted from metadata JSON once at ingest time.
+    // Eliminates JSONExtractString() calls on every DISTINCT/filter query row.
+    // MATERIALIZE backfills existing data parts asynchronously during merges.
+    try {
+      await client.command({
+        query: `ALTER TABLE ${t} ADD COLUMN IF NOT EXISTS hostname String MATERIALIZED JSONExtractString(metadata, 'hostname')`,
+      });
+      await client.command({
+        query: `ALTER TABLE ${t} MATERIALIZE COLUMN hostname`,
+      });
+    } catch {
+      // column may already exist
+    }
+
     // Spans table
     await client.command({
       query: `
