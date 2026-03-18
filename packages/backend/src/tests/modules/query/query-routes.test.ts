@@ -23,6 +23,8 @@ async function cleanDb() {
     await db.deleteFrom('alert_rules').execute();
     await db.deleteFrom('api_keys').execute();
     await db.deleteFrom('notifications').execute();
+    await db.deleteFrom('oidc_states').execute();
+    await db.deleteFrom('user_identities').execute();
     await db.deleteFrom('organization_members').execute();
     await db.deleteFrom('projects').execute();
     await db.deleteFrom('organizations').execute();
