@@ -39,6 +39,7 @@
   import ExportLogsDialog from "$lib/components/ExportLogsDialog.svelte";
   import { correlationAPI, type IdentifierMatch, type CorrelatedLog } from "$lib/api/correlation";
   import EmptyLogs from "$lib/components/EmptyLogs.svelte";
+  import { SkeletonTable, TableLoadingOverlay } from "$lib/components/ui/skeleton";
   import TerminalLogView from "$lib/components/TerminalLogView.svelte";
   import TimeRangePicker, { type TimeRangeType } from "$lib/components/TimeRangePicker.svelte";
   import { layoutStore } from "$lib/stores/layout";
@@ -1488,15 +1489,20 @@
           </div>
         </CardHeader>
         <CardContent>
-          {#if paginatedLogs.length === 0}
+          {#if isLoading && logs.length === 0}
+            <SkeletonTable rows={8} columns={6} />
+          {:else if paginatedLogs.length === 0}
             <EmptyLogs />
           {:else if viewMode === "terminal"}
+            <TableLoadingOverlay loading={isLoading}>
             <TerminalLogView
               logs={paginatedLogs}
               isLiveTail={liveTail}
               maxHeight="600px"
             />
+            </TableLoadingOverlay>
           {:else}
+            <TableLoadingOverlay loading={isLoading}>
             <div class="rounded-md border overflow-x-auto" bind:this={logsContainer}>
               <Table class="w-full">
                 <TableHeader>
@@ -1738,6 +1744,7 @@
                 </div>
               </div>
             {/if}
+            </TableLoadingOverlay>
           {/if}
         </CardContent>
       </Card>

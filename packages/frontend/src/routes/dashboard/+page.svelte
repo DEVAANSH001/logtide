@@ -12,6 +12,7 @@
   import RecentErrorsWidget from '$lib/components/dashboard/RecentErrorsWidget.svelte';
   import EmptyDashboard from '$lib/components/dashboard/EmptyDashboard.svelte';
   import Spinner from '$lib/components/Spinner.svelte';
+  import { Skeleton } from '$lib/components/ui/skeleton';
   import { layoutStore } from '$lib/stores/layout';
   import Activity from '@lucide/svelte/icons/activity';
   import AlertTriangle from '@lucide/svelte/icons/alert-triangle';
@@ -230,9 +231,18 @@
       </div>
 
       {#if loading}
-        <div class="flex items-center justify-center py-24">
-          <Spinner />
-          <span class="ml-3 text-muted-foreground">Loading dashboard...</span>
+        <!-- Stat cards skeleton -->
+        <div class="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          {#each Array(4) as _}
+            <Skeleton class="h-28 rounded-lg" />
+          {/each}
+        </div>
+        <!-- Chart skeleton -->
+        <Skeleton class="h-72 w-full rounded-lg" />
+        <!-- Bottom grid skeleton -->
+        <div class="grid gap-4 md:grid-cols-2">
+          <Skeleton class="h-48 rounded-lg" />
+          <Skeleton class="h-48 rounded-lg" />
         </div>
       {:else if error}
         <div class="text-center py-24">

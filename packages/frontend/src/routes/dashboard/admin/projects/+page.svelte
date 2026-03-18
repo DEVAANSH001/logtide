@@ -11,6 +11,7 @@
     import * as Table from "$lib/components/ui/table";
     import { Button, buttonVariants } from "$lib/components/ui/button";
     import { Input } from "$lib/components/ui/input";
+    import { SkeletonTable, TableLoadingOverlay } from "$lib/components/ui/skeleton";
     import {
         RefreshCw,
         Search,
@@ -225,12 +226,8 @@
             </div>
         </CardHeader>
         <CardContent>
-            {#if loading}
-                <div class="flex justify-center p-12">
-                    <RefreshCw
-                        class="h-8 w-8 animate-spin text-muted-foreground"
-                    />
-                </div>
+            {#if loading && projects.length === 0}
+                <SkeletonTable rows={8} columns={7} />
             {:else if projects.length === 0}
                 <div
                     class="flex flex-col items-center justify-center p-12 text-center"
@@ -246,6 +243,7 @@
                     </p>
                 </div>
             {:else}
+                <TableLoadingOverlay loading={loading}>
                 <Table.Root>
                     <Table.Header>
                         <Table.Row>
@@ -345,6 +343,7 @@
                         </div>
                     </div>
                 {/if}
+                </TableLoadingOverlay>
             {/if}
         </CardContent>
     </Card>

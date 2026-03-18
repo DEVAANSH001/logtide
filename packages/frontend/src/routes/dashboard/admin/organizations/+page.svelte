@@ -1,6 +1,7 @@
 <script lang="ts">
     import { onMount } from "svelte";
     import { adminAPI, type OrganizationBasic } from "$lib/api/admin";
+    import { SkeletonTable, TableLoadingOverlay } from "$lib/components/ui/skeleton";
     import { Button, buttonVariants } from "$lib/components/ui/button";
     import { Input } from "$lib/components/ui/input";
     import { Badge } from "$lib/components/ui/badge";
@@ -148,12 +149,8 @@
                 <Button onclick={handleSearch}>Search</Button>
             </div>
 
-            {#if loading}
-                <div class="text-center py-8">
-                    <p class="text-muted-foreground">
-                        Loading organizations...
-                    </p>
-                </div>
+            {#if loading && organizations.length === 0}
+                <SkeletonTable rows={6} columns={6} />
             {:else if error}
                 <div class="text-center py-8">
                     <p class="text-destructive">{error}</p>
@@ -163,6 +160,7 @@
                     <p class="text-muted-foreground">No organizations found</p>
                 </div>
             {:else}
+                <TableLoadingOverlay loading={loading}>
                 <div class="rounded-md border">
                     <Table>
                         <TableHeader>
@@ -250,6 +248,7 @@
                         </Button>
                     </div>
                 </div>
+                </TableLoadingOverlay>
             {/if}
         </CardContent>
     </Card>

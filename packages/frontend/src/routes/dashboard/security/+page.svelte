@@ -7,6 +7,7 @@
 	import { toastStore } from '$lib/stores/toast';
 	import Button from '$lib/components/ui/button/button.svelte';
 	import Spinner from '$lib/components/Spinner.svelte';
+	import { Skeleton, SkeletonTable } from '$lib/components/ui/skeleton';
 	import StatsBar from '$lib/components/siem/dashboard/StatsBar.svelte';
 	import TimelineWidget from '$lib/components/siem/dashboard/TimelineWidget.svelte';
 	import RecentEventsTable from '$lib/components/siem/dashboard/RecentEventsTable.svelte';
@@ -197,9 +198,20 @@
 	</div>
 
 	{#if $dashboardLoading && !$dashboardStats}
-		<div class="flex items-center justify-center py-24">
-			<Spinner />
-			<span class="ml-3 text-muted-foreground">Loading security dashboard...</span>
+		<!-- Stats bar skeleton -->
+		<div class="flex gap-3 mb-4">
+			{#each Array(4) as _}
+				<Skeleton class="h-20 flex-1 rounded-lg" />
+			{/each}
+		</div>
+		<!-- Timeline skeleton -->
+		<Skeleton class="h-48 w-full rounded-lg mb-4" />
+		<!-- Table skeleton -->
+		<Skeleton class="h-64 w-full rounded-lg mb-4" />
+		<!-- Bottom grid skeleton -->
+		<div class="grid gap-4 md:grid-cols-2 mb-4">
+			<Skeleton class="h-48 rounded-lg" />
+			<Skeleton class="h-48 rounded-lg" />
 		</div>
 	{:else if $dashboardError}
 		<div class="text-center py-24">
@@ -207,10 +219,13 @@
 			<Button onclick={loadDashboard}>Retry</Button>
 		</div>
 	{:else if !$dashboardStats}
-		<div class="flex items-center justify-center py-24">
-			<Spinner />
-			<span class="ml-3 text-muted-foreground">Loading security dashboard...</span>
+		<div class="flex gap-3 mb-4">
+			{#each Array(4) as _}
+				<Skeleton class="h-20 flex-1 rounded-lg" />
+			{/each}
 		</div>
+		<Skeleton class="h-48 w-full rounded-lg mb-4" />
+		<Skeleton class="h-64 w-full rounded-lg mb-4" />
 	{:else if isEmpty}
 		<EmptyStateSiem
 			type="incidents"

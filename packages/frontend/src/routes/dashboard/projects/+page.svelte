@@ -32,6 +32,7 @@
     AlertDialogTrigger,
   } from "$lib/components/ui/alert-dialog";
   import Spinner from "$lib/components/Spinner.svelte";
+  import { Skeleton } from "$lib/components/ui/skeleton";
   import CreateOrganizationDialog from "$lib/components/CreateOrganizationDialog.svelte";
   import CreateProjectDialog from "$lib/components/CreateProjectDialog.svelte";
   import FolderOpen from "@lucide/svelte/icons/folder-open";
@@ -238,9 +239,10 @@
     {/if}
 
     {#if loading}
-      <div class="flex flex-col items-center justify-center py-16">
-        <Spinner size="lg" className="text-primary mb-4" />
-        <p class="text-muted-foreground">Loading projects...</p>
+      <div class="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        {#each Array(6) as _}
+          <Skeleton class="h-36 rounded-lg" />
+        {/each}
       </div>
     {:else if projects.length === 0}
       <Card class="border-2 border-dashed">
