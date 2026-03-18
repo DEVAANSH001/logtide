@@ -434,6 +434,17 @@ describe('ProjectsService', () => {
             expect(result.logs).not.toContain(project.id);
         });
 
+        it('should return empty arrays when organization has no projects', async () => {
+            const user = await createTestUser({ email: 'no-projects@test.com' });
+            const org = await createTestOrganization({ ownerId: user.id, name: 'Empty Org', slug: `empty-org-${Date.now()}` });
+
+            const result = await projectsService.getProjectDataAvailability(org.id, user.id);
+
+            expect(result.logs).toEqual([]);
+            expect(result.traces).toEqual([]);
+            expect(result.metrics).toEqual([]);
+        });
+
         it('should include project in traces array when traces exist', async () => {
             const { user, organization } = await createTestContext();
             const { createTestTrace } = await import('../../helpers/factories.js');
