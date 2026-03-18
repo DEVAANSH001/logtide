@@ -192,6 +192,19 @@ export class ClickHouseEngine extends StorageEngine {
       // index may already exist
     }
 
+    // Bloom filter on id — lets getByIds skip data granules that don't contain
+    // any of the requested UUIDs without a full project scan.
+    try {
+      await client.command({
+        query: `ALTER TABLE ${t} ADD INDEX IF NOT EXISTS idx_id id TYPE bloom_filter(0.01) GRANULARITY 1`,
+      });
+      await client.command({
+        query: `ALTER TABLE ${t} MATERIALIZE INDEX idx_id`,
+      });
+    } catch {
+      // index may already exist
+    }
+
     try {
       await client.command({
         query: `ALTER TABLE ${t} ADD INDEX IF NOT EXISTS idx_span_id span_id TYPE bloom_filter(0.01) GRANULARITY 1`,

@@ -15,3 +15,9 @@ CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_logs_project_hostname
   ON logs (project_id, (metadata->>'hostname'), time DESC)
   WHERE metadata->>'hostname' IS NOT NULL
     AND metadata->>'hostname' != '';
+
+-- Index for getByIds lookups (e.g. findCorrelatedLogs).
+-- The primary key is (time, id) which requires knowing `time` to be useful.
+-- A standalone index on id lets WHERE id = ANY(...) resolve without chunk scans.
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_logs_id
+  ON logs (id);
