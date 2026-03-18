@@ -18,7 +18,7 @@
 
 	function formatDate(dateStr: string | Date): string {
 		const date = typeof dateStr === 'string' ? new Date(dateStr) : dateStr;
-		return date.toLocaleDateString('en-US', {
+		return date.toLocaleDateString(undefined, {
 			month: 'short',
 			day: 'numeric',
 			hour: '2-digit',

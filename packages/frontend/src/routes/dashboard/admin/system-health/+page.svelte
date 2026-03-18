@@ -116,7 +116,7 @@
     });
 
     function formatNumber(num: number) {
-        return new Intl.NumberFormat("en-US").format(num);
+        return new Intl.NumberFormat(undefined).format(num);
     }
 
     function formatBytes(bytes: number) {

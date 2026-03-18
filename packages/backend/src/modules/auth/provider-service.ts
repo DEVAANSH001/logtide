@@ -29,6 +29,37 @@ export interface UpdateProviderInput {
 }
 
 /**
+ * Detect well-known OIDC provider icon from issuer URL or name/slug
+ */
+function detectOidcIcon(issuerUrl: string, name?: string, slug?: string): string | null {
+  try {
+    const url = new URL(issuerUrl);
+    const hostname = url.hostname.toLowerCase();
+
+    if (hostname === 'accounts.google.com') return 'google';
+    if (hostname === 'login.microsoftonline.com' || hostname === 'sts.windows.net') return 'microsoft';
+    if (hostname === 'token.actions.githubusercontent.com' || hostname === 'github.com') return 'github';
+    if (hostname === 'gitlab.com') return 'gitlab';
+    if (hostname.endsWith('.okta.com') || hostname.endsWith('.oktapreview.com')) return 'okta';
+    if (hostname.endsWith('.auth0.com') || hostname.endsWith('.us.auth0.com') || hostname.endsWith('.eu.auth0.com')) return 'auth0';
+  } catch {
+    // invalid URL, fall through to name/slug matching
+  }
+
+  const searchStr = `${name ?? ''} ${slug ?? ''}`.toLowerCase();
+  if (searchStr.includes('google')) return 'google';
+  if (searchStr.includes('microsoft') || searchStr.includes('azure') || searchStr.includes('entra')) return 'microsoft';
+  if (searchStr.includes('github')) return 'github';
+  if (searchStr.includes('gitlab')) return 'gitlab';
+  if (searchStr.includes('okta')) return 'okta';
+  if (searchStr.includes('auth0')) return 'auth0';
+  if (searchStr.includes('keycloak')) return 'keycloak';
+  if (searchStr.includes('authentik')) return 'authentik';
+
+  return null;
+}
+
+/**
  * Validate provider slug format
  */
 function validateSlug(slug: string): boolean {
@@ -164,6 +195,13 @@ export class ProviderService {
 
     const displayOrder = input.displayOrder ?? (Number(maxOrder?.max || 0) + 1);
 
+    // Auto-detect icon for OIDC providers if not explicitly provided
+    let icon = input.icon || null;
+    if (!icon && input.type === 'oidc') {
+      const oidcConfig = input.config as unknown as OidcProviderConfig;
+      icon = detectOidcIcon(oidcConfig.issuerUrl ?? '', input.name, input.slug);
+    }
+
     // Create provider
     const row = await db
       .insertInto('auth_providers')
@@ -174,7 +212,7 @@ export class ProviderService {
         enabled: input.enabled ?? true,
         is_default: input.isDefault ?? false,
         display_order: displayOrder,
-        icon: input.icon || null,
+        icon,
         config: input.config,
       })
       .returningAll()
@@ -232,7 +270,14 @@ export class ProviderService {
     if (input.enabled !== undefined) updateData.enabled = input.enabled;
     if (input.isDefault !== undefined) updateData.is_default = input.isDefault;
     if (input.displayOrder !== undefined) updateData.display_order = input.displayOrder;
-    if (input.icon !== undefined) updateData.icon = input.icon;
+    if (input.icon !== undefined) {
+      updateData.icon = input.icon;
+    } else if (input.config !== undefined && existing.type === 'oidc' && !existing.icon) {
+      // Auto-detect icon when config changes and no icon was previously set
+      const oidcConfig = input.config as unknown as OidcProviderConfig;
+      const detected = detectOidcIcon(oidcConfig.issuerUrl ?? '', input.name ?? existing.name, existing.slug);
+      if (detected) updateData.icon = detected;
+    }
     if (input.config !== undefined) updateData.config = input.config;
 
     // Update provider

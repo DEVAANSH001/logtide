@@ -78,7 +78,7 @@
 
 		// Format times for x-axis
 		const times = dataPoints.map((d) =>
-			d.time.toLocaleString("en-US", {
+			d.time.toLocaleString(undefined, {
 				month: "short",
 				day: "numeric",
 				hour: "2-digit",

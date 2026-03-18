@@ -44,7 +44,7 @@
 
 	function formatTime(dateStr: string): string {
 		const d = new Date(dateStr);
-		return d.toLocaleString("en-US", {
+		return d.toLocaleString(undefined, {
 			month: "short",
 			day: "numeric",
 			hour: "2-digit",
@@ -55,7 +55,7 @@
 
 	function formatLogTime(dateStr: string): string {
 		const d = new Date(dateStr);
-		return d.toLocaleTimeString("en-US", {
+		return d.toLocaleTimeString(undefined, {
 			hour: "2-digit",
 			minute: "2-digit",
 			second: "2-digit",

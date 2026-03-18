@@ -606,6 +606,130 @@ describe('External Auth Routes', () => {
             });
         });
 
+        describe('PUT /api/v1/admin/auth/providers/:id', () => {
+            it('should update a provider', async () => {
+                const adminUser = await db.insertInto('users').values({
+                    email: 'admin-put@example.com',
+                    name: 'Admin',
+                    password_hash: 'hash',
+                    is_admin: true,
+                }).returningAll().executeTakeFirstOrThrow();
+
+                const session = await createTestSession(adminUser.id);
+
+                const mockProvider = {
+                    id: 'provider-id',
+                    type: 'oidc',
+                    name: 'Updated Provider',
+                    slug: 'updated',
+                    enabled: true,
+                    isDefault: false,
+                    displayOrder: 1,
+                    icon: null,
+                    config: { clientSecret: 'secret123' },
+                    createdAt: new Date(),
+                    updatedAt: new Date(),
+                };
+
+                const updateProviderSpy = vi.spyOn(
+                    await import('../../../modules/auth/provider-service.js').then(m => m.providerService),
+                    'updateProvider'
+                ).mockResolvedValue(mockProvider as any);
+
+                const response = await app.inject({
+                    method: 'PUT',
+                    url: '/api/v1/admin/auth/providers/provider-id',
+                    headers: { authorization: `Bearer ${session.token}` },
+                    payload: { name: 'Updated Provider', enabled: true },
+                });
+
+                expect(response.statusCode).toBe(200);
+                const body = JSON.parse(response.payload);
+                expect(body.provider).toBeDefined();
+                expect(body.provider.name).toBe('Updated Provider');
+
+                updateProviderSpy.mockRestore();
+            });
+
+            it('should return 400 on validation error', async () => {
+                const adminUser = await db.insertInto('users').values({
+                    email: 'admin-put2@example.com',
+                    name: 'Admin',
+                    password_hash: 'hash',
+                    is_admin: true,
+                }).returningAll().executeTakeFirstOrThrow();
+
+                const session = await createTestSession(adminUser.id);
+
+                const response = await app.inject({
+                    method: 'PUT',
+                    url: '/api/v1/admin/auth/providers/provider-id',
+                    headers: { authorization: `Bearer ${session.token}` },
+                    payload: { name: '' }, // invalid: too short
+                });
+
+                expect(response.statusCode).toBe(400);
+            });
+        });
+
+        describe('GET /api/v1/admin/auth/providers (with config masking)', () => {
+            it('should mask OIDC clientSecret in provider list', async () => {
+                const adminUser = await db.insertInto('users').values({
+                    email: 'admin-mask@example.com',
+                    name: 'Admin',
+                    password_hash: 'hash',
+                    is_admin: true,
+                }).returningAll().executeTakeFirstOrThrow();
+
+                const session = await createTestSession(adminUser.id);
+
+                const getAllProvidersSpy = vi.spyOn(
+                    await import('../../../modules/auth/provider-service.js').then(m => m.providerService),
+                    'getAllProviders'
+                ).mockResolvedValue([
+                    {
+                        id: '1',
+                        type: 'oidc',
+                        name: 'Google',
+                        slug: 'google',
+                        enabled: true,
+                        isDefault: false,
+                        displayOrder: 0,
+                        icon: 'google',
+                        config: { clientId: 'client-id', clientSecret: 'super-secret' },
+                        createdAt: new Date(),
+                        updatedAt: new Date(),
+                    },
+                    {
+                        id: '2',
+                        type: 'ldap',
+                        name: 'LDAP',
+                        slug: 'ldap',
+                        enabled: true,
+                        isDefault: false,
+                        displayOrder: 1,
+                        icon: null,
+                        config: { url: 'ldap://server', bindPassword: 'bind-secret' },
+                        createdAt: new Date(),
+                        updatedAt: new Date(),
+                    },
+                ] as any);
+
+                const response = await app.inject({
+                    method: 'GET',
+                    url: '/api/v1/admin/auth/providers',
+                    headers: { authorization: `Bearer ${session.token}` },
+                });
+
+                expect(response.statusCode).toBe(200);
+                const body = JSON.parse(response.payload);
+                expect(body.providers[0].config.clientSecret).toBe('••••••••');
+                expect(body.providers[1].config.bindPassword).toBe('••••••••');
+
+                getAllProvidersSpy.mockRestore();
+            });
+        });
+
         describe('POST /api/v1/admin/auth/providers/:id/test', () => {
             it('should test provider connection', async () => {
                 const adminUser = await db.insertInto('users').values({

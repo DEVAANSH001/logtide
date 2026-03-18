@@ -99,7 +99,7 @@
 
     function formatDate(dateStr: string | Date) {
         const date = typeof dateStr === 'string' ? new Date(dateStr) : dateStr;
-        return date.toLocaleDateString("en-US", {
+        return date.toLocaleDateString(undefined, {
             year: "numeric",
             month: "short",
             day: "numeric",
@@ -107,7 +107,7 @@
     }
 
     function formatNumber(num: number) {
-        return new Intl.NumberFormat("en-US").format(num);
+        return new Intl.NumberFormat(undefined).format(num);
     }
 
     onMount(() => {
