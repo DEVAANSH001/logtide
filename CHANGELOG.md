@@ -5,6 +5,7 @@ All notable changes to LogTide will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+
 ## [0.8.4] - 2026-03-19
 
 ### Added
@@ -14,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **Initial load** (no data yet): animated skeleton rows mirroring the page layout — stat cards on `/dashboard`, project cards on `/dashboard/projects`, table rows on search, traces, errors, admin tables, incidents, alerts history, and members
   - **Re-fetch** (filter change, pagination): existing content dims with a translucent overlay and centered spinner, preventing layout shift and context loss
   - Pages updated: `/dashboard`, `/dashboard/search`, `/dashboard/projects`, `/dashboard/alerts`, `/dashboard/errors`, `/dashboard/traces`, `/dashboard/security`, `/dashboard/security/incidents`, `/dashboard/admin/organizations`, `/dashboard/admin/users`, `/dashboard/admin/projects`, `/dashboard/settings/members`
+  - Automated Helm chart releases: every stable Docker image release now triggers a `repository_dispatch` to `logtide-dev/logtide-helm-chart`, which auto-bumps `appVersion` and chart `version` (patch), commits, and publishes a new chart release to the Helm repo on GitHub Pages
 
 ### Fixed
 - API 400 responses now include a `details` array with field-level validation errors instead of just a generic message. Covers both Fastify/AJV schema validation and Zod validation errors (including uncaught `ZodError` that previously returned 500)
