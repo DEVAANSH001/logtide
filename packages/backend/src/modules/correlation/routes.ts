@@ -331,45 +331,25 @@ export default async function correlationRoutes(fastify: FastifyInstance) {
           });
         }
 
-        // Fetch logs by IDs across accessible projects (reservoir: works with any engine)
-        const allFoundLogs: Array<{ id: string; projectId: string }> = [];
-        for (const pid of searchProjectIds) {
-          const found = await reservoir.getByIds({ ids: logIds, projectId: pid });
-          for (const log of found) {
-            allFoundLogs.push({ id: log.id, projectId: log.projectId });
-          }
-          // Stop once we've found all requested logs
-          if (allFoundLogs.length >= logIds.length) break;
-        }
+        // Query log_identifiers directly — log_identifiers is always in PostgreSQL and
+        // already contains log_id, project_id, and identifier data. No need to hit the
+        // storage engine (ClickHouse/TimescaleDB/MongoDB) at all.
+        // The project_id IN searchProjectIds clause enforces access control.
+        const rows = await db
+          .selectFrom('log_identifiers')
+          .select(['log_id', 'identifier_type', 'identifier_value', 'source_field'])
+          .where('log_id', 'in', logIds)
+          .where('project_id', 'in', searchProjectIds)
+          .execute();
 
-        if (allFoundLogs.length === 0) {
-          return reply.send({
-            success: true,
-            data: { identifiers: {} },
-          });
-        }
-
-        // Verify project access for the first log's project
-        const firstProjectId = allFoundLogs[0].projectId || projectId || '';
-        const hasAccess = await verifyProjectAccess(request as any, firstProjectId);
-        if (!hasAccess) {
-          return reply.status(403).send({
-            success: false,
-            error: 'Access denied to these logs',
-          });
-        }
-
-        // Only return identifiers for logs in accessible projects
-        const accessibleLogIds = allFoundLogs
-          .filter((log) => log.projectId === firstProjectId)
-          .map((log) => log.id);
-
-        const identifiersMap = await correlationService.getLogIdentifiersBatch(accessibleLogIds);
-
-        // Convert Map to plain object for JSON serialization
         const identifiers: Record<string, Array<{ type: string; value: string; sourceField: string }>> = {};
-        for (const [logId, matches] of identifiersMap) {
-          identifiers[logId] = matches;
+        for (const row of rows) {
+          if (!identifiers[row.log_id]) identifiers[row.log_id] = [];
+          identifiers[row.log_id].push({
+            type: row.identifier_type,
+            value: row.identifier_value,
+            sourceField: row.source_field,
+          });
         }
 
         return reply.send({

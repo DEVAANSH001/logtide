@@ -70,7 +70,7 @@
         }
     }
 
-    function formatTimestamp(date: string) {
+    function formatDate(date: string) {
         return new Date(date).toLocaleString(undefined, {
             month: "short",
             day: "numeric",

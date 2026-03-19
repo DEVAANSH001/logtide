@@ -46,6 +46,7 @@
   import ArrowLeft from "@lucide/svelte/icons/arrow-left";
   import EmptyTraces from "$lib/components/EmptyTraces.svelte";
   import Spinner from "$lib/components/Spinner.svelte";
+  import { SkeletonTable, TableLoadingOverlay } from "$lib/components/ui/skeleton";
   import { layoutStore } from "$lib/stores/layout";
   import { toastStore } from "$lib/stores/toast";
 
@@ -606,13 +607,12 @@
         </div>
       </CardHeader>
       <CardContent>
-        {#if isLoading}
-          <div class="flex items-center justify-center h-64">
-            <Spinner size="lg" />
-          </div>
+        {#if isLoading && traces.length === 0}
+          <SkeletonTable rows={7} columns={7} />
         {:else if traces.length === 0}
           <EmptyTraces />
         {:else}
+          <TableLoadingOverlay loading={isLoading}>
           <div class="rounded-md border">
             <Table>
               <TableHeader>
@@ -795,6 +795,7 @@
               </div>
             </div>
           {/if}
+          </TableLoadingOverlay>
         {/if}
       </CardContent>
     </Card>

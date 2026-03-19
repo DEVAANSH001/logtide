@@ -204,3 +204,17 @@ jobs:
           echo "docker pull logtide/frontend:${{ needs.prepare.outputs.version }}" >> $GITHUB_STEP_SUMMARY
           echo "docker pull ghcr.io/${{ github.repository_owner }}/logtide-frontend:${{ needs.prepare.outputs.version }}" >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
+
+  helm-update:
+    name: Update Helm Chart
+    needs: [prepare, merge]
+    runs-on: ubuntu-latest
+    if: needs.prepare.outputs.is_stable == 'true'
+    steps:
+      - name: Trigger helm chart update
+        uses: peter-evans/repository-dispatch@v3
+        with:
+          token: ${{ secrets.HELM_CHART_PAT }}
+          repository: logtide-dev/logtide-helm-chart
+          event-type: logtide-release
+          client-payload: '{"version": "${{ needs.prepare.outputs.version }}"}'

@@ -50,6 +50,7 @@
   import { Tabs, TabsContent, TabsList, TabsTrigger } from '$lib/components/ui/tabs';
   import InviteMemberDialog from '$lib/components/InviteMemberDialog.svelte';
   import Spinner from '$lib/components/Spinner.svelte';
+  import { SkeletonTable } from '$lib/components/ui/skeleton';
 
   let user: any = null;
   let token: string | null = null;
@@ -297,10 +298,7 @@
 
         <TabsContent value="members">
           {#if loadingMembers}
-            <div class="flex items-center justify-center py-8">
-              <Spinner size="md" />
-              <span class="ml-2 text-sm text-muted-foreground">Loading members...</span>
-            </div>
+            <SkeletonTable rows={5} columns={4} />
           {:else if members.length === 0}
             <div class="text-center py-8">
               <Users class="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
@@ -411,10 +409,7 @@
 
         <TabsContent value="invitations">
           {#if loadingInvitations}
-            <div class="flex items-center justify-center py-8">
-              <Spinner size="md" />
-              <span class="ml-2 text-sm text-muted-foreground">Loading invitations...</span>
-            </div>
+            <SkeletonTable rows={3} columns={5} />
           {:else if pendingInvitations.length === 0}
             <div class="text-center py-8">
               <Mail class="w-12 h-12 mx-auto mb-4 text-muted-foreground" />

@@ -15,7 +15,7 @@
 	import { Card, CardContent, CardHeader, CardTitle } from '$lib/components/ui/card';
 	import Input from '$lib/components/ui/input/input.svelte';
 	import * as Select from '$lib/components/ui/select';
-	import Spinner from '$lib/components/Spinner.svelte';
+	import { SkeletonTable, TableLoadingOverlay } from '$lib/components/ui/skeleton';
 	import { ErrorGroupCard } from '$lib/components/exceptions';
 	import Bug from '@lucide/svelte/icons/bug';
 	import RefreshCw from '@lucide/svelte/icons/refresh-cw';
@@ -322,10 +322,7 @@
 		</CardHeader>
 		<CardContent>
 			{#if loading && groups.length === 0}
-				<div class="flex items-center justify-center py-12">
-					<Spinner />
-					<span class="ml-3 text-muted-foreground">Loading error groups...</span>
-				</div>
+				<SkeletonTable rows={5} columns={4} />
 			{:else if error}
 				<div class="text-center py-12 text-destructive">
 					<Bug class="w-12 h-12 mx-auto mb-4 opacity-50" />
@@ -352,11 +349,13 @@
 					{/if}
 				</div>
 			{:else}
+				<TableLoadingOverlay loading={loading}>
 				<div class="space-y-3">
 					{#each groups as group}
 						<ErrorGroupCard {group} onclick={() => viewErrorGroup(group)} />
 					{/each}
 				</div>
+				</TableLoadingOverlay>
 
 				<!-- Pagination -->
 				{#if totalPages > 1}
