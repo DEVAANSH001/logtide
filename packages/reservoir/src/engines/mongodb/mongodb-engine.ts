@@ -475,8 +475,10 @@ export class MongoDBEngine extends StorageEngine {
 
     const pipeline: Document[] = [
       { $match: filter },
+      // Pre-filter before $group to reduce the number of docs aggregated.
+      // Avoids grouping null/empty values that would be discarded afterwards.
+      { $match: { [mongoField]: { $exists: true, $ne: null, $gt: '' } } },
       { $group: { _id: `$${mongoField}` } },
-      { $match: { _id: { $ne: null } } },
       { $sort: { _id: 1 } },
       { $limit: limit },
       { $project: { value: '$_id', _id: 0 } },
@@ -1224,7 +1226,9 @@ export class MongoDBEngine extends StorageEngine {
     await safeCreateIndex(col, { project_id: 1, service: 1, time: -1 }, 'idx_project_service_time');
     await safeCreateIndex(col, { project_id: 1, level: 1, time: -1 }, 'idx_project_level_time');
     await safeCreateIndex(col, { project_id: 1, service: 1, level: 1, time: -1 }, 'idx_project_service_level_time');
-    await safeCreateIndex(col, { project_id: 1, hostname: 1, time: -1 }, 'idx_project_hostname_time');
+    // hostname is stored in metadata.hostname (nested), not top-level — index accordingly.
+    // The top-level `hostname` field is always null (ingestion puts it in metadata).
+    await safeCreateIndex(col, { 'metadata.hostname': 1, project_id: 1, time: -1 }, 'idx_project_metadata_hostname_time', { sparse: true });
 
     // Text index for $text search (not supported on time-series timeField/metaField)
     if (!this.useTimeSeries) {

@@ -67,7 +67,8 @@ export async function build(opts = {}) {
     // Determine HTTP status code:
     // 1. error.statusCode set by Fastify (validation, rate limit) or custom parsers
     // 2. Fastify validation errors have a .validation property → 400
-    // 3. Default → 500
+    // 3. ZodError (name === 'ZodError') → 400
+    // 4. Default → 500
     let statusCode = typeof (error as any).statusCode === 'number'
       ? (error as any).statusCode
       : undefined;
@@ -76,11 +77,18 @@ export async function build(opts = {}) {
       statusCode = 400;
     }
 
+    if (!statusCode && (error as any).name === 'ZodError') {
+      statusCode = 400;
+    }
+
     if (statusCode && statusCode >= 400 && statusCode < 500) {
-      reply.code(statusCode).send({
-        statusCode,
-        error: errMessage,
-      });
+      const body: Record<string, unknown> = { statusCode, error: errMessage };
+      if ((error as any).validation) {
+        body.details = (error as any).validation;
+      } else if ((error as any).name === 'ZodError' && Array.isArray((error as any).errors)) {
+        body.details = (error as any).errors;
+      }
+      reply.code(statusCode).send(body);
       return;
     }
 

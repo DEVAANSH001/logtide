@@ -41,6 +41,7 @@
 	import EditAlertDialog from "$lib/components/EditAlertDialog.svelte";
 	import SeverityBadge from "$lib/components/siem/shared/SeverityBadge.svelte";
 	import Spinner from "$lib/components/Spinner.svelte";
+	import { SkeletonTable, TableLoadingOverlay } from "$lib/components/ui/skeleton";
 	import Bell from "@lucide/svelte/icons/bell";
 	import Plus from "@lucide/svelte/icons/plus";
 	import Trash2 from "@lucide/svelte/icons/trash-2";
@@ -510,11 +511,8 @@
 
 		<!-- Unified History Tab -->
 		<TabsContent value="history" class="space-y-4">
-			{#if loadingHistory || detectionsLoading}
-				<div class="flex items-center justify-center py-12">
-					<Spinner />
-					<span class="ml-3 text-muted-foreground">Loading history...</span>
-				</div>
+			{#if (loadingHistory || detectionsLoading) && historyItems.length === 0}
+				<SkeletonTable rows={4} columns={4} />
 			{:else if historyItems.length === 0}
 				<Card class="border-2 border-dashed">
 					<CardContent class="py-16 text-center">
@@ -526,6 +524,7 @@
 					</CardContent>
 				</Card>
 			{:else}
+				<TableLoadingOverlay loading={loadingHistory || detectionsLoading}>
 				<div class="grid gap-4">
 					{#each historyItems as item}
 						{#if item.type === 'alert'}
@@ -749,6 +748,7 @@
 						{/if}
 					{/each}
 				</div>
+				</TableLoadingOverlay>
 			{/if}
 		</TabsContent>
 	</Tabs>

@@ -322,19 +322,21 @@ export class TimescaleQueryTranslator extends QueryTranslator {
     values.push(params.to);
     idx++;
 
-    let selectExpr: string;
-    if (params.field.startsWith('metadata.')) {
-      const jsonKey = params.field.slice('metadata.'.length);
-      selectExpr = `metadata->>'${jsonKey}'`;
-    } else {
-      selectExpr = params.field;
-    }
-
-    conditions.push(`${selectExpr} IS NOT NULL`);
-    conditions.push(`${selectExpr} != ''`);
-
     const where = ` WHERE ${conditions.join(' AND ')}`;
-    let query = `SELECT DISTINCT ${selectExpr} AS value FROM ${this.table}${where} ORDER BY value ASC`;
+    let query: string;
+
+    if (params.field.startsWith('metadata.')) {
+      // Extract JSONB once in a subquery instead of 3x per row (SELECT + IS NOT NULL + != '').
+      const jsonKey = params.field.slice('metadata.'.length);
+      const extract = `metadata->>'${jsonKey}'`;
+      query = `SELECT DISTINCT value FROM (SELECT ${extract} AS value FROM ${this.table}${where}) sub WHERE value IS NOT NULL AND value != '' ORDER BY value ASC`;
+    } else {
+      const selectExpr = params.field;
+      conditions.push(`${selectExpr} IS NOT NULL`);
+      conditions.push(`${selectExpr} != ''`);
+      const fullWhere = ` WHERE ${conditions.join(' AND ')}`;
+      query = `SELECT DISTINCT ${selectExpr} AS value FROM ${this.table}${fullWhere} ORDER BY value ASC`;
+    }
 
     if (params.limit) {
       query += ` LIMIT $${idx}`;

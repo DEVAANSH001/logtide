@@ -9,7 +9,7 @@
 	import { onDestroy } from 'svelte';
 	import Button from '$lib/components/ui/button/button.svelte';
 	import { Badge } from '$lib/components/ui/badge';
-	import Spinner from '$lib/components/Spinner.svelte';
+	import { SkeletonTable, TableLoadingOverlay } from '$lib/components/ui/skeleton';
 	import IncidentCard from '$lib/components/siem/incidents/IncidentCard.svelte';
 	import IncidentFilters from '$lib/components/siem/incidents/IncidentFilters.svelte';
 	import EmptyStateSiem from '$lib/components/siem/shared/EmptyStateSiem.svelte';
@@ -284,10 +284,7 @@
 
 	<!-- Content -->
 	{#if loading && incidents.length === 0}
-		<div class="flex items-center justify-center py-24">
-			<Spinner />
-			<span class="ml-3 text-muted-foreground">Loading incidents...</span>
-		</div>
+		<SkeletonTable rows={5} columns={5} />
 	{:else if error}
 		<div class="text-center py-24">
 			<p class="text-destructive mb-4">{error}</p>
@@ -305,11 +302,13 @@
 		/>
 	{:else}
 		<!-- Incident List -->
+		<TableLoadingOverlay loading={loading}>
 		<div class="space-y-4">
 			{#each incidents as incident}
 				<IncidentCard {incident} onclick={() => handleIncidentClick(incident)} />
 			{/each}
 		</div>
+		</TableLoadingOverlay>
 
 		<!-- Pagination -->
 		<div class="mt-6 flex items-center justify-between">

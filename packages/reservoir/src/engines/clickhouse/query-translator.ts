@@ -257,24 +257,30 @@ export class ClickHouseQueryTranslator extends QueryTranslator {
       }
     }
 
-    let selectExpr: string;
-    if (params.field.startsWith('metadata.')) {
-      const jsonKey = params.field.slice('metadata.'.length);
-      selectExpr = `JSONExtractString(metadata, '${jsonKey}')`;
-    } else {
-      selectExpr = params.field;
-    }
-
-    conditions.push(`${selectExpr} IS NOT NULL`);
-    conditions.push(`${selectExpr} != ''`);
-
     const prewhereClause = prewhere.length > 0 ? ` PREWHERE ${prewhere.join(' AND ')}` : '';
     const whereClause = conditions.length > 0 ? ` WHERE ${conditions.join(' AND ')}` : '';
-    let query = `SELECT DISTINCT ${selectExpr} AS value FROM ${this.tableName}${prewhereClause}${whereClause} ORDER BY value ASC`;
+    const limitClause = params.limit ? ` LIMIT {p_limit:UInt32}` : '';
+    if (params.limit) queryParams.p_limit = params.limit;
 
-    if (params.limit) {
-      query += ` LIMIT {p_limit:UInt32}`;
-      queryParams.p_limit = params.limit;
+    let query: string;
+    if (params.field === 'metadata.hostname') {
+      // Use the materialized `hostname` column — pre-computed at ingest, no JSON parsing at query time.
+      // Fast path: ClickHouse reads only the native string column, skipping the entire metadata blob.
+      const fullWhere = [...conditions, `hostname != ''`];
+      const whereAll = fullWhere.length > 0 ? ` WHERE ${fullWhere.join(' AND ')}` : '';
+      query = `SELECT DISTINCT hostname AS value FROM ${this.tableName}${prewhereClause}${whereAll} ORDER BY value ASC${limitClause}`;
+    } else if (params.field.startsWith('metadata.')) {
+      // For other metadata fields: extract JSON once in a subquery instead of 3x per row.
+      // JSONExtractString always returns '' for missing keys — IS NOT NULL is redundant.
+      const jsonKey = params.field.slice('metadata.'.length);
+      const extract = `JSONExtractString(metadata, '${jsonKey}')`;
+      query = `SELECT DISTINCT value FROM (SELECT ${extract} AS value FROM ${this.tableName}${prewhereClause}${whereClause}) WHERE value != '' ORDER BY value ASC${limitClause}`;
+    } else {
+      const selectExpr = params.field;
+      conditions.push(`${selectExpr} IS NOT NULL`);
+      conditions.push(`${selectExpr} != ''`);
+      const fullWhere = conditions.length > 0 ? ` WHERE ${conditions.join(' AND ')}` : '';
+      query = `SELECT DISTINCT ${selectExpr} AS value FROM ${this.tableName}${prewhereClause}${fullWhere} ORDER BY value ASC${limitClause}`;
     }
 
     return { query, parameters: [queryParams] };
