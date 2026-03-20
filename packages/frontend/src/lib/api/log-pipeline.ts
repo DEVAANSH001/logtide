@@ -180,7 +180,7 @@ export const logPipelineAPI = {
     const params = new URLSearchParams({ organizationId });
     if (projectId) params.set('projectId', projectId);
 
-    const response = await fetchWithAuth(`${getApiUrl()}/api/v1/log-pipelines/import?${params}`, {
+    const response = await fetchWithAuth(`${getApiUrl()}/api/v1/log-pipelines/import-yaml?${params}`, {
       method: 'POST',
       body: JSON.stringify({ yaml }),
     });

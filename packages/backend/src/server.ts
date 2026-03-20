@@ -181,7 +181,7 @@ export async function build(opts = {}) {
   await fastify.register(correlationRoutes, { prefix: '/api' });
   await fastify.register(patternRoutes, { prefix: '/api' });
   await fastify.register(piiMaskingRoutes, { prefix: '/api' });
-  await fastify.register(pipelineRoutes, { prefix: '/api/v1/pipelines' });
+  await fastify.register(pipelineRoutes, { prefix: '/api/v1/log-pipelines' });
   await fastify.register(otlpRoutes);
   await fastify.register(otlpTraceRoutes);
   await fastify.register(otlpMetricRoutes);
