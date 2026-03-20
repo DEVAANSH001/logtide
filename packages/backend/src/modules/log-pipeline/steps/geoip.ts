@@ -5,7 +5,7 @@ async function tryGeoLookup(ip: string): Promise<Record<string, unknown> | null>
   try {
     const { geoLite2Service } = await import('../../siem/geolite2-service.js');
     const geo = geoLite2Service.lookup(ip);
-    return geo ?? null;
+    return geo ? (geo as unknown as Record<string, unknown>) : null;
   } catch {
     return null;
   }

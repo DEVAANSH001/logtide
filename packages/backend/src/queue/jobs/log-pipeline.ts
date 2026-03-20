@@ -1,4 +1,4 @@
-import type { Job } from 'bullmq';
+import type { IJob } from '../abstractions/types.js';
 import { sql } from 'kysely';
 import { db } from '../../database/connection.js';
 import { pipelineService } from '../../modules/log-pipeline/service.js';
@@ -15,7 +15,7 @@ export interface LogPipelineJobData {
   organizationId: string;
 }
 
-export async function processLogPipeline(job: Job<LogPipelineJobData>): Promise<void> {
+export async function processLogPipeline(job: IJob<LogPipelineJobData>): Promise<void> {
   const { logs, projectId, organizationId } = job.data;
 
   const pipeline = await pipelineService.getForProject(projectId, organizationId);

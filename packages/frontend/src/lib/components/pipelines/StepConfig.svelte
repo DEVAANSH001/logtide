@@ -39,7 +39,7 @@
       <Input
         id="grok-pattern"
         type="text"
-        placeholder="%{IP:client_ip} %{WORD:method} %{URIPATH:path}"
+        placeholder={'%{IP:client_ip} %{WORD:method} %{URIPATH:path}'}
         value={step.pattern ?? ''}
         oninput={(e) => onUpdate({ ...step, pattern: (e.currentTarget as HTMLInputElement).value })}
         class="font-mono text-sm"
