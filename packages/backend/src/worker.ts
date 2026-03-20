@@ -9,6 +9,7 @@ import { processInvitationEmail, type InvitationEmailData } from './queue/jobs/i
 import { processIncidentNotification, type IncidentNotificationJob } from './queue/jobs/incident-notification.js';
 import { processExceptionParsing, type ExceptionParsingJobData } from './queue/jobs/exception-parsing.js';
 import { processErrorNotification, type ErrorNotificationJobData } from './queue/jobs/error-notification.js';
+import { processLogPipeline, type LogPipelineJobData } from './queue/jobs/log-pipeline.js';
 import { alertsService } from './modules/alerts/index.js';
 import { enrichmentService } from './modules/siem/enrichment-service.js';
 import { retentionService } from './modules/retention/index.js';
@@ -60,6 +61,11 @@ const exceptionWorker = createWorker<ExceptionParsingJobData>('exception-parsing
 // Create worker for error notifications
 const errorNotificationWorker = createWorker<ErrorNotificationJobData>('error-notifications', async (job) => {
   await processErrorNotification(job);
+});
+
+// Create worker for log pipeline processing
+const pipelineWorker = createWorker<LogPipelineJobData>('log-pipeline', async (job) => {
+  await processLogPipeline(job);
 });
 
 // Start workers (required for graphile-worker backend, no-op for BullMQ)
@@ -220,6 +226,27 @@ errorNotificationWorker.on('failed', (job, err) => {
       error: { name: err.name, message: err.message, stack: err.stack },
       jobId: job?.id,
       exceptionId: job?.data?.exceptionId,
+    });
+  }
+});
+
+pipelineWorker.on('completed', (job) => {
+  if (isInternalLoggingEnabled()) {
+    hub.captureLog('info', `Log pipeline job completed`, {
+      jobId: job.id,
+      logCount: job.data?.logs?.length,
+    });
+  }
+});
+
+pipelineWorker.on('failed', (job, err) => {
+  console.error(`Log pipeline job ${job?.id} failed:`, err);
+
+  if (isInternalLoggingEnabled()) {
+    hub.captureLog('error', `Log pipeline job failed: ${err.message}`, {
+      error: { name: err.name, message: err.message, stack: err.stack },
+      jobId: job?.id,
+      logCount: job?.data?.logs?.length,
     });
   }
 });
@@ -562,6 +589,7 @@ async function gracefulShutdown(signal: string) {
     await incidentNotificationWorker.close();
     await exceptionWorker.close();
     await errorNotificationWorker.close();
+    await pipelineWorker.close();
     console.log('[Worker] Workers closed');
 
     // Close queue system (Redis/PostgreSQL connections)
