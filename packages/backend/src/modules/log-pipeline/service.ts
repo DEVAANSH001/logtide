@@ -31,7 +31,7 @@ export class PipelineService {
         name: input.name,
         description: input.description ?? null,
         enabled: input.enabled ?? true,
-        steps: input.steps as unknown as Record<string, unknown>[],
+        steps: JSON.stringify(input.steps) as unknown as Record<string, unknown>[],
       })
       .returningAll()
       .executeTakeFirstOrThrow();
@@ -44,7 +44,7 @@ export class PipelineService {
     if (input.name !== undefined) updates.name = input.name;
     if (input.description !== undefined) updates.description = input.description;
     if (input.enabled !== undefined) updates.enabled = input.enabled;
-    if (input.steps !== undefined) updates.steps = input.steps;
+    if (input.steps !== undefined) updates.steps = JSON.stringify(input.steps);
 
     const row = await db
       .updateTable('log_pipelines')
