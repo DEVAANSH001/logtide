@@ -24,8 +24,24 @@ export default async function globalSetup() {
         await migrateToLatest();
         console.log('[Global Setup] Migrations completed');
     } catch (error) {
-        console.error('[Global Setup] Failed to run migrations:', error);
-        throw error;
+        const isConnRefused = (function checkConnRefused(err: unknown): boolean {
+            if (err instanceof AggregateError) {
+                return err.errors.some(checkConnRefused);
+            }
+            if (err instanceof Error) {
+                return (
+                    err.message.includes('ECONNREFUSED') ||
+                    (err as NodeJS.ErrnoException).code === 'ECONNREFUSED'
+                );
+            }
+            return false;
+        })(error);
+        if (isConnRefused) {
+            console.warn('[Global Setup] DB not reachable — skipping migrations (unit-test mode)');
+        } else {
+            console.error('[Global Setup] Failed to run migrations:', error);
+            throw error;
+        }
     }
 
     console.log('[Global Setup] Test environment ready!');
