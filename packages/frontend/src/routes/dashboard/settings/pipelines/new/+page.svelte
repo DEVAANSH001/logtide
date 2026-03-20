@@ -7,6 +7,8 @@
   import { pipelineStore } from '$lib/stores/log-pipeline';
   import type { PipelineStep } from '$lib/api/log-pipeline';
   import { logPipelineAPI } from '$lib/api/log-pipeline';
+  import { projectsAPI } from '$lib/api/projects';
+  import type { Project } from '@logtide/shared';
   import Button from '$lib/components/ui/button/button.svelte';
   import Input from '$lib/components/ui/input/input.svelte';
   import Label from '$lib/components/ui/label/label.svelte';
@@ -29,6 +31,8 @@
 
   let token: string | null = null;
   let organizationId = $state<string | null>(null);
+  let projects = $state<Project[]>([]);
+  let projectId = $state<string | null>(null);
 
   let name = $state('');
   let description = $state('');
@@ -48,8 +52,12 @@
     organizationId = s.currentOrganization?.id ?? null;
   });
 
-  onMount(() => {
+  onMount(async () => {
     if (!token) goto('/login');
+    if (organizationId) {
+      const res = await projectsAPI.getProjects(organizationId);
+      projects = res.projects;
+    }
   });
 
   async function handleCreate() {
@@ -65,6 +73,7 @@
         description: description.trim() || undefined,
         steps,
         enabled,
+        projectId: projectId ?? undefined,
       });
       toastStore.success('Pipeline created');
       goto('/dashboard/settings/pipelines');
@@ -141,6 +150,20 @@
           disabled={saving}
           rows={2}
         />
+      </div>
+      <div class="space-y-2">
+        <Label for="pipeline-project">Project <span class="text-muted-foreground text-xs">(optional — leave empty for org-wide default)</span></Label>
+        <select
+          id="pipeline-project"
+          class="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm"
+          onchange={(e) => { projectId = (e.currentTarget as HTMLSelectElement).value || null; }}
+          disabled={saving}
+        >
+          <option value="">Org-wide (applies to all projects)</option>
+          {#each projects as p}
+            <option value={p.id}>{p.name}</option>
+          {/each}
+        </select>
       </div>
       <div class="flex items-center gap-3">
         <Switch bind:checked={enabled} disabled={saving} />
