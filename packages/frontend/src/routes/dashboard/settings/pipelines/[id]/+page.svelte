@@ -20,6 +20,7 @@
 
   let token: string | null = null;
   let organizationId = $state<string | null>(null);
+  let initialOrgId: string | null = null;
 
   let pipelineId = $derived(page.params.id);
 
@@ -49,6 +50,11 @@
       loadingPipeline = false;
       return;
     }
+    if (initialOrgId && initialOrgId !== organizationId) {
+      goto('/dashboard/settings/pipelines');
+      return;
+    }
+    initialOrgId = organizationId;
     loadPipeline();
   });
 
