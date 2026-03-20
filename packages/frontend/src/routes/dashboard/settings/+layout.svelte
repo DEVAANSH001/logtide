@@ -10,6 +10,7 @@
   import BellRing from '@lucide/svelte/icons/bell-ring';
   import Users from '@lucide/svelte/icons/users';
   import ClipboardList from '@lucide/svelte/icons/clipboard-list';
+  import GitBranch from '@lucide/svelte/icons/git-branch';
   import Settings from '@lucide/svelte/icons/settings';
   import ChevronRight from '@lucide/svelte/icons/chevron-right';
 
@@ -69,6 +70,7 @@
       items: [
         { label: 'PII Masking', href: '/dashboard/settings/pii-masking', icon: ShieldAlert },
         { label: 'Identifier Patterns', href: '/dashboard/settings/patterns', icon: Fingerprint },
+        { label: 'Pipelines', href: '/dashboard/settings/pipelines', icon: GitBranch },
       ],
     },
     {
