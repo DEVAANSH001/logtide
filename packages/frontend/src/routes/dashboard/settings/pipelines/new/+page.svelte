@@ -1,5 +1,4 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { authStore } from '$lib/stores/auth';
   import { organizationStore } from '$lib/stores/organization';
@@ -52,11 +51,10 @@
     organizationId = s.currentOrganization?.id ?? null;
   });
 
-  onMount(async () => {
-    if (!token) goto('/login');
+  $effect(() => {
+    if (!token) { goto('/login'); return; }
     if (organizationId) {
-      const res = await projectsAPI.getProjects(organizationId);
-      projects = res.projects;
+      projectsAPI.getProjects(organizationId).then((res) => { projects = res.projects; });
     }
   });
 

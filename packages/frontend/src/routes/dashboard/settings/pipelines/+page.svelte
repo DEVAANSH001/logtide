@@ -1,5 +1,4 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { authStore } from '$lib/stores/auth';
   import { organizationStore } from '$lib/stores/organization';
@@ -40,7 +39,7 @@
     organizationId = s.currentOrganization?.id ?? null;
   });
 
-  onMount(() => {
+  $effect(() => {
     if (!token) {
       goto('/login');
       return;

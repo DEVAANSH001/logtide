@@ -1,5 +1,4 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { page } from '$app/state';
   import { authStore } from '$lib/stores/auth';
@@ -40,7 +39,7 @@
     organizationId = s.currentOrganization?.id ?? null;
   });
 
-  onMount(async () => {
+  $effect(() => {
     if (!token) {
       goto('/login');
       return;
@@ -50,7 +49,7 @@
       loadingPipeline = false;
       return;
     }
-    await loadPipeline();
+    loadPipeline();
   });
 
   async function loadPipeline() {
