@@ -2,7 +2,11 @@ import { describe, it, expect, beforeEach, beforeAll, afterAll } from 'vitest';
 import Fastify, { FastifyInstance } from 'fastify';
 import { db } from '../../../database/index.js';
 import { pipelineRoutes } from '../../../modules/log-pipeline/routes.js';
-import { createTestContext, createTestSession, getSessionHeaders } from '../../helpers/index.js';
+import { createTestContext, createTestSession } from '../../helpers/index.js';
+
+function authHeaders(token: string) {
+  return { Authorization: `Bearer ${token}` };
+}
 
 let app: FastifyInstance;
 let ctx: Awaited<ReturnType<typeof createTestContext>>;
@@ -38,7 +42,7 @@ describe('POST /api/v1/pipelines', () => {
     const res = await app.inject({
       method: 'POST',
       url: '/api/v1/pipelines',
-      headers: getSessionHeaders(authToken),
+      headers: authHeaders(authToken),
       payload: {
         organizationId: ctx.organization.id,
         projectId: ctx.project.id,
@@ -56,7 +60,7 @@ describe('POST /api/v1/pipelines', () => {
     const res = await app.inject({
       method: 'POST',
       url: '/api/v1/pipelines',
-      headers: getSessionHeaders(authToken),
+      headers: authHeaders(authToken),
       payload: {
         organizationId: ctx.organization.id,
         name: 'Bad Pipeline',
@@ -86,7 +90,7 @@ describe('POST /api/v1/pipelines', () => {
     const res = await app.inject({
       method: 'POST',
       url: '/api/v1/pipelines',
-      headers: getSessionHeaders(otherSession.token),
+      headers: authHeaders(otherSession.token),
       payload: {
         organizationId: ctx.organization.id,
         name: 'Hack Attempt',
@@ -102,7 +106,7 @@ describe('POST /api/v1/pipelines/preview', () => {
     const res = await app.inject({
       method: 'POST',
       url: '/api/v1/pipelines/preview',
-      headers: getSessionHeaders(authToken),
+      headers: authHeaders(authToken),
       payload: {
         organizationId: ctx.organization.id,
         steps: [{ type: 'parser', parser: 'nginx' }],
@@ -119,7 +123,7 @@ describe('POST /api/v1/pipelines/preview', () => {
     const res = await app.inject({
       method: 'POST',
       url: '/api/v1/pipelines/preview',
-      headers: getSessionHeaders(authToken),
+      headers: authHeaders(authToken),
       payload: {
         organizationId: ctx.organization.id,
         steps: [{ type: 'bad_type' }],
@@ -135,7 +139,7 @@ describe('POST /api/v1/pipelines/import-yaml', () => {
     const res = await app.inject({
       method: 'POST',
       url: '/api/v1/pipelines/import-yaml',
-      headers: getSessionHeaders(authToken),
+      headers: authHeaders(authToken),
       payload: {
         organizationId: ctx.organization.id,
         projectId: ctx.project.id,
@@ -152,7 +156,7 @@ describe('POST /api/v1/pipelines/import-yaml', () => {
     const res = await app.inject({
       method: 'POST',
       url: '/api/v1/pipelines/import-yaml',
-      headers: getSessionHeaders(authToken),
+      headers: authHeaders(authToken),
       payload: {
         organizationId: ctx.organization.id,
         yaml: ':::not valid yaml:::',
@@ -168,7 +172,7 @@ describe('GET /api/v1/pipelines', () => {
     await app.inject({
       method: 'POST',
       url: '/api/v1/pipelines',
-      headers: getSessionHeaders(authToken),
+      headers: authHeaders(authToken),
       payload: {
         organizationId: ctx.organization.id,
         name: 'Listed Pipeline',
@@ -179,7 +183,7 @@ describe('GET /api/v1/pipelines', () => {
     const res = await app.inject({
       method: 'GET',
       url: `/api/v1/pipelines?organizationId=${ctx.organization.id}`,
-      headers: getSessionHeaders(authToken),
+      headers: authHeaders(authToken),
     });
     expect(res.statusCode).toBe(200);
     const body = JSON.parse(res.payload);
@@ -191,7 +195,7 @@ describe('GET /api/v1/pipelines', () => {
     const res = await app.inject({
       method: 'GET',
       url: '/api/v1/pipelines',
-      headers: getSessionHeaders(authToken),
+      headers: authHeaders(authToken),
     });
     expect(res.statusCode).toBe(400);
   });
@@ -202,7 +206,7 @@ describe('GET /api/v1/pipelines/:id', () => {
     const createRes = await app.inject({
       method: 'POST',
       url: '/api/v1/pipelines',
-      headers: getSessionHeaders(authToken),
+      headers: authHeaders(authToken),
       payload: {
         organizationId: ctx.organization.id,
         name: 'Fetch By ID',
@@ -214,7 +218,7 @@ describe('GET /api/v1/pipelines/:id', () => {
     const res = await app.inject({
       method: 'GET',
       url: `/api/v1/pipelines/${created.id}?organizationId=${ctx.organization.id}`,
-      headers: getSessionHeaders(authToken),
+      headers: authHeaders(authToken),
     });
     expect(res.statusCode).toBe(200);
     const body = JSON.parse(res.payload);
@@ -225,7 +229,7 @@ describe('GET /api/v1/pipelines/:id', () => {
     const res = await app.inject({
       method: 'GET',
       url: `/api/v1/pipelines/00000000-0000-0000-0000-000000000000?organizationId=${ctx.organization.id}`,
-      headers: getSessionHeaders(authToken),
+      headers: authHeaders(authToken),
     });
     expect(res.statusCode).toBe(404);
   });
@@ -236,7 +240,7 @@ describe('PUT /api/v1/pipelines/:id', () => {
     const createRes = await app.inject({
       method: 'POST',
       url: '/api/v1/pipelines',
-      headers: getSessionHeaders(authToken),
+      headers: authHeaders(authToken),
       payload: {
         organizationId: ctx.organization.id,
         name: 'Original Name',
@@ -248,7 +252,7 @@ describe('PUT /api/v1/pipelines/:id', () => {
     const res = await app.inject({
       method: 'PUT',
       url: `/api/v1/pipelines/${created.id}?organizationId=${ctx.organization.id}`,
-      headers: getSessionHeaders(authToken),
+      headers: authHeaders(authToken),
       payload: { name: 'Updated Name' },
     });
     expect(res.statusCode).toBe(200);
@@ -262,7 +266,7 @@ describe('DELETE /api/v1/pipelines/:id', () => {
     const createRes = await app.inject({
       method: 'POST',
       url: '/api/v1/pipelines',
-      headers: getSessionHeaders(authToken),
+      headers: authHeaders(authToken),
       payload: {
         organizationId: ctx.organization.id,
         name: 'To Delete',
@@ -274,7 +278,7 @@ describe('DELETE /api/v1/pipelines/:id', () => {
     const deleteRes = await app.inject({
       method: 'DELETE',
       url: `/api/v1/pipelines/${created.id}?organizationId=${ctx.organization.id}`,
-      headers: getSessionHeaders(authToken),
+      headers: authHeaders(authToken),
     });
     expect(deleteRes.statusCode).toBe(204);
 
@@ -282,7 +286,7 @@ describe('DELETE /api/v1/pipelines/:id', () => {
     const getRes = await app.inject({
       method: 'GET',
       url: `/api/v1/pipelines/${created.id}?organizationId=${ctx.organization.id}`,
-      headers: getSessionHeaders(authToken),
+      headers: authHeaders(authToken),
     });
     expect(getRes.statusCode).toBe(404);
   });
