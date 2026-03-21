@@ -1,4 +1,5 @@
 import yaml from 'js-yaml';
+import { sql } from 'kysely';
 import { db } from '../../database/index.js';
 import type { Pipeline, CreatePipelineInput, UpdatePipelineInput, PipelineStep } from './types.js';
 
@@ -104,7 +105,7 @@ export class PipelineService {
           eb('project_id', 'is', null),
         ])
       )
-      .orderBy('project_id', 'desc') // non-null (project-specific) sorts first
+      .orderBy(sql`project_id IS NULL`, 'asc') // false (not null = project-specific) sorts before true (null = org-wide)
       .executeTakeFirst();
 
     const pipeline = row ? this.mapRow(row as unknown as Record<string, unknown>) : null;
