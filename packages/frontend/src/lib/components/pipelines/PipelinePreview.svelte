@@ -1,0 +1,122 @@
+<script lang="ts">
+  import type { PipelineStep, PreviewResult } from '$lib/api/log-pipeline';
+  import { logPipelineAPI } from '$lib/api/log-pipeline';
+  import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '$lib/components/ui/card';
+  import Textarea from '$lib/components/ui/textarea/textarea.svelte';
+  import Button from '$lib/components/ui/button/button.svelte';
+  import Label from '$lib/components/ui/label/label.svelte';
+  import Spinner from '$lib/components/Spinner.svelte';
+  import FlaskConical from '@lucide/svelte/icons/flask-conical';
+  import CheckCircle from '@lucide/svelte/icons/check-circle';
+  import AlertCircle from '@lucide/svelte/icons/alert-circle';
+
+  interface Props {
+    organizationId: string;
+    steps: PipelineStep[];
+  }
+  let { organizationId, steps }: Props = $props();
+
+  let sampleMessage = $state('');
+  let result = $state<PreviewResult | null>(null);
+  let loading = $state(false);
+  let error = $state<string | null>(null);
+
+  async function runPreview() {
+    if (!sampleMessage.trim()) return;
+    loading = true;
+    error = null;
+    result = null;
+    try {
+      result = await logPipelineAPI.preview(organizationId, steps, sampleMessage);
+    } catch (e) {
+      error = e instanceof Error ? e.message : 'Preview failed';
+    } finally {
+      loading = false;
+    }
+  }
+</script>
+
+<Card>
+  <CardHeader>
+    <CardTitle class="flex items-center gap-2">
+      <FlaskConical class="w-4 h-4" />
+      Preview
+    </CardTitle>
+    <CardDescription>Test your pipeline steps against a sample log message</CardDescription>
+  </CardHeader>
+  <CardContent class="space-y-4">
+    <div class="space-y-2">
+      <Label for="preview-input">Sample Log Message</Label>
+      <Textarea
+        id="preview-input"
+        bind:value={sampleMessage}
+        rows={3}
+        class="font-mono text-sm"
+        placeholder='192.168.1.1 - - [01/Jan/2025:00:00:00 +0000] "GET /api/health HTTP/1.1" 200 42'
+        disabled={loading}
+      />
+    </div>
+
+    <Button
+      onclick={runPreview}
+      disabled={loading || !sampleMessage.trim() || steps.length === 0}
+      class="gap-2"
+    >
+      {#if loading}
+        <Spinner size="sm" />
+        Running...
+      {:else}
+        <FlaskConical class="w-4 h-4" />
+        Run preview
+      {/if}
+    </Button>
+
+    {#if steps.length === 0}
+      <p class="text-xs text-muted-foreground">Add at least one step to run a preview.</p>
+    {/if}
+
+    {#if error}
+      <div class="flex items-start gap-2 text-destructive text-sm p-3 bg-destructive/10 rounded-md">
+        <AlertCircle class="w-4 h-4 mt-0.5 flex-shrink-0" />
+        {error}
+      </div>
+    {/if}
+
+    {#if result}
+      <div class="space-y-3">
+        <!-- Step results -->
+        <div class="space-y-2">
+          <p class="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Step Results</p>
+          {#each result.steps as stepResult, i}
+            <div class="flex items-start gap-2 p-3 border rounded-md text-sm">
+              <div class="flex-shrink-0 mt-0.5">
+                {#if stepResult.error}
+                  <AlertCircle class="w-4 h-4 text-destructive" />
+                {:else}
+                  <CheckCircle class="w-4 h-4 text-green-500" />
+                {/if}
+              </div>
+              <div class="flex-1 min-w-0">
+                <span class="font-medium">Step {i + 1}</span>
+                <span class="text-muted-foreground ml-1">({stepResult.step.type})</span>
+                {#if stepResult.error}
+                  <p class="text-destructive text-xs mt-0.5">{stepResult.error}</p>
+                {:else}
+                  <p class="text-muted-foreground text-xs mt-0.5">
+                    {Object.keys(stepResult.extracted).length} field(s) extracted
+                  </p>
+                {/if}
+              </div>
+            </div>
+          {/each}
+        </div>
+
+        <!-- Merged output -->
+        <div class="space-y-1.5">
+          <p class="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Merged Output</p>
+          <pre class="bg-muted rounded-md p-3 text-xs font-mono overflow-auto max-h-64 whitespace-pre-wrap break-all">{JSON.stringify(result.merged, null, 2)}</pre>
+        </div>
+      </div>
+    {/if}
+  </CardContent>
+</Card>

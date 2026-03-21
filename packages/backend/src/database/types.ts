@@ -834,6 +834,26 @@ export interface MetricExemplarsTable {
   attributes: ColumnType<Record<string, unknown> | null, Record<string, unknown> | null, Record<string, unknown> | null>;
 }
 
+// ============================================================================
+// LOG PIPELINES TABLE
+// ============================================================================
+
+export interface LogPipelinesTable {
+  id: Generated<string>;
+  organization_id: string;
+  project_id: string | null;
+  name: string;
+  description: string | null;
+  enabled: Generated<boolean>;
+  steps: ColumnType<
+    Record<string, unknown>[],
+    Record<string, unknown>[],
+    Record<string, unknown>[]
+  >;
+  created_at: Generated<Timestamp>;
+  updated_at: Generated<Timestamp>;
+}
+
 export interface Database {
   logs: LogsTable;
   users: UsersTable;
@@ -898,4 +918,6 @@ export interface Database {
   // Metrics (OTLP)
   metrics: MetricsTable;
   metric_exemplars: MetricExemplarsTable;
+  // Log pipelines
+  log_pipelines: LogPipelinesTable;
 }
