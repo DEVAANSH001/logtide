@@ -6,6 +6,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.9.0] - unreleased
+
+### Added
+- **Log parsing and enrichment pipelines**: define multi-step processing rules that automatically parse and enrich incoming log messages before they are stored
+  - **5 built-in parsers**: nginx (combined log format), apache (identical to nginx), syslog (RFC 3164 and RFC 5424), logfmt, and JSON message body
+  - **Custom grok patterns**: `%{PATTERN:field}` and `%{PATTERN:field:type}` syntax with 22 built-in patterns (IPV4, WORD, NOTSPACE, NUMBER, POSINT, DATA, GREEDYDATA, QUOTEDSTRING, METHOD, URIPATH, HTTPDATE, etc.) and optional type coercion (`:int`, `:float`)
+  - **GeoIP enrichment**: extract country, city, coordinates, timezone, and ISP data from any IP field using the embedded MaxMind GeoLite2 database
+  - **Async processing via BullMQ**: pipelines run as background jobs after ingestion — zero impact on ingestion latency
+  - **Project-scoped vs org-wide**: pipelines can target a specific project or apply to all projects in the organization; project-specific pipelines take priority over org-wide ones
+  - **Pipeline preview**: test any combination of steps against a sample log message and inspect per-step extracted fields and the final merged result before saving
+  - **YAML import/export**: import pipeline definitions from YAML with `name`, `description`, `enabled`, and `steps` fields; upserts (replace existing pipeline for the same scope)
+  - **In-memory cache**: `getForProject` caches the resolved pipeline per project for 5 minutes, automatically invalidated on create/update/delete
+  - **Settings UI** (`/dashboard/settings/pipelines`): list, enable/disable toggle, create, edit, and delete pipelines with live org-switch reactivity (`$effect` instead of `onMount`)
+  - **Step builder**: interactive UI for adding, reordering, and configuring parser, grok, and geoip steps with per-type configuration forms
+  - **Pipeline edit page** redirects to the list when the active organization is switched, preventing stale-ID errors
+
 ## [0.8.4] - 2026-03-19
 
 ### Added
