@@ -118,6 +118,7 @@ export interface ProjectsTable {
   organization_id: string;
   user_id: string; // Keep for tracking who created the project
   name: string;
+  slug: string;
   description: string | null;
   created_at: Generated<Timestamp>;
   updated_at: Generated<Timestamp>;
@@ -420,9 +421,70 @@ export interface IncidentsTable {
   mitre_techniques: string[] | null;
   ip_reputation: ColumnType<Record<string, unknown> | null, Record<string, unknown> | null, Record<string, unknown> | null>;
   geo_data: ColumnType<Record<string, unknown> | null, Record<string, unknown> | null, Record<string, unknown> | null>;
+  source: Generated<string>;
+  monitor_id: string | null;
   created_at: Generated<Timestamp>;
   updated_at: Generated<Timestamp>;
   resolved_at: Timestamp | null;
+}
+
+// ============================================================================
+// SERVICE HEALTH MONITORING TABLES
+// ============================================================================
+
+export type MonitorType = 'http' | 'tcp' | 'heartbeat';
+export type MonitorStatusValue = 'up' | 'down' | 'unknown';
+
+export interface MonitorsTable {
+  id: Generated<string>;
+  organization_id: string;
+  project_id: string;
+  name: string;
+  type: MonitorType;
+  target: string | null;
+  interval_seconds: Generated<number>;
+  timeout_seconds: Generated<number>;
+  failure_threshold: Generated<number>;
+  auto_resolve: Generated<boolean>;
+  enabled: Generated<boolean>;
+  created_at: Generated<Timestamp>;
+  updated_at: Generated<Timestamp>;
+}
+
+export interface MonitorStatusTable {
+  monitor_id: string;
+  status: Generated<MonitorStatusValue>;
+  consecutive_failures: Generated<number>;
+  consecutive_successes: Generated<number>;
+  last_checked_at: Timestamp | null;
+  last_status_change_at: Timestamp | null;
+  response_time_ms: number | null;
+  last_error_code: string | null;
+  incident_id: string | null;
+  updated_at: Generated<Timestamp>;
+}
+
+export interface MonitorResultsTable {
+  time: Timestamp;
+  id: Generated<string>;
+  monitor_id: string;
+  organization_id: string;
+  project_id: string;
+  status: 'up' | 'down';
+  response_time_ms: number | null;
+  status_code: number | null;
+  error_code: string | null;
+  is_heartbeat: Generated<boolean>;
+}
+
+export interface MonitorUptimeDailyTable {
+  bucket: Timestamp;
+  monitor_id: string;
+  organization_id: string;
+  project_id: string;
+  total_checks: number;
+  successful_checks: number;
+  uptime_pct: number | null;
 }
 
 export interface IncidentAlertsTable {
@@ -920,4 +982,9 @@ export interface Database {
   metric_exemplars: MetricExemplarsTable;
   // Log pipelines
   log_pipelines: LogPipelinesTable;
+  // Service health monitoring
+  monitors: MonitorsTable;
+  monitor_status: MonitorStatusTable;
+  monitor_results: MonitorResultsTable;
+  monitor_uptime_daily: MonitorUptimeDailyTable;
 }

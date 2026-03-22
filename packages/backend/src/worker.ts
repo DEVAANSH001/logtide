@@ -11,6 +11,7 @@ import { processExceptionParsing, type ExceptionParsingJobData } from './queue/j
 import { processErrorNotification, type ErrorNotificationJobData } from './queue/jobs/error-notification.js';
 import { processLogPipeline, type LogPipelineJobData } from './queue/jobs/log-pipeline.js';
 import { alertsService } from './modules/alerts/index.js';
+import { monitorService } from './modules/monitoring/index.js';
 import { enrichmentService } from './modules/siem/enrichment-service.js';
 import { retentionService } from './modules/retention/index.js';
 import { sigmaSyncService } from './modules/sigma/sync-service.js';
@@ -575,6 +576,34 @@ function scheduleNextSigmaSync() {
 }
 
 scheduleNextSigmaSync();
+
+// ============================================================================
+// Service Health Monitor Checks (every 30 seconds)
+// ============================================================================
+
+let isRunningMonitorChecks = false;
+
+async function runMonitorChecks() {
+  if (isRunningMonitorChecks) return;
+  isRunningMonitorChecks = true;
+  try {
+    await monitorService.runAllDueChecks();
+  } catch (error) {
+    console.error('[Worker] Monitor check error:', error);
+    if (isInternalLoggingEnabled()) {
+      hub.captureLog('error', `Monitor check failed: ${(error as Error).message}`, {
+        error: error instanceof Error ? { name: error.name, message: error.message, stack: error.stack } : { message: String(error) },
+      });
+    }
+  } finally {
+    isRunningMonitorChecks = false;
+  }
+}
+
+// Run checks every 30 seconds
+setInterval(runMonitorChecks, 30000);
+// Run immediately on start
+runMonitorChecks();
 
 // Graceful shutdown
 async function gracefulShutdown(signal: string) {

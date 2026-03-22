@@ -1,0 +1,159 @@
+import { createConnection } from 'net';
+import type { Kysely } from 'kysely';
+import type { Database } from '../../database/types.js';
+import type { CheckResult, HttpConfig, ErrorCode } from './types.js';
+
+/**
+ * HTTP/HTTPS health check.
+ * Never surfaces raw error messages — maps all failures to sanitized error codes.
+ */
+export async function runHttpCheck(
+  target: string,
+  timeoutSeconds: number,
+  config: HttpConfig = {}
+): Promise<CheckResult> {
+  const { method = 'GET', expectedStatus = 200, headers = {}, bodyAssertion } = config;
+  const start = Date.now();
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutSeconds * 1000);
+
+  try {
+    const response = await fetch(target, {
+      method,
+      headers: { 'User-Agent': 'LogTide-Monitor/1.0', ...headers },
+      signal: controller.signal,
+      redirect: 'follow',
+    });
+
+    const responseTimeMs = Date.now() - start;
+    const statusCode = response.status;
+
+    if (statusCode !== expectedStatus) {
+      return { status: 'down', responseTimeMs, statusCode, errorCode: 'http_error' };
+    }
+
+    if (bodyAssertion) {
+      const body = await response.text();
+      let passes: boolean;
+      if (bodyAssertion.type === 'contains') {
+        passes = body.includes(bodyAssertion.value);
+      } else {
+        // Limit body size and pattern length to mitigate ReDoS
+        const safeBody = body.slice(0, 10000);
+        const safePattern = bodyAssertion.pattern.slice(0, 256);
+        passes = new RegExp(safePattern).test(safeBody);
+      }
+
+      if (!passes) {
+        return { status: 'down', responseTimeMs, statusCode, errorCode: 'http_error' };
+      }
+    }
+
+
+    return { status: 'up', responseTimeMs, statusCode, errorCode: null };
+  } catch (err: unknown) {
+    const responseTimeMs = Date.now() - start;
+    const msg = err instanceof Error ? err.message : '';
+    let errorCode: ErrorCode;
+
+    if (err instanceof Error && err.name === 'AbortError') {
+      errorCode = 'timeout';
+    } else if (msg.includes('ECONNREFUSED')) {
+      errorCode = 'connection_refused';
+    } else if (msg.includes('ENOTFOUND') || msg.includes('EAI_')) {
+      errorCode = 'dns_error';
+    } else if (msg.includes('SSL') || msg.includes('certificate') || msg.includes('CERT_')) {
+      errorCode = 'ssl_error';
+    } else {
+      errorCode = 'unexpected';
+    }
+
+    return { status: 'down', responseTimeMs, statusCode: null, errorCode };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/**
+ * TCP connectivity check — measures time to establish connection.
+ */
+export function runTcpCheck(
+  host: string,
+  port: number,
+  timeoutSeconds: number
+): Promise<CheckResult> {
+  return new Promise((resolve) => {
+    const start = Date.now();
+    const socket = createConnection({ host, port });
+
+    const timer = setTimeout(() => {
+      socket.destroy();
+      resolve({ status: 'down', responseTimeMs: Date.now() - start, statusCode: null, errorCode: 'timeout' });
+    }, timeoutSeconds * 1000);
+
+    socket.on('connect', () => {
+      clearTimeout(timer);
+      socket.destroy();
+      resolve({ status: 'up', responseTimeMs: Date.now() - start, statusCode: null, errorCode: null });
+    });
+
+    socket.on('error', (err: Error) => {
+      clearTimeout(timer);
+      const msg = err.message;
+      let errorCode: ErrorCode = 'unexpected';
+      if (msg.includes('ECONNREFUSED')) errorCode = 'connection_refused';
+      else if (msg.includes('ENOTFOUND') || msg.includes('EAI_')) errorCode = 'dns_error';
+      resolve({ status: 'down', responseTimeMs: Date.now() - start, statusCode: null, errorCode });
+    });
+  });
+}
+
+/**
+ * Heartbeat check — looks for a recent heartbeat ping in monitor_results.
+ * Returns 'up' if a heartbeat was received within the grace window (interval * 1.5).
+ */
+export async function runHeartbeatCheck(
+  monitorId: string,
+  intervalSeconds: number,
+  db: Kysely<Database>
+): Promise<CheckResult> {
+  const graceMs = intervalSeconds * 1.5 * 1000;
+  const since = new Date(Date.now() - graceMs);
+
+  const recent = await db
+    .selectFrom('monitor_results')
+    .select('time')
+    .where('monitor_id', '=', monitorId)
+    .where('is_heartbeat', '=', true)
+    .where('status', '=', 'up')
+    .where('time', '>=', since)
+    .orderBy('time', 'desc')
+    .limit(1)
+    .executeTakeFirst();
+
+  if (recent) {
+    return { status: 'up', responseTimeMs: null, statusCode: null, errorCode: null };
+  }
+
+  return { status: 'down', responseTimeMs: null, statusCode: null, errorCode: 'no_heartbeat' };
+}
+
+/**
+ * Parse "host:port" string for TCP monitors.
+ * Handles IPv6 addresses like "[::1]:5432".
+ */
+export function parseTcpTarget(target: string): { host: string; port: number } {
+  // IPv6 with brackets: [::1]:5432
+  const ipv6Match = target.match(/^\[(.+)\]:(\d+)$/);
+  if (ipv6Match) {
+    return { host: ipv6Match[1], port: parseInt(ipv6Match[2], 10) };
+  }
+  // Standard host:port
+  const lastColon = target.lastIndexOf(':');
+  if (lastColon === -1) throw new Error('TCP target must be host:port');
+  return {
+    host: target.slice(0, lastColon),
+    port: parseInt(target.slice(lastColon + 1), 10),
+  };
+}

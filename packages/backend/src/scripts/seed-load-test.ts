@@ -103,6 +103,7 @@ async function seedLoadTestData() {
             name: 'Load Test Project',
             organization_id: organization.id,
             user_id: user.id,
+            slug: 'load-test-project',
         })
         .returningAll()
         .executeTakeFirstOrThrow();

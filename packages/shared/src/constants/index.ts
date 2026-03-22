@@ -6,3 +6,4 @@ export * from './sigma-constants.js';
 export * from './siem-constants.js';
 export * from './exception-constants.js';
 export * from './mitre-constants.js';
+export * from './monitoring-constants.js';

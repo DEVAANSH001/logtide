@@ -153,6 +153,8 @@ export class SiemService {
         affected_services: input.affectedServices ?? null,
         mitre_tactics: input.mitreTactics ?? null,
         mitre_techniques: input.mitreTechniques ?? null,
+        source: input.source ?? 'sigma',
+        monitor_id: input.monitorId ?? null,
       })
       .returningAll()
       .executeTakeFirstOrThrow();
@@ -591,6 +593,8 @@ export class SiemService {
       mitreTechniques: row.mitre_techniques,
       ipReputation: row.ip_reputation,
       geoData: row.geo_data,
+      source: row.source ?? 'sigma',
+      monitorId: row.monitor_id ?? null,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
       resolvedAt: row.resolved_at,
