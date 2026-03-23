@@ -29,17 +29,14 @@
   const loading = $derived($monitorsLoading);
   const error = $derived($monitorsError);
 
-  // Projects
   let projects = $state<Project[]>([]);
   const projectsAPI = new ProjectsAPI(getAuthToken);
 
-  // Form state
   let showCreateForm = $state(false);
   let editingMonitor = $state<Monitor | null>(null);
   let deleteConfirmId = $state<string | null>(null);
   let submitting = $state(false);
 
-  // Form fields
   let formName = $state('');
   let formType = $state<'http' | 'tcp' | 'heartbeat'>('http');
   let formTarget = $state('');
@@ -59,7 +56,6 @@
           projectId = res.projects[0].id;
         }
       }).catch(() => {});
-      // Load incidents and maintenances alongside monitors
       if (projectId) {
         loadIncidents();
         loadMaintenances();
@@ -204,7 +200,6 @@
     return `${(ms / 1000).toFixed(1)}s`;
   }
 
-  // Status page settings
   const selectedProject = $derived(projects.find((p) => p.id === projectId));
   let statusPagePassword = $state('');
   let savingVisibility = $state(false);
@@ -245,7 +240,6 @@
     }
   }
 
-  // ========== Status Incidents ==========
   interface StatusIncident {
     id: string;
     organizationId: string;
@@ -265,7 +259,6 @@
   let incidentMessage = $state('');
   let submittingIncident = $state(false);
 
-  // Update form
   let showUpdateForm = $state<string | null>(null);
   let updateStatus = $state('investigating');
   let updateMessage = $state('');
@@ -349,7 +342,6 @@
     }
   }
 
-  // ========== Scheduled Maintenances ==========
   interface MaintenanceItem {
     id: string;
     title: string;
@@ -425,7 +417,6 @@
 </script>
 
 <div class="flex flex-col gap-6 p-6">
-  <!-- Header -->
   <div class="flex items-center justify-between">
     <div class="flex items-center gap-3">
       <Activity class="h-6 w-6 text-primary" />
@@ -459,7 +450,6 @@
     </div>
   </div>
 
-  <!-- Status page settings -->
   {#if selectedProject}
     <div class="rounded-lg border bg-card px-4 py-3 space-y-3">
       <div class="flex items-center justify-between">
@@ -509,14 +499,12 @@
     </div>
   {/if}
 
-  <!-- Error -->
   {#if error}
     <div class="rounded-md border border-destructive/50 bg-destructive/10 p-4 text-sm text-destructive">
       {error}
     </div>
   {/if}
 
-  <!-- Create / Edit Form -->
   {#if showCreateForm}
     <div class="rounded-lg border bg-card p-6">
       <h2 class="mb-4 text-lg font-medium">{editingMonitor ? 'Edit Monitor' : 'New Monitor'}</h2>
@@ -639,7 +627,6 @@
     </div>
   {/if}
 
-  <!-- Monitor List -->
   {#if loading}
     <div class="flex items-center justify-center py-16">
       <RefreshCw class="h-6 w-6 animate-spin text-muted-foreground" />
@@ -760,7 +747,6 @@
     </div>
   {/if}
 
-  <!-- ========== Status Incidents ========== -->
   <div class="space-y-3">
     <div class="flex items-center justify-between">
       <h2 class="text-lg font-semibold">Status Incidents</h2>
@@ -852,7 +838,6 @@
     {/if}
   </div>
 
-  <!-- ========== Scheduled Maintenances ========== -->
   <div class="space-y-3">
     <div class="flex items-center justify-between">
       <h2 class="text-lg font-semibold">Scheduled Maintenance</h2>

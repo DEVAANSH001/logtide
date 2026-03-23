@@ -55,7 +55,7 @@
   let notFound = $state(false);
   let fetchError = $state<string | null>(null);
 
-  // Auth states
+
   let requiresPassword = $state(false);
   let requiresAuth = $state(false);
   let passwordInput = $state('');
@@ -71,7 +71,6 @@
     try { sessionStorage.setItem(`status-pw-${$page.params.projectSlug}`, pw); } catch {}
   }
 
-  // Track the password candidate separately — only persist after success
   let pendingPassword = $state<string | null>(null);
 
   async function load() {
@@ -82,10 +81,8 @@
     notFound = false;
 
     const headers: Record<string, string> = {};
-    // Use pending password (from form submit) or stored password
     const pw = pendingPassword ?? getStoredPassword();
     if (pw) headers['X-Status-Password'] = pw;
-    // For members_only: send session token if available
     const token = getAuthToken();
     if (token) headers['Authorization'] = `Bearer ${token}`;
 
@@ -100,7 +97,6 @@
         if (body.requiresPassword) {
           requiresPassword = true;
           requiresAuth = false;
-          // Clear bad stored password and pending password
           if (pw) {
             passwordError = 'Invalid password';
             pendingPassword = null;
@@ -117,7 +113,6 @@
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       requiresPassword = false;
       requiresAuth = false;
-      // Password worked — persist it
       if (pw) storePassword(pw);
       pendingPassword = null;
       data = await res.json();
@@ -234,7 +229,6 @@
       {fetchError}
     </div>
   {:else if data}
-    <!-- Header -->
     <div class="mb-6 flex items-center justify-between">
       <div>
         <h1 class="text-xl font-bold tracking-tight">{data.projectName}</h1>
@@ -253,13 +247,11 @@
       </button>
     </div>
 
-    <!-- Overall status banner -->
     <div class="rounded-lg border {overallBanner(data.overallStatus).bg} px-4 py-3 mb-6 flex items-center gap-3">
       <span class="h-3 w-3 rounded-full {overallBanner(data.overallStatus).dot} shadow-sm animate-pulse"></span>
       <span class="text-sm font-semibold {overallBanner(data.overallStatus).text}">{overallBanner(data.overallStatus).label}</span>
     </div>
 
-    <!-- Scheduled maintenance banner -->
     {#if data.activeMaintenances.length > 0 || data.upcomingMaintenances.length > 0}
       <div class="space-y-2 mb-6">
         {#each data.activeMaintenances as m (m.id)}
@@ -294,7 +286,6 @@
       </div>
     {/if}
 
-    <!-- Active incidents -->
     {#if data.activeIncidents.length > 0}
       <div class="space-y-3 mb-6">
         {#each data.activeIncidents as incident (incident.id)}
@@ -322,20 +313,13 @@
       </div>
     {/if}
 
-    <!-- Monitor list -->
     <div class="space-y-3">
       {#each data.monitors as monitor, i (monitor.name + '-' + i)}
         <div class="rounded-lg border bg-card p-4 transition-colors hover:bg-accent/30">
-          <!-- Monitor header row -->
           <div class="flex items-center gap-3 mb-3">
-            <!-- Status dot -->
             <span class="h-2.5 w-2.5 rounded-full {statusDot(monitor.status)} shadow-sm shrink-0"></span>
-
-            <!-- Name + type -->
             <span class="font-medium text-sm flex-1 truncate">{monitor.name}</span>
             <span class="text-[10px] uppercase tracking-wider text-muted-foreground font-medium px-1.5 py-0.5 rounded bg-muted">{monitor.type}</span>
-
-            <!-- Uptime badge -->
             {#if avgUptime(monitor.uptimeHistory) != null}
               <span class="text-xs font-semibold tabular-nums px-2 py-0.5 rounded-full ring-1 ring-inset {badgeColor(avgUptime(monitor.uptimeHistory) ?? 0)}">
                 {avgUptime(monitor.uptimeHistory)?.toFixed(1)}%
@@ -343,7 +327,6 @@
             {/if}
           </div>
 
-          <!-- Heartbeat bars (Kuma-style fixed-width squares) -->
           <div class="flex items-center gap-[2px]">
             {#each Array(Math.max(0, 45 - monitor.uptimeHistory.length)) as _}
               <div class="bar-cell flex-1 min-w-[6px] h-[22px] rounded-sm bg-muted">
@@ -370,7 +353,6 @@
       </div>
     {/if}
 
-    <!-- Recent resolved incidents -->
     {#if data.recentIncidents.length > 0}
       <div class="mt-6">
         <h2 class="text-sm font-semibold mb-3 text-muted-foreground">Past incidents (last 7 days)</h2>
@@ -400,7 +382,6 @@
       </div>
     {/if}
 
-    <!-- Footer -->
     <div class="mt-6 text-center text-[10px] text-muted-foreground space-y-1">
       <p>Last updated {new Date(data.lastUpdated).toLocaleString()}</p>
       <p><a href="https://logtide.dev" class="hover:text-foreground transition-colors">Powered by LogTide</a></p>
