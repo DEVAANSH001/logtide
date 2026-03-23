@@ -407,8 +407,13 @@
               </td>
               <td class="px-4 py-3">
                 <div class="flex items-center gap-1.5 text-muted-foreground">
-                  {@const Icon = typeIcon(monitor.type)}
-                  <Icon class="h-3.5 w-3.5" />
+                  {#if monitor.type === 'http'}
+                    <Globe class="h-3.5 w-3.5" />
+                  {:else if monitor.type === 'tcp'}
+                    <Wifi class="h-3.5 w-3.5" />
+                  {:else}
+                    <Heart class="h-3.5 w-3.5" />
+                  {/if}
                   <span class="capitalize">{monitor.type}</span>
                 </div>
               </td>

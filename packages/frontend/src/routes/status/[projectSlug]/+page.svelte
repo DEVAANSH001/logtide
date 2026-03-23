@@ -164,8 +164,13 @@
           <div class="rounded-lg border bg-card p-4">
             <div class="flex items-center justify-between mb-3">
               <div class="flex items-center gap-2">
-                {@const Icon = monitorStatusIcon(monitor.status)}
-                <Icon class="h-4 w-4 {monitorStatusColor(monitor.status)}" />
+                {#if monitor.status === 'up'}
+                  <CheckCircle class="h-4 w-4 text-green-500" />
+                {:else if monitor.status === 'down'}
+                  <XCircle class="h-4 w-4 text-red-500" />
+                {:else}
+                  <MinusCircle class="h-4 w-4 text-gray-400" />
+                {/if}
                 <span class="font-medium">{monitor.name}</span>
                 <span class="text-xs text-muted-foreground capitalize">({monitor.type})</span>
               </div>
