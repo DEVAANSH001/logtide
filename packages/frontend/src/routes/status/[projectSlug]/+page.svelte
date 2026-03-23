@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { getApiUrl } from '$lib/config';
-  import { page } from '$app/state';
+  import { page } from '$app/stores';
   import RefreshCw from '@lucide/svelte/icons/refresh-cw';
   import CheckCircle from '@lucide/svelte/icons/check-circle';
   import XCircle from '@lucide/svelte/icons/x-circle';
@@ -28,7 +28,7 @@
     lastUpdated: string;
   }
 
-  const slug = $derived(page.params.projectSlug);
+  const slug = $derived($page.params.projectSlug);
 
   let data = $state<StatusPage | null>(null);
   let loading = $state(true);
