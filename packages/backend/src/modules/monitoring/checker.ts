@@ -1,6 +1,7 @@
 import { createConnection } from 'net';
 import type { Kysely } from 'kysely';
 import type { Database } from '../../database/types.js';
+import type { Reservoir } from '@logtide/reservoir';
 import type { CheckResult, HttpConfig, ErrorCode } from './types.js';
 
 /**
@@ -133,6 +134,37 @@ export async function runHeartbeatCheck(
     .executeTakeFirst();
 
   if (recent) {
+    return { status: 'up', responseTimeMs: null, statusCode: null, errorCode: null };
+  }
+
+  return { status: 'down', responseTimeMs: null, statusCode: null, errorCode: 'no_heartbeat' };
+}
+
+/**
+ * Log-based heartbeat check — queries the reservoir for the last log from a service.
+ * Returns 'up' if a log was received within the grace window (interval * 1.5).
+ * Works across all storage engines (TimescaleDB, ClickHouse, MongoDB).
+ */
+export async function runLogHeartbeatCheck(
+  serviceName: string,
+  projectId: string,
+  intervalSeconds: number,
+  reservoir: Reservoir
+): Promise<CheckResult> {
+  const graceMs = intervalSeconds * 1.5 * 1000;
+  const since = new Date(Date.now() - graceMs);
+
+  const result = await reservoir.query({
+    projectId,
+    service: serviceName,
+    from: since,
+    to: new Date(),
+    limit: 1,
+    sortBy: 'time',
+    sortOrder: 'desc',
+  });
+
+  if (result.logs.length > 0) {
     return { status: 'up', responseTimeMs: null, statusCode: null, errorCode: null };
   }
 

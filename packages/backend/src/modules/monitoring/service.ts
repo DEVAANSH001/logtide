@@ -18,7 +18,8 @@ import type {
   PublicMaintenance,
   MonitorCurrentStatus,
 } from './types.js';
-import { runHttpCheck, runTcpCheck, runHeartbeatCheck, parseTcpTarget } from './checker.js';
+import { runHttpCheck, runTcpCheck, runHeartbeatCheck, runLogHeartbeatCheck, parseTcpTarget } from './checker.js';
+import { reservoir } from '../../database/reservoir.js';
 
 const MAX_CONCURRENT_CHECKS = 20;
 
@@ -503,15 +504,20 @@ export class MonitorService {
       } else if (monitor.type === 'tcp') {
         const { host, port } = parseTcpTarget(monitor.target!);
         result = await runTcpCheck(host, port, monitor.timeoutSeconds);
+      } else if (monitor.target) {
+        // Log-based heartbeat: target holds the service name to watch
+        result = await runLogHeartbeatCheck(monitor.target, monitor.projectId, monitor.intervalSeconds, reservoir);
       } else {
+        // Ping-based heartbeat: client POSTs to the heartbeat endpoint
         result = await runHeartbeatCheck(monitor.id, monitor.intervalSeconds, this.db);
       }
     } catch {
       result = { status: 'down', responseTimeMs: null, statusCode: null, errorCode: 'unexpected' };
     }
 
-    // Heartbeat 'up' results are recorded by the endpoint, not the worker
-    const skipWrite = monitor.type === 'heartbeat' && result.status === 'up';
+    // Ping heartbeat 'up' results are recorded by the endpoint, not the worker.
+    // Log-based heartbeats always write (no POST endpoint involved).
+    const skipWrite = monitor.type === 'heartbeat' && !monitor.target && result.status === 'up';
 
     if (!skipWrite) {
       await this.db
