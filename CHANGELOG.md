@@ -9,6 +9,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.9.0] - unreleased
 
 ### Added
+- **Service health monitoring and status pages** (issue #152): proactive uptime monitoring with auto-generated public status pages
+  - **3 monitor types**: HTTP/HTTPS (configurable method, expected status, headers, body assertion), TCP ping, and heartbeat (alert when no ping received within grace window)
+  - **HTTP config**: per-monitor `httpConfig` with method, expectedStatus, custom headers, and body assertion (contains or regex) — stored as JSONB, validated via Zod
+  - **Per-monitor severity**: incident severity is configurable per monitor (`critical`, `high`, `medium`, `low`, `informational`) instead of hardcoded `high`
+  - **BullMQ-style polling**: worker checks all due monitors every 30s, batched in groups of 20 concurrent checks via `Promise.allSettled`
+  - **TimescaleDB storage**: `monitor_results` hypertable with 7-day compression, 30-day retention, and `monitor_uptime_daily` continuous aggregate refreshed hourly
+  - **State machine**: consecutive failure tracking with configurable threshold, atomic incident dedup guard (`WHERE incident_id IS NULL`), auto-resolve on recovery
+  - **Auto-incident creation**: when failure threshold is crossed, a SIEM incident is created with `source: 'monitor'` and linked via `monitor_id`; notifications sent via existing email/webhook channels
+  - **Public status page** (`/status/:projectSlug`): Uptime Kuma-inspired design with 45-day heartbeat bar grid, per-monitor uptime badge, overall status banner, custom CSS tooltips, light/dark mode toggle
+  - **Status page access control**: configurable visibility per project — disabled (default), public, password-protected, or org-members-only
+  - **Scheduled maintenances**: create maintenance windows with start/end times; active maintenances suppress monitor incident creation and display a banner on the status page
+  - **Manual status incidents**: create public incident communications (investigating → identified → monitoring → resolved) with update timeline, independent from SIEM incidents
+  - **Heartbeat endpoint**: `POST /api/v1/monitors/:id/heartbeat` accepts both API key and session auth, rate-limited to 600/min
+  - **Project slugs**: auto-generated from project name on creation, unique per org, backfilled for existing projects via migration
+  - **Dashboard UI** (`/dashboard/monitoring`): monitor list with project selector, create/edit/delete forms with client-side validation, detail page with refresh button, uptime chart, recent checks, copy heartbeat URL
+  - **Monitoring navigation**: added to sidebar under "Detect" section alongside Alerts and Security
+
+### Fixed
+- **Status page slug collision**: `getPublicStatus` now filters by `status_page_public` flag instead of returning the first project matching the slug, preventing cross-org data leaks
+- **`createMonitor` not transactional**: monitor and `monitor_status` inserts are now wrapped in `db.transaction()` to prevent orphaned monitors
+- **`mapMonitor` typed**: replaced `any` parameter with proper `MonitorWithStatusRow` interface for compile-time safety
+- **Org membership check optimized**: monitoring routes now use a single `SELECT WHERE user_id AND organization_id` query instead of fetching all user orgs and scanning in JS
+- **Redundant DB read eliminated**: `processCheckResult` now receives status data from the already-fetched monitor object instead of issuing a second SELECT
+- **Target validation on update**: PUT endpoint now validates target format against monitor type (HTTP must start with `http://`/`https://`, TCP must contain `:`)
+- **`$derived.by` fix**: monitor detail page uptime calculation now uses `$derived.by()` instead of `$derived(() => ...)` for correct Svelte 5 reactivity
+- **`@const` placement**: replaced invalid `{@const}` inside `<div>` elements with `{#if}/{:else}` blocks for Svelte 5 compatibility
+- **`uptimePct` type coercion**: Postgres `ROUND()` returns numeric as string — status page now coerces to number before calling `.toFixed()`
+- **Default `failureThreshold` aligned**: frontend form default changed from 3 to 2 to match backend default
+- **Test setup cleanup**: added `monitor_results`, `monitor_status`, `monitors`, `incident_alerts` to global `beforeEach` cleanup
+
 - **Log parsing and enrichment pipelines**: define multi-step processing rules that automatically parse and enrich incoming log messages before they are stored
   - **5 built-in parsers**: nginx (combined log format), apache (identical to nginx), syslog (RFC 3164 and RFC 5424), logfmt, and JSON message body
   - **Custom grok patterns**: `%{PATTERN:field}` and `%{PATTERN:field:type}` syntax with 22 built-in patterns (IPV4, WORD, NOTSPACE, NUMBER, POSINT, DATA, GREEDYDATA, QUOTEDSTRING, METHOD, URIPATH, HTTPDATE, etc.) and optional type coercion (`:int`, `:float`)
