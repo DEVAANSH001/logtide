@@ -227,6 +227,16 @@
       </div>
     </div>
     <div class="flex items-center gap-2">
+      {#if projects.length > 1}
+        <select
+          bind:value={projectId}
+          class="h-8 rounded-md border bg-background px-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+        >
+          {#each projects as p (p.id)}
+            <option value={p.id}>{p.name}</option>
+          {/each}
+        </select>
+      {/if}
       <Button
         variant="outline"
         size="sm"
