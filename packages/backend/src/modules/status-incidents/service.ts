@@ -101,7 +101,13 @@ export class StatusIncidentService {
     input: UpdateStatusIncidentInput,
   ): Promise<StatusIncident | null> {
     const now = new Date();
-    const resolvedAt = input.status === 'resolved' ? now : undefined;
+
+    // Build resolved_at: set when resolving, clear when re-opening
+    const resolvedAtUpdate = input.status === 'resolved'
+      ? { resolved_at: now }
+      : input.status !== undefined
+        ? { resolved_at: null }
+        : {};
 
     const row = await db
       .updateTable('status_incidents')
@@ -109,7 +115,7 @@ export class StatusIncidentService {
         ...(input.title !== undefined && { title: input.title }),
         ...(input.status !== undefined && { status: input.status }),
         ...(input.severity !== undefined && { severity: input.severity }),
-        ...(resolvedAt && { resolved_at: resolvedAt }),
+        ...resolvedAtUpdate,
         updated_at: now,
       })
       .where('id', '=', id)
@@ -147,11 +153,16 @@ export class StatusIncidentService {
     organizationId: string,
     input: { status: StatusIncidentStatus; message: string; createdBy: string },
   ): Promise<StatusIncidentUpdate> {
-    // Verify incident belongs to org
-    const incident = await this.getById(incidentId, organizationId);
-    if (!incident) throw new Error('Incident not found');
-
     return db.transaction().execute(async (trx) => {
+      // Verify incident belongs to org inside the transaction
+      const incident = await trx
+        .selectFrom('status_incidents')
+        .select('id')
+        .where('id', '=', incidentId)
+        .where('organization_id', '=', organizationId)
+        .executeTakeFirst();
+      if (!incident) throw new Error('Incident not found');
+
       const row = await trx
         .insertInto('status_incident_updates')
         .values({
@@ -163,14 +174,14 @@ export class StatusIncidentService {
         .returningAll()
         .executeTakeFirstOrThrow();
 
-      // Update parent incident status
+      // Update parent incident status + resolved_at
       const now = new Date();
       await trx
         .updateTable('status_incidents')
         .set({
           status: input.status,
           updated_at: now,
-          ...(input.status === 'resolved' && { resolved_at: now }),
+          ...(input.status === 'resolved' ? { resolved_at: now } : { resolved_at: null }),
         })
         .where('id', '=', incidentId)
         .execute();

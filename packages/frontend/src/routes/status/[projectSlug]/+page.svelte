@@ -71,6 +71,9 @@
     try { sessionStorage.setItem(`status-pw-${$page.params.projectSlug}`, pw); } catch {}
   }
 
+  // Track the password candidate separately — only persist after success
+  let pendingPassword = $state<string | null>(null);
+
   async function load() {
     const slug = $page.params.projectSlug;
     if (!slug) return;
@@ -79,8 +82,9 @@
     notFound = false;
 
     const headers: Record<string, string> = {};
-    const storedPw = getStoredPassword();
-    if (storedPw) headers['X-Status-Password'] = storedPw;
+    // Use pending password (from form submit) or stored password
+    const pw = pendingPassword ?? getStoredPassword();
+    if (pw) headers['X-Status-Password'] = pw;
     // For members_only: send session token if available
     const token = getAuthToken();
     if (token) headers['Authorization'] = `Bearer ${token}`;
@@ -96,7 +100,12 @@
         if (body.requiresPassword) {
           requiresPassword = true;
           requiresAuth = false;
-          if (storedPw) passwordError = 'Invalid password';
+          // Clear bad stored password and pending password
+          if (pw) {
+            passwordError = 'Invalid password';
+            pendingPassword = null;
+            try { sessionStorage.removeItem(`status-pw-${slug}`); } catch {}
+          }
           return;
         }
         if (body.requiresAuth) {
@@ -108,6 +117,9 @@
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       requiresPassword = false;
       requiresAuth = false;
+      // Password worked — persist it
+      if (pw) storePassword(pw);
+      pendingPassword = null;
       data = await res.json();
     } catch (err) {
       fetchError = err instanceof Error ? err.message : 'Failed to load status';
@@ -118,8 +130,8 @@
 
   async function submitPassword() {
     if (!passwordInput) return;
-    storePassword(passwordInput);
     passwordError = null;
+    pendingPassword = passwordInput;
     await load();
   }
 
@@ -312,7 +324,7 @@
 
     <!-- Monitor list -->
     <div class="space-y-3">
-      {#each data.monitors as monitor (monitor.name)}
+      {#each data.monitors as monitor, i (monitor.name + '-' + i)}
         <div class="rounded-lg border bg-card p-4 transition-colors hover:bg-accent/30">
           <!-- Monitor header row -->
           <div class="flex items-center gap-3 mb-3">

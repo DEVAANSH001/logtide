@@ -145,7 +145,7 @@ export class MonitorService {
     id: string,
     organizationId: string,
     input: UpdateMonitorInput
-  ): Promise<Monitor> {
+  ): Promise<Monitor | null> {
     const row = await this.db
       .updateTable('monitors')
       .set({
@@ -163,8 +163,9 @@ export class MonitorService {
       .where('id', '=', id)
       .where('organization_id', '=', organizationId)
       .returningAll()
-      .executeTakeFirstOrThrow();
+      .executeTakeFirst();
 
+    if (!row) return null;
     return this.mapMonitor(row as unknown as MonitorWithStatusRow);
   }
 

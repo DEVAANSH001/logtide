@@ -122,6 +122,7 @@ export async function monitoringRoutes(fastify: FastifyInstance) {
     }
 
     const monitor = await monitorService.updateMonitor(request.params.id, organizationId, parse.data);
+    if (!monitor) return reply.status(404).send({ error: 'Not found' });
     return reply.send({ monitor });
   });
 

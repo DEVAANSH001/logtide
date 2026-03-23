@@ -59,6 +59,11 @@
           projectId = res.projects[0].id;
         }
       }).catch(() => {});
+      // Load incidents and maintenances alongside monitors
+      if (projectId) {
+        loadIncidents();
+        loadMaintenances();
+      }
     }
   });
 
@@ -378,6 +383,10 @@
   async function createMaintenance(e: Event) {
     e.preventDefault();
     if (!org || !projectId) return;
+    if (!maintStart || !maintEnd) {
+      toastStore.error('Start and end times are required');
+      return;
+    }
     submittingMaintenance = true;
     try {
       const res = await apiRequest('/maintenances', {
@@ -413,13 +422,6 @@
     }
   }
 
-  // Load incidents and maintenances when project changes
-  $effect(() => {
-    if (org && projectId) {
-      loadIncidents();
-      loadMaintenances();
-    }
-  });
 </script>
 
 <div class="flex flex-col gap-6 p-6">

@@ -85,6 +85,7 @@ const authPlugin: FastifyPluginAsync = async (fastify) => {
       request.url.startsWith('/api/v1/notifications') ||
       request.url.startsWith('/api/v1/invitations') ||
       request.url.startsWith('/api/v1/status') ||
+      request.url.startsWith('/api/v1/status-incidents') ||
       request.url.startsWith('/api/v1/maintenances')
     ) {
       return;
