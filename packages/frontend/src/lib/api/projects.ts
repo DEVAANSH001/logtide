@@ -11,7 +11,8 @@ export interface CreateProjectInput {
 export interface UpdateProjectInput {
   name?: string;
   description?: string;
-  statusPagePublic?: boolean;
+  statusPageVisibility?: 'disabled' | 'public' | 'password' | 'members_only';
+  statusPagePassword?: string;
 }
 
 export class ProjectsAPI {

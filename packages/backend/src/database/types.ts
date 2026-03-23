@@ -113,6 +113,8 @@ export interface OrganizationInvitationsTable {
   created_at: Generated<Timestamp>;
 }
 
+export type StatusPageVisibility = 'disabled' | 'public' | 'password' | 'members_only';
+
 export interface ProjectsTable {
   id: Generated<string>;
   organization_id: string;
@@ -120,7 +122,8 @@ export interface ProjectsTable {
   name: string;
   slug: string;
   description: string | null;
-  status_page_public: Generated<boolean>;
+  status_page_visibility: Generated<StatusPageVisibility>;
+  status_page_password_hash: string | null;
   created_at: Generated<Timestamp>;
   updated_at: Generated<Timestamp>;
 }
@@ -495,6 +498,58 @@ export interface MonitorUptimeDailyTable {
   total_checks: number;
   successful_checks: number;
   uptime_pct: number | null;
+}
+
+// ============================================================================
+// STATUS PAGE INCIDENTS
+// ============================================================================
+
+export type StatusIncidentStatus = 'investigating' | 'identified' | 'monitoring' | 'resolved';
+export type StatusIncidentSeverity = 'minor' | 'major' | 'critical';
+
+export interface StatusIncidentsTable {
+  id: Generated<string>;
+  organization_id: string;
+  project_id: string;
+  title: string;
+  status: Generated<StatusIncidentStatus>;
+  severity: Generated<StatusIncidentSeverity>;
+  created_by: string | null;
+  created_at: Generated<Timestamp>;
+  updated_at: Generated<Timestamp>;
+  resolved_at: Timestamp | null;
+}
+
+export interface StatusIncidentUpdatesTable {
+  id: Generated<string>;
+  incident_id: string;
+  status: StatusIncidentStatus;
+  message: string;
+  created_by: string | null;
+  created_at: Generated<Timestamp>;
+}
+
+// ============================================================================
+// SCHEDULED MAINTENANCES
+// ============================================================================
+
+export type MaintenanceStatus = 'scheduled' | 'in_progress' | 'completed';
+
+export interface ScheduledMaintenancesTable {
+  id: Generated<string>;
+  organization_id: string;
+  project_id: string;
+  title: string;
+  description: string | null;
+  status: Generated<MaintenanceStatus>;
+  scheduled_start: Timestamp;
+  scheduled_end: Timestamp;
+  actual_start: Timestamp | null;
+  actual_end: Timestamp | null;
+  auto_update_status: Generated<boolean>;
+  created_by: string | null;
+  created_at: Generated<Timestamp>;
+  updated_at: Generated<Timestamp>;
 }
 
 export interface IncidentAlertsTable {
@@ -997,4 +1052,8 @@ export interface Database {
   monitor_status: MonitorStatusTable;
   monitor_results: MonitorResultsTable;
   monitor_uptime_daily: MonitorUptimeDailyTable;
+  // Status page incidents & maintenances
+  status_incidents: StatusIncidentsTable;
+  status_incident_updates: StatusIncidentUpdatesTable;
+  scheduled_maintenances: ScheduledMaintenancesTable;
 }

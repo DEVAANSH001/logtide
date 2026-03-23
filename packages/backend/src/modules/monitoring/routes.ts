@@ -5,6 +5,8 @@ import { MonitorService } from './service.js';
 import { SiemService } from '../siem/service.js';
 import { authenticate } from '../auth/middleware.js';
 import { db } from '../../database/index.js';
+import { projectsService } from '../projects/service.js';
+import { usersService } from '../users/service.js';
 
 const siemService = new SiemService(db);
 export const monitorService = new MonitorService(db, siemService);
@@ -194,7 +196,48 @@ export async function publicStatusRoutes(fastify: FastifyInstance) {
   fastify.get('/project/:slug', {
     config: { rateLimit: { max: 60, timeWindow: '1 minute' } },
   }, async (request: any, reply) => {
-    const status = await monitorService.getPublicStatus(request.params.slug);
+    const slug = request.params.slug;
+    const project = await monitorService.getProjectBySlug(slug);
+    if (!project || project.status_page_visibility === 'disabled') {
+      return reply.status(404).send({ error: 'Not found' });
+    }
+
+    // Password-protected
+    if (project.status_page_visibility === 'password') {
+      const password = request.headers['x-status-password'];
+      if (!password) {
+        return reply.status(401).send({ requiresPassword: true });
+      }
+      const valid = await projectsService.verifyStatusPagePassword(project.id, password);
+      if (!valid) {
+        return reply.status(401).send({ requiresPassword: true, error: 'Invalid password' });
+      }
+    }
+
+    // Members only
+    if (project.status_page_visibility === 'members_only') {
+      const authHeader = request.headers.authorization;
+      const token = authHeader?.startsWith('Bearer ') ? authHeader.substring(7) : null;
+      if (!token) {
+        return reply.status(401).send({ requiresAuth: true });
+      }
+      const user = await usersService.validateSession(token);
+      if (!user) {
+        return reply.status(401).send({ requiresAuth: true });
+      }
+      // Check org membership
+      const member = await db
+        .selectFrom('organization_members')
+        .select('id')
+        .where('user_id', '=', user.id)
+        .where('organization_id', '=', project.organization_id)
+        .executeTakeFirst();
+      if (!member) {
+        return reply.status(403).send({ error: 'Not a member of this organization' });
+      }
+    }
+
+    const status = await monitorService.getPublicStatus(slug, project.id);
     if (!status) return reply.status(404).send({ error: 'Not found' });
     return reply.send(status);
   });

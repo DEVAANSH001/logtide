@@ -3,6 +3,7 @@ import { sql } from 'kysely';
 import type { Database } from '../../database/types.js';
 import type { Severity } from '@logtide/shared';
 import type { SiemService } from '../siem/service.js';
+import { maintenanceService } from '../maintenances/service.js';
 import type {
   Monitor,
   MonitorResult,
@@ -13,6 +14,8 @@ import type {
   HttpConfig,
   PublicStatusPage,
   PublicMonitorStatus,
+  PublicStatusIncident,
+  PublicMaintenance,
   MonitorCurrentStatus,
 } from './types.js';
 import { runHttpCheck, runTcpCheck, runHeartbeatCheck, parseTcpTarget } from './checker.js';
@@ -255,72 +258,161 @@ export class MonitorService {
   // PUBLIC STATUS PAGE (no auth — scrubbed data)
   // ============================================================================
 
-  async getPublicStatus(projectSlug: string): Promise<PublicStatusPage | null> {
-    // Query by slug — slugs are unique per org but not globally.
-    // We fetch all matching projects and pick the one with status_page_public = true.
-    const projects = await this.db
+  async getProjectBySlug(slug: string) {
+    return this.db
       .selectFrom('projects')
-      .select(['id', 'name', 'slug', 'status_page_public'])
-      .where('slug', '=', projectSlug)
-      .execute();
+      .select(['id', 'name', 'slug', 'organization_id', 'status_page_visibility', 'status_page_password_hash'])
+      .where('slug', '=', slug)
+      .executeTakeFirst() ?? null;
+  }
 
-    // Find the first project that has its status page enabled
-    const project = projects.find((p) => p.status_page_public) ?? null;
+  async getPublicStatus(projectSlug: string, verifiedProjectId?: string): Promise<PublicStatusPage | null> {
+    // If the route already verified the project, use that ID directly to avoid TOCTOU
+    let project: { id: string; name: string; slug: string } | null = null;
+    if (verifiedProjectId) {
+      project = await this.db
+        .selectFrom('projects')
+        .select(['id', 'name', 'slug'])
+        .where('id', '=', verifiedProjectId)
+        .executeTakeFirst() ?? null;
+    } else {
+      const row = await this.db
+        .selectFrom('projects')
+        .select(['id', 'name', 'slug', 'status_page_visibility'])
+        .where('slug', '=', projectSlug)
+        .executeTakeFirst() ?? null;
+      if (!row || row.status_page_visibility === 'disabled') return null;
+      project = row;
+    }
+
     if (!project) return null;
 
-    const monitorRows = await this.db
-      .selectFrom('monitors')
-      .leftJoin('monitor_status', 'monitor_status.monitor_id', 'monitors.id')
-      .select([
-        'monitors.id',
-        'monitors.name',
-        'monitors.type',
-        'monitor_status.status',
-        'monitor_status.last_checked_at',
-      ])
-      .where('monitors.project_id', '=', project.id)
-      .where('monitors.enabled', '=', true)
-      .orderBy('monitors.created_at', 'asc')
-      .execute();
+    // Fetch monitors, incidents, and maintenances in parallel
+    const now = new Date();
+    const since7d = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    const since90d = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
 
-    if (monitorRows.length === 0) {
-      return {
-        projectName: project.name,
-        projectSlug: project.slug,
-        overallStatus: 'operational',
-        monitors: [],
-        lastUpdated: new Date().toISOString(),
-      };
+    const [monitorRowsResult, activeIncidentRows, recentIncidentRows, activeMaintenanceRows, upcomingMaintenanceRows] = await Promise.all([
+      // Monitors
+      this.db
+        .selectFrom('monitors')
+        .leftJoin('monitor_status', 'monitor_status.monitor_id', 'monitors.id')
+        .select([
+          'monitors.id',
+          'monitors.name',
+          'monitors.type',
+          'monitor_status.status',
+          'monitor_status.last_checked_at',
+        ])
+        .where('monitors.project_id', '=', project.id)
+        .where('monitors.enabled', '=', true)
+        .orderBy('monitors.created_at', 'asc')
+        .execute(),
+      // Active incidents (not resolved)
+      this.db
+        .selectFrom('status_incidents')
+        .selectAll()
+        .where('project_id', '=', project.id)
+        .where('status', '!=', 'resolved')
+        .orderBy('created_at', 'desc')
+        .execute(),
+      // Recently resolved incidents (last 7 days)
+      this.db
+        .selectFrom('status_incidents')
+        .selectAll()
+        .where('project_id', '=', project.id)
+        .where('status', '=', 'resolved')
+        .where('resolved_at', '>=', since7d)
+        .orderBy('resolved_at', 'desc')
+        .execute(),
+      // Active maintenances (in_progress)
+      this.db
+        .selectFrom('scheduled_maintenances')
+        .selectAll()
+        .where('project_id', '=', project.id)
+        .where('status', '=', 'in_progress')
+        .orderBy('scheduled_start', 'asc')
+        .execute(),
+      // Upcoming maintenances (scheduled, start within next 7 days)
+      this.db
+        .selectFrom('scheduled_maintenances')
+        .selectAll()
+        .where('project_id', '=', project.id)
+        .where('status', '=', 'scheduled')
+        .where('scheduled_start', '<=', new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000))
+        .orderBy('scheduled_start', 'asc')
+        .execute(),
+    ]);
+
+    // Fetch incident updates for all active + recent incidents
+    const allIncidentIds = [...activeIncidentRows, ...recentIncidentRows].map((i) => i.id);
+    let updatesByIncident = new Map<string, { id: string; status: string; message: string; createdAt: string }[]>();
+    if (allIncidentIds.length > 0) {
+      const updateRows = await this.db
+        .selectFrom('status_incident_updates')
+        .selectAll()
+        .where('incident_id', 'in', allIncidentIds)
+        .orderBy('created_at', 'asc')
+        .execute();
+      for (const u of updateRows) {
+        if (!updatesByIncident.has(u.incident_id)) updatesByIncident.set(u.incident_id, []);
+        updatesByIncident.get(u.incident_id)!.push({
+          id: u.id,
+          status: u.status,
+          message: u.message,
+          createdAt: (u.created_at as Date).toISOString(),
+        });
+      }
     }
 
-    const monitorIds = monitorRows.map((m) => m.id);
-    const since90d = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
+    const mapIncident = (row: typeof activeIncidentRows[0]): PublicStatusIncident => ({
+      id: row.id,
+      title: row.title,
+      status: row.status,
+      severity: row.severity,
+      createdAt: (row.created_at as Date).toISOString(),
+      resolvedAt: row.resolved_at ? (row.resolved_at as Date).toISOString() : null,
+      updates: updatesByIncident.get(row.id) ?? [],
+    });
 
-    const uptimeRows = await this.db
-      .selectFrom('monitor_uptime_daily')
-      .select(['bucket', 'monitor_id', 'uptime_pct'])
-      .where('monitor_id', 'in', monitorIds)
-      .where('bucket', '>=', since90d)
-      .orderBy('bucket', 'asc')
-      .execute();
+    const mapMaintenance = (row: typeof activeMaintenanceRows[0]): PublicMaintenance => ({
+      id: row.id,
+      title: row.title,
+      description: row.description,
+      status: row.status,
+      scheduledStart: (row.scheduled_start as Date).toISOString(),
+      scheduledEnd: (row.scheduled_end as Date).toISOString(),
+    });
 
-    // Group uptime by monitor
-    const uptimeByMonitor = new Map<string, { bucket: string; uptimePct: number }[]>();
-    for (const row of uptimeRows) {
-      const id = row.monitor_id;
-      if (!uptimeByMonitor.has(id)) uptimeByMonitor.set(id, []);
-      uptimeByMonitor.get(id)!.push({
-        bucket: (row.bucket as Date).toISOString(),
-        uptimePct: row.uptime_pct ?? 0,
-      });
+    // Build monitors with uptime
+    let monitors: PublicMonitorStatus[] = [];
+    if (monitorRowsResult.length > 0) {
+      const monitorIds = monitorRowsResult.map((m) => m.id);
+      const uptimeRows = await this.db
+        .selectFrom('monitor_uptime_daily')
+        .select(['bucket', 'monitor_id', 'uptime_pct'])
+        .where('monitor_id', 'in', monitorIds)
+        .where('bucket', '>=', since90d)
+        .orderBy('bucket', 'asc')
+        .execute();
+
+      const uptimeByMonitor = new Map<string, { bucket: string; uptimePct: number }[]>();
+      for (const row of uptimeRows) {
+        const id = row.monitor_id;
+        if (!uptimeByMonitor.has(id)) uptimeByMonitor.set(id, []);
+        uptimeByMonitor.get(id)!.push({
+          bucket: (row.bucket as Date).toISOString(),
+          uptimePct: row.uptime_pct ?? 0,
+        });
+      }
+
+      monitors = monitorRowsResult.map((m) => ({
+        name: m.name,
+        type: m.type,
+        status: (m.status ?? 'unknown') as 'up' | 'down' | 'unknown',
+        uptimeHistory: uptimeByMonitor.get(m.id) ?? [],
+      }));
     }
-
-    const monitors: PublicMonitorStatus[] = monitorRows.map((m) => ({
-      name: m.name,
-      type: m.type,
-      status: (m.status ?? 'unknown') as 'up' | 'down' | 'unknown',
-      uptimeHistory: uptimeByMonitor.get(m.id) ?? [],
-    }));
 
     const downCount = monitors.filter((m) => m.status === 'down').length;
     const overallStatus =
@@ -335,7 +427,11 @@ export class MonitorService {
       projectSlug: project.slug,
       overallStatus,
       monitors,
-      lastUpdated: new Date().toISOString(),
+      activeIncidents: activeIncidentRows.map(mapIncident),
+      recentIncidents: recentIncidentRows.map(mapIncident),
+      activeMaintenances: activeMaintenanceRows.map(mapMaintenance),
+      upcomingMaintenances: upcomingMaintenanceRows.map(mapMaintenance),
+      lastUpdated: now.toISOString(),
     };
   }
 
@@ -345,6 +441,9 @@ export class MonitorService {
 
   async runAllDueChecks(): Promise<void> {
     const now = new Date();
+
+    // Get projects under active maintenance (treated as paused)
+    const maintenanceProjects = await maintenanceService.getProjectsUnderMaintenance();
 
     // Find enabled monitors where next check is due
     const due = await this.db
@@ -377,9 +476,13 @@ export class MonitorService {
 
     if (due.length === 0) return;
 
+    // Filter out monitors whose projects are under maintenance
+    const dueFiltered = due.filter((row) => !maintenanceProjects.has(row.project_id));
+    if (dueFiltered.length === 0) return;
+
     // Process in batches of MAX_CONCURRENT_CHECKS
-    for (let i = 0; i < due.length; i += MAX_CONCURRENT_CHECKS) {
-      const batch = due.slice(i, i + MAX_CONCURRENT_CHECKS);
+    for (let i = 0; i < dueFiltered.length; i += MAX_CONCURRENT_CHECKS) {
+      const batch = dueFiltered.slice(i, i + MAX_CONCURRENT_CHECKS);
       await Promise.allSettled(
         batch.map((row) => {
           const monitor = this.mapMonitor(row as MonitorWithStatusRow);

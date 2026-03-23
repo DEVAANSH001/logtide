@@ -3,6 +3,7 @@
   import { getApiUrl } from '$lib/config';
   import { page } from '$app/stores';
   import { themeStore } from '$lib/stores/theme';
+  import { getAuthToken } from '$lib/utils/auth';
 
   const theme = $derived($themeStore);
 
@@ -18,11 +19,34 @@
     uptimeHistory: UptimeBar[];
   }
 
+  interface StatusIncident {
+    id: string;
+    title: string;
+    status: string;
+    severity: string;
+    createdAt: string;
+    resolvedAt: string | null;
+    updates: { id: string; status: string; message: string; createdAt: string }[];
+  }
+
+  interface StatusMaintenance {
+    id: string;
+    title: string;
+    description: string | null;
+    status: string;
+    scheduledStart: string;
+    scheduledEnd: string;
+  }
+
   interface StatusPageData {
     projectName: string;
     projectSlug: string;
     overallStatus: 'operational' | 'degraded' | 'outage';
     monitors: MonitorStatus[];
+    activeIncidents: StatusIncident[];
+    recentIncidents: StatusIncident[];
+    activeMaintenances: StatusMaintenance[];
+    upcomingMaintenances: StatusMaintenance[];
     lastUpdated: string;
   }
 
@@ -31,25 +55,72 @@
   let notFound = $state(false);
   let fetchError = $state<string | null>(null);
 
+  // Auth states
+  let requiresPassword = $state(false);
+  let requiresAuth = $state(false);
+  let passwordInput = $state('');
+  let passwordError = $state<string | null>(null);
+
+  function getStoredPassword(): string | null {
+    try {
+      return sessionStorage.getItem(`status-pw-${$page.params.projectSlug}`);
+    } catch { return null; }
+  }
+
+  function storePassword(pw: string) {
+    try { sessionStorage.setItem(`status-pw-${$page.params.projectSlug}`, pw); } catch {}
+  }
+
   async function load() {
     const slug = $page.params.projectSlug;
     if (!slug) return;
     loading = true;
     fetchError = null;
     notFound = false;
+
+    const headers: Record<string, string> = {};
+    const storedPw = getStoredPassword();
+    if (storedPw) headers['X-Status-Password'] = storedPw;
+    // For members_only: send session token if available
+    const token = getAuthToken();
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+
     try {
-      const res = await fetch(`${getApiUrl()}/api/v1/status/project/${slug}`);
+      const res = await fetch(`${getApiUrl()}/api/v1/status/project/${slug}`, { headers });
       if (res.status === 404) {
         notFound = true;
         return;
       }
+      if (res.status === 401) {
+        const body = await res.json();
+        if (body.requiresPassword) {
+          requiresPassword = true;
+          requiresAuth = false;
+          if (storedPw) passwordError = 'Invalid password';
+          return;
+        }
+        if (body.requiresAuth) {
+          requiresAuth = true;
+          requiresPassword = false;
+          return;
+        }
+      }
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      requiresPassword = false;
+      requiresAuth = false;
       data = await res.json();
     } catch (err) {
       fetchError = err instanceof Error ? err.message : 'Failed to load status';
     } finally {
       loading = false;
     }
+  }
+
+  async function submitPassword() {
+    if (!passwordInput) return;
+    storePassword(passwordInput);
+    passwordError = null;
+    await load();
   }
 
   onMount(() => {
@@ -104,6 +175,40 @@
     <div class="flex items-center justify-center py-32">
       <div class="h-8 w-8 animate-spin rounded-full border-[3px] border-muted border-t-primary"></div>
     </div>
+  {:else if requiresPassword}
+    <div class="text-center py-32">
+      <div class="inline-flex h-16 w-16 items-center justify-center rounded-full bg-muted mb-4">
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+      </div>
+      <h1 class="text-xl font-semibold mb-2">Password required</h1>
+      <p class="text-sm text-muted-foreground mb-4">This status page is password protected.</p>
+      <form onsubmit={(e) => { e.preventDefault(); submitPassword(); }} class="inline-flex flex-col items-center gap-3">
+        <input
+          type="password"
+          bind:value={passwordInput}
+          placeholder="Enter password"
+          class="h-10 w-64 rounded-md border bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary text-center"
+          autofocus
+        />
+        {#if passwordError}
+          <p class="text-xs text-destructive">{passwordError}</p>
+        {/if}
+        <button type="submit" class="h-9 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors">
+          View status
+        </button>
+      </form>
+    </div>
+  {:else if requiresAuth}
+    <div class="text-center py-32">
+      <div class="inline-flex h-16 w-16 items-center justify-center rounded-full bg-muted mb-4">
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+      </div>
+      <h1 class="text-xl font-semibold mb-2">Login required</h1>
+      <p class="text-sm text-muted-foreground mb-4">This status page is only available to organization members.</p>
+      <a href="/login" class="inline-flex h-9 items-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors">
+        Log in
+      </a>
+    </div>
   {:else if notFound}
     <div class="text-center py-32">
       <div class="inline-flex h-16 w-16 items-center justify-center rounded-full bg-muted mb-4">
@@ -141,6 +246,69 @@
       <span class="h-3 w-3 rounded-full {overallBanner(data.overallStatus).dot} shadow-sm animate-pulse"></span>
       <span class="text-sm font-semibold {overallBanner(data.overallStatus).text}">{overallBanner(data.overallStatus).label}</span>
     </div>
+
+    <!-- Scheduled maintenance banner -->
+    {#if data.activeMaintenances.length > 0 || data.upcomingMaintenances.length > 0}
+      <div class="space-y-2 mb-6">
+        {#each data.activeMaintenances as m (m.id)}
+          <div class="rounded-lg border border-blue-500/20 bg-blue-500/10 px-4 py-3">
+            <div class="flex items-center gap-2 mb-1">
+              <span class="h-2 w-2 rounded-full bg-blue-500 animate-pulse"></span>
+              <span class="text-sm font-semibold text-blue-700 dark:text-blue-400">Maintenance in progress</span>
+            </div>
+            <p class="text-sm font-medium">{m.title}</p>
+            {#if m.description}
+              <p class="text-xs text-muted-foreground mt-0.5">{m.description}</p>
+            {/if}
+            <p class="text-xs text-muted-foreground mt-1">
+              {new Date(m.scheduledStart).toLocaleString()} — {new Date(m.scheduledEnd).toLocaleString()}
+            </p>
+          </div>
+        {/each}
+        {#each data.upcomingMaintenances as m (m.id)}
+          <div class="rounded-lg border border-blue-500/15 bg-blue-500/5 px-4 py-3">
+            <div class="flex items-center gap-2 mb-1">
+              <span class="text-xs font-medium text-blue-600 dark:text-blue-400 bg-blue-500/15 px-2 py-0.5 rounded-full">Scheduled</span>
+            </div>
+            <p class="text-sm font-medium">{m.title}</p>
+            {#if m.description}
+              <p class="text-xs text-muted-foreground mt-0.5">{m.description}</p>
+            {/if}
+            <p class="text-xs text-muted-foreground mt-1">
+              {new Date(m.scheduledStart).toLocaleString()} — {new Date(m.scheduledEnd).toLocaleString()}
+            </p>
+          </div>
+        {/each}
+      </div>
+    {/if}
+
+    <!-- Active incidents -->
+    {#if data.activeIncidents.length > 0}
+      <div class="space-y-3 mb-6">
+        {#each data.activeIncidents as incident (incident.id)}
+          <div class="rounded-lg border {incident.severity === 'critical' ? 'border-red-500/30 bg-red-500/5' : incident.severity === 'major' ? 'border-orange-500/30 bg-orange-500/5' : 'border-yellow-500/30 bg-yellow-500/5'} px-4 py-3">
+            <div class="flex items-center gap-2 mb-1">
+              <span class="text-xs font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded {incident.severity === 'critical' ? 'bg-red-500/15 text-red-700 dark:text-red-400' : incident.severity === 'major' ? 'bg-orange-500/15 text-orange-700 dark:text-orange-400' : 'bg-yellow-500/15 text-yellow-700 dark:text-yellow-400'}">{incident.severity}</span>
+              <span class="text-xs text-muted-foreground capitalize">{incident.status}</span>
+            </div>
+            <p class="text-sm font-semibold">{incident.title}</p>
+            {#if incident.updates.length > 0}
+              <div class="mt-2 space-y-1.5 border-l-2 border-muted pl-3">
+                {#each incident.updates as update (update.id)}
+                  <div>
+                    <div class="flex items-center gap-1.5">
+                      <span class="text-[10px] font-medium uppercase text-muted-foreground">{update.status}</span>
+                      <span class="text-[10px] text-muted-foreground">{new Date(update.createdAt).toLocaleString()}</span>
+                    </div>
+                    <p class="text-xs">{update.message}</p>
+                  </div>
+                {/each}
+              </div>
+            {/if}
+          </div>
+        {/each}
+      </div>
+    {/if}
 
     <!-- Monitor list -->
     <div class="space-y-3">
@@ -187,6 +355,36 @@
     {#if data.monitors.length === 0}
       <div class="rounded-lg border border-dashed bg-card p-8 text-center">
         <p class="text-sm text-muted-foreground">No monitors configured for this project.</p>
+      </div>
+    {/if}
+
+    <!-- Recent resolved incidents -->
+    {#if data.recentIncidents.length > 0}
+      <div class="mt-6">
+        <h2 class="text-sm font-semibold mb-3 text-muted-foreground">Past incidents (last 7 days)</h2>
+        <div class="space-y-3">
+          {#each data.recentIncidents as incident (incident.id)}
+            <div class="rounded-lg border bg-card px-4 py-3">
+              <div class="flex items-center justify-between mb-1">
+                <p class="text-sm font-medium">{incident.title}</p>
+                <span class="text-[10px] text-muted-foreground">{new Date(incident.resolvedAt ?? incident.createdAt).toLocaleDateString()}</span>
+              </div>
+              {#if incident.updates.length > 0}
+                <div class="space-y-1 border-l-2 border-muted pl-3 mt-2">
+                  {#each incident.updates as update (update.id)}
+                    <div>
+                      <div class="flex items-center gap-1.5">
+                        <span class="text-[10px] font-medium uppercase text-muted-foreground">{update.status}</span>
+                        <span class="text-[10px] text-muted-foreground">{new Date(update.createdAt).toLocaleString()}</span>
+                      </div>
+                      <p class="text-xs text-muted-foreground">{update.message}</p>
+                    </div>
+                  {/each}
+                </div>
+              {/if}
+            </div>
+          {/each}
+        </div>
       </div>
     {/if}
 

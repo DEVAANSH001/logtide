@@ -107,10 +107,33 @@ export interface PublicMonitorStatus {
   uptimeHistory: { bucket: string; uptimePct: number }[];
 }
 
+export interface PublicStatusIncident {
+  id: string;
+  title: string;
+  status: string;
+  severity: string;
+  createdAt: string;
+  resolvedAt: string | null;
+  updates: { id: string; status: string; message: string; createdAt: string }[];
+}
+
+export interface PublicMaintenance {
+  id: string;
+  title: string;
+  description: string | null;
+  status: string;
+  scheduledStart: string;
+  scheduledEnd: string;
+}
+
 export interface PublicStatusPage {
   projectName: string;
   projectSlug: string;
   overallStatus: 'operational' | 'degraded' | 'outage';
   monitors: PublicMonitorStatus[];
+  activeIncidents: PublicStatusIncident[];
+  recentIncidents: PublicStatusIncident[];
+  activeMaintenances: PublicMaintenance[];
+  upcomingMaintenances: PublicMaintenance[];
   lastUpdated: string;
 }

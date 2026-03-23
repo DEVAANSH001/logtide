@@ -1,6 +1,7 @@
 import { db } from '../../database/connection.js';
 import { reservoir } from '../../database/reservoir.js';
-import type { Project } from '@logtide/shared';
+import type { Project, StatusPageVisibility } from '@logtide/shared';
+import bcrypt from 'bcrypt';
 
 function generateProjectSlug(name: string): string {
   const base = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
@@ -17,7 +18,8 @@ export interface CreateProjectInput {
 export interface UpdateProjectInput {
   name?: string;
   description?: string;
-  statusPagePublic?: boolean;
+  statusPageVisibility?: StatusPageVisibility;
+  statusPagePassword?: string;
 }
 
 export class ProjectsService {
@@ -56,7 +58,7 @@ export class ProjectsService {
       throw new Error('A project with this name already exists in this organization');
     }
 
-    // Generate a unique slug within the organization
+    // Generate a globally unique slug
     const baseSlug = generateProjectSlug(input.name);
     let slug = baseSlug;
     let suffix = 2;
@@ -64,7 +66,6 @@ export class ProjectsService {
       const conflict = await db
         .selectFrom('projects')
         .select('id')
-        .where('organization_id', '=', input.organizationId)
         .where('slug', '=', slug)
         .executeTakeFirst();
       if (!conflict) break;
@@ -80,7 +81,7 @@ export class ProjectsService {
         description: input.description || null,
         slug,
       })
-      .returning(['id', 'organization_id', 'name', 'description', 'slug', 'status_page_public', 'created_at', 'updated_at'])
+      .returning(['id', 'organization_id', 'name', 'description', 'slug', 'status_page_visibility', 'created_at', 'updated_at'])
       .executeTakeFirstOrThrow();
 
     return {
@@ -89,7 +90,7 @@ export class ProjectsService {
       name: project.name,
       description: project.description || undefined,
       slug: project.slug,
-      statusPagePublic: project.status_page_public,
+      statusPageVisibility: project.status_page_visibility,
       createdAt: new Date(project.created_at),
       updatedAt: new Date(project.updated_at),
     };
@@ -104,7 +105,7 @@ export class ProjectsService {
 
     const projects = await db
       .selectFrom('projects')
-      .select(['id', 'organization_id', 'name', 'description', 'slug', 'status_page_public', 'created_at', 'updated_at'])
+      .select(['id', 'organization_id', 'name', 'description', 'slug', 'status_page_visibility', 'created_at', 'updated_at'])
       .where('organization_id', '=', organizationId)
       .orderBy('created_at', 'desc')
       .execute();
@@ -115,7 +116,7 @@ export class ProjectsService {
       name: p.name,
       description: p.description || undefined,
       slug: p.slug,
-      statusPagePublic: p.status_page_public,
+      statusPageVisibility: p.status_page_visibility,
       createdAt: new Date(p.created_at),
       updatedAt: new Date(p.updated_at),
     }));
@@ -128,7 +129,7 @@ export class ProjectsService {
     const project = await db
       .selectFrom('projects')
       .innerJoin('organization_members', 'projects.organization_id', 'organization_members.organization_id')
-      .select(['projects.id', 'projects.organization_id', 'projects.name', 'projects.description', 'projects.slug', 'projects.status_page_public', 'projects.created_at', 'projects.updated_at'])
+      .select(['projects.id', 'projects.organization_id', 'projects.name', 'projects.description', 'projects.slug', 'projects.status_page_visibility', 'projects.created_at', 'projects.updated_at'])
       .where('projects.id', '=', projectId)
       .where('organization_members.user_id', '=', userId)
       .executeTakeFirst();
@@ -143,7 +144,7 @@ export class ProjectsService {
       name: project.name,
       description: project.description || undefined,
       slug: project.slug,
-      statusPagePublic: project.status_page_public,
+      statusPageVisibility: project.status_page_visibility,
       createdAt: new Date(project.created_at),
       updatedAt: new Date(project.updated_at),
     };
@@ -178,16 +179,28 @@ export class ProjectsService {
       }
     }
 
+    // Build update set
+    const updateSet: Record<string, unknown> = { updated_at: new Date() };
+    if (input.name) updateSet.name = input.name;
+    if (input.description !== undefined) updateSet.description = input.description || null;
+    if (input.statusPageVisibility !== undefined) {
+      updateSet.status_page_visibility = input.statusPageVisibility;
+      // Clear password hash when switching away from password mode
+      if (input.statusPageVisibility !== 'password') {
+        updateSet.status_page_password_hash = null;
+      }
+    }
+    // Only hash password when setting visibility to 'password' (or already in password mode)
+    const effectiveVisibility = input.statusPageVisibility ?? existing.statusPageVisibility;
+    if (input.statusPagePassword !== undefined && effectiveVisibility === 'password') {
+      updateSet.status_page_password_hash = await bcrypt.hash(input.statusPagePassword, 10);
+    }
+
     const project = await db
       .updateTable('projects')
-      .set({
-        ...(input.name && { name: input.name }),
-        ...(input.description !== undefined && { description: input.description || null }),
-        ...(input.statusPagePublic !== undefined && { status_page_public: input.statusPagePublic }),
-        updated_at: new Date(),
-      })
+      .set(updateSet)
       .where('id', '=', projectId)
-      .returning(['id', 'organization_id', 'name', 'description', 'slug', 'status_page_public', 'created_at', 'updated_at'])
+      .returning(['id', 'organization_id', 'name', 'description', 'slug', 'status_page_visibility', 'created_at', 'updated_at'])
       .executeTakeFirst();
 
     if (!project) {
@@ -200,10 +213,24 @@ export class ProjectsService {
       name: project.name,
       description: project.description || undefined,
       slug: project.slug,
-      statusPagePublic: project.status_page_public,
+      statusPageVisibility: project.status_page_visibility,
       createdAt: new Date(project.created_at),
       updatedAt: new Date(project.updated_at),
     };
+  }
+
+  /**
+   * Verify a password against a project's status page password hash
+   */
+  async verifyStatusPagePassword(projectId: string, password: string): Promise<boolean> {
+    const row = await db
+      .selectFrom('projects')
+      .select('status_page_password_hash')
+      .where('id', '=', projectId)
+      .executeTakeFirst();
+
+    if (!row?.status_page_password_hash) return false;
+    return bcrypt.compare(password, row.status_page_password_hash);
   }
 
   /**

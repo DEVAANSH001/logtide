@@ -12,6 +12,7 @@ import { processErrorNotification, type ErrorNotificationJobData } from './queue
 import { processLogPipeline, type LogPipelineJobData } from './queue/jobs/log-pipeline.js';
 import { alertsService } from './modules/alerts/index.js';
 import { monitorService } from './modules/monitoring/index.js';
+import { maintenanceService } from './modules/maintenances/service.js';
 import { enrichmentService } from './modules/siem/enrichment-service.js';
 import { retentionService } from './modules/retention/index.js';
 import { sigmaSyncService } from './modules/sigma/sync-service.js';
@@ -604,6 +605,27 @@ async function runMonitorChecks() {
 setInterval(runMonitorChecks, 30000);
 // Run immediately on start
 runMonitorChecks();
+
+// ============================================================================
+// Scheduled Maintenance Transitions (every 60 seconds)
+// ============================================================================
+
+let isRunningMaintenanceCheck = false;
+
+async function runMaintenanceTransitions() {
+  if (isRunningMaintenanceCheck) return;
+  isRunningMaintenanceCheck = true;
+  try {
+    await maintenanceService.processMaintenanceTransitions();
+  } catch (error) {
+    console.error('[Worker] Maintenance transition error:', error);
+  } finally {
+    isRunningMaintenanceCheck = false;
+  }
+}
+
+setInterval(runMaintenanceTransitions, 60000);
+runMaintenanceTransitions();
 
 // Graceful shutdown
 async function gracefulShutdown(signal: string) {

@@ -33,6 +33,8 @@ import { correlationRoutes, patternRoutes } from './modules/correlation/index.js
 import { piiMaskingRoutes } from './modules/pii-masking/index.js';
 import { pipelineRoutes } from './modules/log-pipeline/index.js';
 import { monitoringRoutes, heartbeatRoutes, publicStatusRoutes } from './modules/monitoring/index.js';
+import { statusIncidentRoutes } from './modules/status-incidents/routes.js';
+import { maintenanceRoutes } from './modules/maintenances/routes.js';
 import { sessionsRoutes } from './modules/sessions/routes.js';
 import { sourcemapsRoutes } from './modules/sourcemaps/index.js';
 import { auditLogRoutes, auditLogService } from './modules/audit-log/index.js';
@@ -195,6 +197,8 @@ export async function build(opts = {}) {
   await fastify.register(monitoringRoutes, { prefix: '/api/v1/monitors' });
   await fastify.register(heartbeatRoutes, { prefix: '/api/v1/monitors' });
   await fastify.register(publicStatusRoutes, { prefix: '/api/v1/status' });
+  await fastify.register(statusIncidentRoutes, { prefix: '/api/v1/status-incidents' });
+  await fastify.register(maintenanceRoutes, { prefix: '/api/v1/maintenances' });
 
   return fastify;
 }
