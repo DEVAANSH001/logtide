@@ -1,6 +1,7 @@
-import type { MonitorType, MonitorStatusValue } from '../../database/types.js';
+import type { MonitorType, MonitorStatusValue, MonitorHttpConfig } from '../../database/types.js';
+import type { Severity } from '@logtide/shared';
 
-export type { MonitorType, MonitorStatusValue };
+export type { MonitorType, MonitorStatusValue, MonitorHttpConfig };
 
 export type ErrorCode =
   | 'timeout'
@@ -11,12 +12,8 @@ export type ErrorCode =
   | 'no_heartbeat'
   | 'unexpected';
 
-export interface HttpConfig {
-  method?: string;
-  expectedStatus?: number;
-  headers?: Record<string, string>;
-  bodyAssertion?: { type: 'contains'; value: string } | { type: 'regex'; pattern: string };
-}
+// Alias for the database JSONB shape — single source of truth in database/types.ts
+export type HttpConfig = MonitorHttpConfig;
 
 export interface CheckResult {
   status: 'up' | 'down';
@@ -37,6 +34,8 @@ export interface Monitor {
   failureThreshold: number;
   autoResolve: boolean;
   enabled: boolean;
+  httpConfig: HttpConfig | null;
+  severity: Severity;
   status?: MonitorCurrentStatus;
   createdAt: Date;
   updatedAt: Date;
@@ -85,6 +84,8 @@ export interface CreateMonitorInput {
   failureThreshold?: number;
   autoResolve?: boolean;
   enabled?: boolean;
+  httpConfig?: HttpConfig | null;
+  severity?: string;
 }
 
 export interface UpdateMonitorInput {
@@ -95,6 +96,8 @@ export interface UpdateMonitorInput {
   failureThreshold?: number;
   autoResolve?: boolean;
   enabled?: boolean;
+  httpConfig?: HttpConfig | null;
+  severity?: string;
 }
 
 export interface PublicMonitorStatus {

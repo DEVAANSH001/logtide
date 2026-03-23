@@ -1,6 +1,7 @@
 import type { Kysely } from 'kysely';
 import { sql } from 'kysely';
 import type { Database } from '../../database/types.js';
+import type { Severity } from '@logtide/shared';
 import type { SiemService } from '../siem/service.js';
 import type {
   Monitor,
@@ -9,16 +10,42 @@ import type {
   CreateMonitorInput,
   UpdateMonitorInput,
   CheckResult,
+  HttpConfig,
   PublicStatusPage,
   PublicMonitorStatus,
+  MonitorCurrentStatus,
 } from './types.js';
 import { runHttpCheck, runTcpCheck, runHeartbeatCheck, parseTcpTarget } from './checker.js';
 
 const MAX_CONCURRENT_CHECKS = 20;
 
-function generateSlug(name: string): string {
-  const base = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
-  return base || 'project';
+// Row type returned by the monitors LEFT JOIN monitor_status query
+interface MonitorWithStatusRow {
+  id: string;
+  organization_id: string;
+  project_id: string;
+  name: string;
+  type: string;
+  target: string | null;
+  interval_seconds: number;
+  timeout_seconds: number;
+  failure_threshold: number;
+  auto_resolve: boolean;
+  enabled: boolean;
+  http_config: unknown;
+  severity: Severity;
+  created_at: Date;
+  updated_at: Date;
+  // Joined from monitor_status (aliased or direct)
+  status?: string | null;
+  consecutive_failures?: number | null;
+  consecutive_successes?: number | null;
+  last_checked_at?: Date | null;
+  last_status_change_at?: Date | null;
+  ms_response_time_ms?: number | null;
+  last_error_code?: string | null;
+  incident_id?: string | null;
+  ms_updated_at?: Date | null;
 }
 
 export class MonitorService {
@@ -54,7 +81,7 @@ export class MonitorService {
     }
 
     const rows = await query.orderBy('monitors.created_at', 'asc').execute();
-    return rows.map(this.mapMonitor);
+    return rows.map((row) => this.mapMonitor(row as MonitorWithStatusRow));
   }
 
   async getMonitor(id: string, organizationId: string): Promise<Monitor | null> {
@@ -77,34 +104,38 @@ export class MonitorService {
       .where('monitors.organization_id', '=', organizationId)
       .executeTakeFirst();
 
-    return row ? this.mapMonitor(row) : null;
+    return row ? this.mapMonitor(row as MonitorWithStatusRow) : null;
   }
 
   async createMonitor(input: CreateMonitorInput): Promise<Monitor> {
-    const row = await this.db
-      .insertInto('monitors')
-      .values({
-        organization_id: input.organizationId,
-        project_id: input.projectId,
-        name: input.name,
-        type: input.type,
-        target: input.target ?? null,
-        interval_seconds: input.intervalSeconds ?? 60,
-        timeout_seconds: input.timeoutSeconds ?? 10,
-        failure_threshold: input.failureThreshold ?? 2,
-        auto_resolve: input.autoResolve ?? true,
-        enabled: input.enabled ?? true,
-      })
-      .returningAll()
-      .executeTakeFirstOrThrow();
+    return this.db.transaction().execute(async (trx) => {
+      const row = await trx
+        .insertInto('monitors')
+        .values({
+          organization_id: input.organizationId,
+          project_id: input.projectId,
+          name: input.name,
+          type: input.type,
+          target: input.target ?? null,
+          interval_seconds: input.intervalSeconds ?? 60,
+          timeout_seconds: input.timeoutSeconds ?? 10,
+          failure_threshold: input.failureThreshold ?? 2,
+          auto_resolve: input.autoResolve ?? true,
+          enabled: input.enabled ?? true,
+          http_config: input.httpConfig ? (JSON.stringify(input.httpConfig) as unknown as null) : null,
+          severity: input.severity ?? 'high',
+        })
+        .returningAll()
+        .executeTakeFirstOrThrow();
 
-    // Initialize status row
-    await this.db
-      .insertInto('monitor_status')
-      .values({ monitor_id: row.id })
-      .execute();
+      // Initialize status row in the same transaction
+      await trx
+        .insertInto('monitor_status')
+        .values({ monitor_id: row.id })
+        .execute();
 
-    return this.mapMonitor(row);
+      return this.mapMonitor(row as unknown as MonitorWithStatusRow);
+    });
   }
 
   async updateMonitor(
@@ -122,6 +153,8 @@ export class MonitorService {
         ...(input.failureThreshold !== undefined && { failure_threshold: input.failureThreshold }),
         ...(input.autoResolve !== undefined && { auto_resolve: input.autoResolve }),
         ...(input.enabled !== undefined && { enabled: input.enabled }),
+        ...(input.httpConfig !== undefined && { http_config: input.httpConfig ? (JSON.stringify(input.httpConfig) as unknown as null) : null }),
+        ...(input.severity !== undefined && { severity: input.severity }),
         updated_at: new Date(),
       })
       .where('id', '=', id)
@@ -129,7 +162,7 @@ export class MonitorService {
       .returningAll()
       .executeTakeFirstOrThrow();
 
-    return this.mapMonitor(row);
+    return this.mapMonitor(row as unknown as MonitorWithStatusRow);
   }
 
   async deleteMonitor(id: string, organizationId: string): Promise<void> {
@@ -223,12 +256,16 @@ export class MonitorService {
   // ============================================================================
 
   async getPublicStatus(projectSlug: string): Promise<PublicStatusPage | null> {
-    const project = await this.db
+    // Query by slug — slugs are unique per org but not globally.
+    // We fetch all matching projects and pick the one with status_page_public = true.
+    const projects = await this.db
       .selectFrom('projects')
-      .select(['id', 'name', 'slug'])
+      .select(['id', 'name', 'slug', 'status_page_public'])
       .where('slug', '=', projectSlug)
-      .executeTakeFirst();
+      .execute();
 
+    // Find the first project that has its status page enabled
+    const project = projects.find((p) => p.status_page_public) ?? null;
     if (!project) return null;
 
     const monitorRows = await this.db
@@ -343,16 +380,22 @@ export class MonitorService {
     // Process in batches of MAX_CONCURRENT_CHECKS
     for (let i = 0; i < due.length; i += MAX_CONCURRENT_CHECKS) {
       const batch = due.slice(i, i + MAX_CONCURRENT_CHECKS);
-      await Promise.allSettled(batch.map((row) => this.runCheck(this.mapMonitor(row))));
+      await Promise.allSettled(
+        batch.map((row) => {
+          const monitor = this.mapMonitor(row as MonitorWithStatusRow);
+          return this.runCheck(monitor);
+        })
+      );
     }
   }
 
   async runCheck(monitor: Monitor): Promise<void> {
     let result: CheckResult;
+    const httpConfig: HttpConfig = (monitor.httpConfig as HttpConfig) ?? {};
 
     try {
       if (monitor.type === 'http') {
-        result = await runHttpCheck(monitor.target!, monitor.timeoutSeconds);
+        result = await runHttpCheck(monitor.target!, monitor.timeoutSeconds, httpConfig);
       } else if (monitor.type === 'tcp') {
         const { host, port } = parseTcpTarget(monitor.target!);
         result = await runTcpCheck(host, port, monitor.timeoutSeconds);
@@ -383,24 +426,23 @@ export class MonitorService {
         .execute();
     }
 
-    await this.processCheckResult(monitor, result);
+    // Use the status data we already fetched (avoids redundant DB read)
+    await this.processCheckResult(monitor, result, monitor.status ?? null);
   }
 
   // ============================================================================
   // STATE MACHINE
   // ============================================================================
 
-  private async processCheckResult(monitor: Monitor, result: CheckResult): Promise<void> {
-    const currentStatus = await this.db
-      .selectFrom('monitor_status')
-      .selectAll()
-      .where('monitor_id', '=', monitor.id)
-      .executeTakeFirst();
+  private async processCheckResult(
+    monitor: Monitor,
+    result: CheckResult,
+    currentStatusData: MonitorCurrentStatus | null
+  ): Promise<void> {
+    if (!currentStatusData) return;
 
-    if (!currentStatus) return;
-
-    const prevConsecutiveFailures = currentStatus.consecutive_failures;
-    const prevStatus = currentStatus.status as 'up' | 'down' | 'unknown';
+    const prevConsecutiveFailures = currentStatusData.consecutiveFailures;
+    const prevStatus = currentStatusData.status as 'up' | 'down' | 'unknown';
     const now = new Date();
 
     if (result.status === 'down') {
@@ -414,7 +456,7 @@ export class MonitorService {
           consecutive_failures: newFailures,
           consecutive_successes: 0,
           last_checked_at: now,
-          last_status_change_at: statusChanged ? now : currentStatus.last_status_change_at,
+          last_status_change_at: statusChanged ? now : currentStatusData.lastStatusChangeAt,
           last_error_code: result.errorCode,
           response_time_ms: result.responseTimeMs,
           updated_at: now,
@@ -440,8 +482,12 @@ export class MonitorService {
           await this.openIncident(monitor);
         }
       }
+
+      if (statusChanged) {
+        console.log(`[MonitorService] Monitor "${monitor.name}" (${monitor.id}) is DOWN — ${result.errorCode ?? 'unknown error'}`);
+      }
     } else {
-      const newSuccesses = (currentStatus.consecutive_successes ?? 0) + 1;
+      const newSuccesses = (currentStatusData.consecutiveSuccesses ?? 0) + 1;
       const statusChanged = prevStatus !== 'up';
 
       await this.db
@@ -451,7 +497,7 @@ export class MonitorService {
           consecutive_failures: 0,
           consecutive_successes: newSuccesses,
           last_checked_at: now,
-          last_status_change_at: statusChanged ? now : currentStatus.last_status_change_at,
+          last_status_change_at: statusChanged ? now : currentStatusData.lastStatusChangeAt,
           last_error_code: null,
           response_time_ms: result.responseTimeMs,
           updated_at: now,
@@ -460,13 +506,17 @@ export class MonitorService {
         .execute();
 
       // Auto-resolve linked incident on recovery
-      if (monitor.autoResolve && currentStatus.incident_id && prevStatus === 'down') {
-        await this.resolveIncident(currentStatus.incident_id, monitor.organizationId);
+      if (monitor.autoResolve && currentStatusData.incidentId && prevStatus === 'down') {
+        await this.resolveIncident(currentStatusData.incidentId, monitor.organizationId);
         await this.db
           .updateTable('monitor_status')
           .set({ incident_id: null, updated_at: now })
           .where('monitor_id', '=', monitor.id)
           .execute();
+      }
+
+      if (statusChanged) {
+        console.log(`[MonitorService] Monitor "${monitor.name}" (${monitor.id}) is UP — recovered after ${prevConsecutiveFailures} failures`);
       }
     }
   }
@@ -477,7 +527,7 @@ export class MonitorService {
         organizationId: monitor.organizationId,
         projectId: monitor.projectId,
         title: `Monitor down: ${monitor.name}`,
-        severity: 'high',
+        severity: monitor.severity,
         status: 'open',
         affectedServices: [monitor.name],
         source: 'monitor',
@@ -489,6 +539,8 @@ export class MonitorService {
         .set({ incident_id: incident.id, updated_at: new Date() })
         .where('monitor_id', '=', monitor.id)
         .execute();
+
+      console.log(`[MonitorService] Opened incident ${incident.id} for monitor "${monitor.name}"`);
     } catch (err) {
       console.error(`[MonitorService] Failed to open incident for monitor ${monitor.id}:`, err);
     }
@@ -497,43 +549,40 @@ export class MonitorService {
   private async resolveIncident(incidentId: string, organizationId: string): Promise<void> {
     try {
       await this.siemService.updateIncident(incidentId, organizationId, { status: 'resolved' });
+      // Queue a recovery notification via a new incident notification
+      // The SIEM incident notification system handles email/webhook delivery
+      console.log(`[MonitorService] Resolved incident ${incidentId}`);
     } catch (err) {
       console.error(`[MonitorService] Failed to resolve incident ${incidentId}:`, err);
     }
   }
 
   // ============================================================================
-  // SLUG GENERATION (for project creation)
-  // ============================================================================
-
-  static generateProjectSlug(name: string): string {
-    return generateSlug(name);
-  }
-
-  // ============================================================================
   // MAPPERS
   // ============================================================================
 
-  private mapMonitor(row: any): Monitor {
+  private mapMonitor(row: MonitorWithStatusRow): Monitor {
     const hasStatus = row.status !== undefined || row.consecutive_failures !== undefined;
     return {
       id: row.id,
       organizationId: row.organization_id,
       projectId: row.project_id,
       name: row.name,
-      type: row.type,
+      type: row.type as Monitor['type'],
       target: row.target,
       intervalSeconds: row.interval_seconds,
       timeoutSeconds: row.timeout_seconds,
       failureThreshold: row.failure_threshold,
       autoResolve: row.auto_resolve,
       enabled: row.enabled,
+      httpConfig: row.http_config ? (typeof row.http_config === 'string' ? JSON.parse(row.http_config) : row.http_config) : null,
+      severity: (row.severity ?? 'high') as Severity,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
       status: hasStatus
         ? {
             monitorId: row.id,
-            status: row.status ?? 'unknown',
+            status: (row.status ?? 'unknown') as MonitorCurrentStatus['status'],
             consecutiveFailures: row.consecutive_failures ?? 0,
             consecutiveSuccesses: row.consecutive_successes ?? 0,
             lastCheckedAt: row.last_checked_at ?? null,

@@ -4,17 +4,30 @@ import { MONITOR_TYPES } from '@logtide/shared';
 import { MonitorService } from './service.js';
 import { SiemService } from '../siem/service.js';
 import { authenticate } from '../auth/middleware.js';
-import { OrganizationsService } from '../organizations/service.js';
 import { db } from '../../database/index.js';
 
 const siemService = new SiemService(db);
 export const monitorService = new MonitorService(db, siemService);
-const organizationsService = new OrganizationsService();
 
 async function checkOrgMembership(userId: string, organizationId: string): Promise<boolean> {
-  const orgs = await organizationsService.getUserOrganizations(userId);
-  return orgs.some((o) => o.id === organizationId);
+  const member = await db
+    .selectFrom('organization_members')
+    .select('id')
+    .where('user_id', '=', userId)
+    .where('organization_id', '=', organizationId)
+    .executeTakeFirst();
+  return !!member;
 }
+
+const httpConfigSchema = z.object({
+  method: z.string().optional(),
+  expectedStatus: z.number().int().min(100).max(599).optional(),
+  headers: z.record(z.string()).optional(),
+  bodyAssertion: z.union([
+    z.object({ type: z.literal('contains'), value: z.string().min(1).max(10000) }),
+    z.object({ type: z.literal('regex'), pattern: z.string().min(1).max(256) }),
+  ]).optional(),
+}).optional().nullable();
 
 const createMonitorSchema = z.object({
   organizationId: z.string().uuid(),
@@ -27,6 +40,8 @@ const createMonitorSchema = z.object({
   failureThreshold: z.number().int().min(1).max(20).optional(),
   autoResolve: z.boolean().optional(),
   enabled: z.boolean().optional(),
+  httpConfig: httpConfigSchema,
+  severity: z.enum(['critical', 'high', 'medium', 'low', 'informational']).optional(),
 }).refine(
   (d) => {
     if (d.type === 'http') return !!d.target && (d.target.startsWith('http://') || d.target.startsWith('https://'));
@@ -44,6 +59,8 @@ const updateMonitorSchema = z.object({
   failureThreshold: z.number().int().min(1).max(20).optional(),
   autoResolve: z.boolean().optional(),
   enabled: z.boolean().optional(),
+  httpConfig: httpConfigSchema,
+  severity: z.enum(['critical', 'high', 'medium', 'low', 'informational']).optional(),
 });
 
 // ============================================================================
@@ -89,6 +106,18 @@ export async function monitoringRoutes(fastify: FastifyInstance) {
 
     const parse = updateMonitorSchema.safeParse(request.body);
     if (!parse.success) return reply.status(400).send({ error: parse.error.errors[0].message });
+
+    // Validate target format against monitor type if target is being changed
+    if (parse.data.target) {
+      const existing = await monitorService.getMonitor(request.params.id, organizationId);
+      if (!existing) return reply.status(404).send({ error: 'Not found' });
+      if (existing.type === 'http' && !(parse.data.target.startsWith('http://') || parse.data.target.startsWith('https://'))) {
+        return reply.status(400).send({ error: 'HTTP target must start with http:// or https://' });
+      }
+      if (existing.type === 'tcp' && !parse.data.target.includes(':')) {
+        return reply.status(400).send({ error: 'TCP target must be in host:port format' });
+      }
+    }
 
     const monitor = await monitorService.updateMonitor(request.params.id, organizationId, parse.data);
     return reply.send({ monitor });

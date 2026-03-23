@@ -120,6 +120,7 @@ export interface ProjectsTable {
   name: string;
   slug: string;
   description: string | null;
+  status_page_public: Generated<boolean>;
   created_at: Generated<Timestamp>;
   updated_at: Generated<Timestamp>;
 }
@@ -435,6 +436,13 @@ export interface IncidentsTable {
 export type MonitorType = 'http' | 'tcp' | 'heartbeat';
 export type MonitorStatusValue = 'up' | 'down' | 'unknown';
 
+export interface MonitorHttpConfig {
+  method?: string;
+  expectedStatus?: number;
+  headers?: Record<string, string>;
+  bodyAssertion?: { type: 'contains'; value: string } | { type: 'regex'; pattern: string };
+}
+
 export interface MonitorsTable {
   id: Generated<string>;
   organization_id: string;
@@ -447,6 +455,8 @@ export interface MonitorsTable {
   failure_threshold: Generated<number>;
   auto_resolve: Generated<boolean>;
   enabled: Generated<boolean>;
+  http_config: MonitorHttpConfig | null;
+  severity: Generated<string>;
   created_at: Generated<Timestamp>;
   updated_at: Generated<Timestamp>;
 }

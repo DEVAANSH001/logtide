@@ -1,6 +1,7 @@
 <script lang="ts">
   import { page } from '$app/state';
   import { goto } from '$app/navigation';
+  import { getApiUrl } from '$lib/config';
   import { currentOrganization } from '$lib/stores/organization';
   import {
     monitoringStore,
@@ -21,6 +22,7 @@
   import Heart from '@lucide/svelte/icons/heart';
   import CheckCircle from '@lucide/svelte/icons/check-circle';
   import XCircle from '@lucide/svelte/icons/x-circle';
+  import Copy from '@lucide/svelte/icons/copy';
 
   const monitorId = $derived(page.params.id);
   const org = $derived($currentOrganization);
@@ -68,7 +70,7 @@
   // Group uptime by last 30 days (most recent 30 buckets)
   const recentUptime = $derived(uptime.slice(-30));
 
-  const overallUptime = $derived(() => {
+  const overallUptime = $derived.by(() => {
     if (recentUptime.length === 0) return null;
     const total = recentUptime.reduce((sum, b) => sum + b.totalChecks, 0);
     const success = recentUptime.reduce((sum, b) => sum + b.successfulChecks, 0);
@@ -84,15 +86,37 @@
       toastStore.error(err instanceof Error ? err.message : 'Failed to update monitor');
     }
   }
+
+  function refresh() {
+    if (org && monitorId) {
+      monitoringStore.loadDetail(monitorId, org.id);
+    }
+  }
+
+  async function copyHeartbeatUrl() {
+    if (!monitor) return;
+    const url = `${getApiUrl()}/api/v1/monitors/${monitor.id}/heartbeat`;
+    try {
+      await navigator.clipboard.writeText(url);
+      toastStore.success('Heartbeat URL copied');
+    } catch {
+      toastStore.error('Failed to copy URL');
+    }
+  }
 </script>
 
 <div class="flex flex-col gap-6 p-6">
   <!-- Header -->
-  <div class="flex items-center gap-4">
-    <Button variant="ghost" size="sm" onclick={() => goto('/dashboard/monitoring')}>
-      <ArrowLeft class="h-4 w-4" />
+  <div class="flex items-center justify-between">
+    <div class="flex items-center gap-4">
+      <Button variant="ghost" size="sm" onclick={() => goto('/dashboard/monitoring')}>
+        <ArrowLeft class="h-4 w-4" />
+      </Button>
+      <h1 class="text-xl font-semibold">{monitor?.name ?? 'Monitor'}</h1>
+    </div>
+    <Button variant="outline" size="sm" onclick={refresh}>
+      <RefreshCw class="h-4 w-4" />
     </Button>
-    <h1 class="text-xl font-semibold">{monitor?.name ?? 'Monitor'}</h1>
   </div>
 
   {#if loading}
@@ -120,7 +144,7 @@
       <div class="rounded-lg border bg-card p-4">
         <p class="text-xs font-medium uppercase tracking-wider text-muted-foreground">30-day uptime</p>
         <p class="mt-2 text-lg font-semibold">
-          {overallUptime() != null ? `${overallUptime()}%` : '—'}
+          {overallUptime != null ? `${overallUptime}%` : '—'}
         </p>
       </div>
       <div class="rounded-lg border bg-card p-4">
@@ -141,8 +165,8 @@
         <div class="flex items-end gap-0.5 h-12">
           {#each recentUptime as bucket}
             <div
-              class="flex-1 rounded-sm {uptimeColor(bucket.uptimePct)} min-h-[4px] transition-all"
-              style="height: {Math.max(4, bucket.uptimePct * 0.48)}px"
+              class="flex-1 rounded-sm {uptimeColor(bucket.uptimePct)} transition-all"
+              style="height: {Math.max(8, (bucket.uptimePct / 100) * 48)}px; min-height: 4px"
               title="{new Date(bucket.bucket).toLocaleDateString()} — {bucket.uptimePct.toFixed(1)}%"
             ></div>
           {/each}
@@ -188,6 +212,24 @@
             <dt class="text-muted-foreground">Auto-resolve</dt>
             <dd class="font-medium">{monitor.autoResolve ? 'Yes' : 'No'}</dd>
           </div>
+          <div class="flex justify-between">
+            <dt class="text-muted-foreground">Severity</dt>
+            <dd class="font-medium capitalize">{monitor.severity}</dd>
+          </div>
+          {#if monitor.type === 'http' && monitor.httpConfig}
+            {#if monitor.httpConfig.method && monitor.httpConfig.method !== 'GET'}
+              <div class="flex justify-between">
+                <dt class="text-muted-foreground">HTTP method</dt>
+                <dd class="font-medium">{monitor.httpConfig.method}</dd>
+              </div>
+            {/if}
+            {#if monitor.httpConfig.expectedStatus && monitor.httpConfig.expectedStatus !== 200}
+              <div class="flex justify-between">
+                <dt class="text-muted-foreground">Expected status</dt>
+                <dd class="font-medium">{monitor.httpConfig.expectedStatus}</dd>
+              </div>
+            {/if}
+          {/if}
         </dl>
         <div class="mt-4 pt-4 border-t flex justify-between items-center">
           <span class="text-sm text-muted-foreground">
@@ -201,9 +243,14 @@
           <div class="mt-4 pt-4 border-t">
             <p class="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">Heartbeat endpoint</p>
             <p class="text-xs text-muted-foreground mb-1">Send a POST request to:</p>
-            <code class="block text-xs bg-muted rounded px-2 py-1.5 font-mono break-all">
-              POST /api/v1/monitors/{monitor.id}/heartbeat
-            </code>
+            <div class="flex items-center gap-1">
+              <code class="flex-1 text-xs bg-muted rounded px-2 py-1.5 font-mono break-all">
+                POST /api/v1/monitors/{monitor.id}/heartbeat
+              </code>
+              <Button variant="ghost" size="sm" onclick={copyHeartbeatUrl} title="Copy full URL">
+                <Copy class="h-3.5 w-3.5" />
+              </Button>
+            </div>
           </div>
         {/if}
       </div>

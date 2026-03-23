@@ -17,6 +17,7 @@ export interface CreateProjectInput {
 export interface UpdateProjectInput {
   name?: string;
   description?: string;
+  statusPagePublic?: boolean;
 }
 
 export class ProjectsService {
@@ -79,7 +80,7 @@ export class ProjectsService {
         description: input.description || null,
         slug,
       })
-      .returning(['id', 'organization_id', 'name', 'description', 'slug', 'created_at', 'updated_at'])
+      .returning(['id', 'organization_id', 'name', 'description', 'slug', 'status_page_public', 'created_at', 'updated_at'])
       .executeTakeFirstOrThrow();
 
     return {
@@ -88,6 +89,7 @@ export class ProjectsService {
       name: project.name,
       description: project.description || undefined,
       slug: project.slug,
+      statusPagePublic: project.status_page_public,
       createdAt: new Date(project.created_at),
       updatedAt: new Date(project.updated_at),
     };
@@ -102,7 +104,7 @@ export class ProjectsService {
 
     const projects = await db
       .selectFrom('projects')
-      .select(['id', 'organization_id', 'name', 'description', 'slug', 'created_at', 'updated_at'])
+      .select(['id', 'organization_id', 'name', 'description', 'slug', 'status_page_public', 'created_at', 'updated_at'])
       .where('organization_id', '=', organizationId)
       .orderBy('created_at', 'desc')
       .execute();
@@ -113,6 +115,7 @@ export class ProjectsService {
       name: p.name,
       description: p.description || undefined,
       slug: p.slug,
+      statusPagePublic: p.status_page_public,
       createdAt: new Date(p.created_at),
       updatedAt: new Date(p.updated_at),
     }));
@@ -125,7 +128,7 @@ export class ProjectsService {
     const project = await db
       .selectFrom('projects')
       .innerJoin('organization_members', 'projects.organization_id', 'organization_members.organization_id')
-      .select(['projects.id', 'projects.organization_id', 'projects.name', 'projects.description', 'projects.slug', 'projects.created_at', 'projects.updated_at'])
+      .select(['projects.id', 'projects.organization_id', 'projects.name', 'projects.description', 'projects.slug', 'projects.status_page_public', 'projects.created_at', 'projects.updated_at'])
       .where('projects.id', '=', projectId)
       .where('organization_members.user_id', '=', userId)
       .executeTakeFirst();
@@ -140,6 +143,7 @@ export class ProjectsService {
       name: project.name,
       description: project.description || undefined,
       slug: project.slug,
+      statusPagePublic: project.status_page_public,
       createdAt: new Date(project.created_at),
       updatedAt: new Date(project.updated_at),
     };
@@ -179,10 +183,11 @@ export class ProjectsService {
       .set({
         ...(input.name && { name: input.name }),
         ...(input.description !== undefined && { description: input.description || null }),
+        ...(input.statusPagePublic !== undefined && { status_page_public: input.statusPagePublic }),
         updated_at: new Date(),
       })
       .where('id', '=', projectId)
-      .returning(['id', 'organization_id', 'name', 'description', 'slug', 'created_at', 'updated_at'])
+      .returning(['id', 'organization_id', 'name', 'description', 'slug', 'status_page_public', 'created_at', 'updated_at'])
       .executeTakeFirst();
 
     if (!project) {
@@ -195,6 +200,7 @@ export class ProjectsService {
       name: project.name,
       description: project.description || undefined,
       slug: project.slug,
+      statusPagePublic: project.status_page_public,
       createdAt: new Date(project.created_at),
       updatedAt: new Date(project.updated_at),
     };

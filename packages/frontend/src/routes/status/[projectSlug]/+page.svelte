@@ -185,13 +185,13 @@
                 {#each monitor.uptimeHistory.slice(-60) as bucket}
                   <div
                     class="flex-1 rounded-sm {uptimeBarColor(bucket.uptimePct)} min-h-[3px] transition-all"
-                    style="height: {Math.max(3, bucket.uptimePct * 0.32)}px"
+                    style="height: {Math.max(8, (bucket.uptimePct / 100) * 32)}px; min-height: 3px"
                     title="{new Date(bucket.bucket).toLocaleDateString()} — {bucket.uptimePct.toFixed(1)}%"
                   ></div>
                 {/each}
               </div>
               <div class="mt-1 flex justify-between text-xs text-muted-foreground">
-                <span>{monitor.uptimeHistory.length} days ago</span>
+                <span>{Math.min(monitor.uptimeHistory.length, 60)} days ago</span>
                 <span>Today</span>
               </div>
             {/if}

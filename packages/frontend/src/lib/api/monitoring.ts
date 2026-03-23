@@ -4,6 +4,13 @@ import { getAuthToken } from '$lib/utils/auth';
 export type MonitorType = 'http' | 'tcp' | 'heartbeat';
 export type MonitorStatus = 'up' | 'down' | 'unknown';
 
+export interface HttpConfig {
+  method?: string;
+  expectedStatus?: number;
+  headers?: Record<string, string>;
+  bodyAssertion?: { type: 'contains'; value: string } | { type: 'regex'; pattern: string };
+}
+
 export interface Monitor {
   id: string;
   organizationId: string;
@@ -16,6 +23,8 @@ export interface Monitor {
   failureThreshold: number;
   autoResolve: boolean;
   enabled: boolean;
+  httpConfig: HttpConfig | null;
+  severity: 'critical' | 'high' | 'medium' | 'low' | 'informational';
   createdAt: string;
   updatedAt: string;
   status?: {
@@ -62,6 +71,8 @@ export interface CreateMonitorInput {
   failureThreshold?: number;
   autoResolve?: boolean;
   enabled?: boolean;
+  httpConfig?: HttpConfig | null;
+  severity?: string;
 }
 
 export interface UpdateMonitorInput {
@@ -72,6 +83,8 @@ export interface UpdateMonitorInput {
   failureThreshold?: number;
   autoResolve?: boolean;
   enabled?: boolean;
+  httpConfig?: HttpConfig | null;
+  severity?: string;
 }
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {

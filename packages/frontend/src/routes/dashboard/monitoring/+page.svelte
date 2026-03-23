@@ -43,7 +43,7 @@
   let formTarget = $state('');
   let formInterval = $state(60);
   let formTimeout = $state(10);
-  let formThreshold = $state(3);
+  let formThreshold = $state(2);
   let formAutoResolve = $state(true);
   let formEnabled = $state(true);
   let projectId = $state<string | undefined>(undefined);
@@ -66,7 +66,7 @@
     formTarget = '';
     formInterval = 60;
     formTimeout = 10;
-    formThreshold = 3;
+    formThreshold = 2;
     formAutoResolve = true;
     formEnabled = true;
   }
@@ -96,9 +96,35 @@
     resetForm();
   }
 
+  let formError = $state<string | null>(null);
+
+  function validateForm(): string | null {
+    if (!editingMonitor) {
+      if (formType === 'http') {
+        if (!formTarget || !(formTarget.startsWith('http://') || formTarget.startsWith('https://'))) {
+          return 'HTTP target must start with http:// or https://';
+        }
+      }
+      if (formType === 'tcp') {
+        if (!formTarget || !formTarget.includes(':')) {
+          return 'TCP target must be in host:port format';
+        }
+      }
+    }
+    return null;
+  }
+
   async function handleSubmit(e: Event) {
     e.preventDefault();
     if (!org) return;
+
+    const validationError = validateForm();
+    if (validationError) {
+      formError = validationError;
+      return;
+    }
+    formError = null;
+
     submitting = true;
     try {
       if (editingMonitor) {
@@ -310,6 +336,12 @@
             Enabled
           </label>
         </div>
+
+        {#if formError}
+          <div class="sm:col-span-2 rounded-md border border-destructive/50 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+            {formError}
+          </div>
+        {/if}
 
         <div class="sm:col-span-2 flex justify-end gap-2 pt-2">
           <Button type="button" variant="outline" onclick={closeForm}>Cancel</Button>

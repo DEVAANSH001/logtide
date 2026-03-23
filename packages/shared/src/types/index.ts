@@ -95,6 +95,7 @@ export interface Project {
   name: string;
   description?: string;
   slug: string;
+  statusPagePublic: boolean;
   createdAt: Date;
   updatedAt: Date;
 }
