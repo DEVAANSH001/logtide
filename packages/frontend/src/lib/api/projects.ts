@@ -11,6 +11,7 @@ export interface CreateProjectInput {
 export interface UpdateProjectInput {
   name?: string;
   description?: string;
+  statusPagePublic?: boolean;
 }
 
 export class ProjectsAPI {

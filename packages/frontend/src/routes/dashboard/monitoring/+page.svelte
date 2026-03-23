@@ -20,6 +20,7 @@
   import Wifi from '@lucide/svelte/icons/wifi';
   import Heart from '@lucide/svelte/icons/heart';
   import ChevronRight from '@lucide/svelte/icons/chevron-right';
+  import ExternalLink from '@lucide/svelte/icons/external-link';
 
   const layout = $derived($layoutStore);
   const org = $derived($currentOrganization);
@@ -196,6 +197,23 @@
     if (ms < 1000) return `${ms}ms`;
     return `${(ms / 1000).toFixed(1)}s`;
   }
+
+  // Status page toggle
+  const selectedProject = $derived(projects.find((p) => p.id === projectId));
+
+  async function toggleStatusPage() {
+    if (!org || !projectId || !selectedProject) return;
+    try {
+      const res = await projectsAPI.updateProject(org.id, projectId, {
+        statusPagePublic: !selectedProject.statusPagePublic,
+      });
+      // Update local projects array
+      projects = projects.map((p) => p.id === projectId ? { ...p, statusPagePublic: res.project.statusPagePublic } : p);
+      toastStore.success(res.project.statusPagePublic ? 'Status page enabled' : 'Status page disabled');
+    } catch (err) {
+      toastStore.error(err instanceof Error ? err.message : 'Failed to update status page');
+    }
+  }
 </script>
 
 <div class="flex flex-col gap-6 p-6">
@@ -222,6 +240,36 @@
       </Button>
     </div>
   </div>
+
+  <!-- Status page toggle -->
+  {#if selectedProject}
+    <div class="flex items-center justify-between rounded-lg border bg-card px-4 py-3">
+      <div class="flex items-center gap-3">
+        <label class="flex items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            checked={selectedProject.statusPagePublic}
+            onchange={toggleStatusPage}
+            class="rounded"
+          />
+          Public status page
+        </label>
+        {#if selectedProject.statusPagePublic}
+          <Badge variant="outline" class="text-xs">Live</Badge>
+        {/if}
+      </div>
+      {#if selectedProject.statusPagePublic && selectedProject.slug}
+        <a
+          href="/status/{selectedProject.slug}"
+          target="_blank"
+          class="flex items-center gap-1.5 text-xs text-primary hover:underline"
+        >
+          View status page
+          <ExternalLink class="h-3 w-3" />
+        </a>
+      {/if}
+    </div>
+  {/if}
 
   <!-- Error -->
   {#if error}
