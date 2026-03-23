@@ -2,11 +2,6 @@
   import { onMount } from 'svelte';
   import { getApiUrl } from '$lib/config';
   import { page } from '$app/stores';
-  import RefreshCw from '@lucide/svelte/icons/refresh-cw';
-  import CheckCircle from '@lucide/svelte/icons/check-circle';
-  import XCircle from '@lucide/svelte/icons/x-circle';
-  import MinusCircle from '@lucide/svelte/icons/minus-circle';
-  import Activity from '@lucide/svelte/icons/activity';
 
   interface UptimeBar {
     bucket: string;
@@ -20,7 +15,7 @@
     uptimeHistory: UptimeBar[];
   }
 
-  interface StatusPage {
+  interface StatusPageData {
     projectName: string;
     projectSlug: string;
     overallStatus: 'operational' | 'degraded' | 'outage';
@@ -28,16 +23,17 @@
     lastUpdated: string;
   }
 
-  const slug = $derived($page.params.projectSlug);
-
-  let data = $state<StatusPage | null>(null);
+  let data = $state<StatusPageData | null>(null);
   let loading = $state(true);
   let notFound = $state(false);
   let fetchError = $state<string | null>(null);
 
   async function load() {
+    const slug = $page.params.projectSlug;
+    if (!slug) return;
     loading = true;
     fetchError = null;
+    notFound = false;
     try {
       const res = await fetch(`${getApiUrl()}/api/v1/status/project/${slug}`);
       if (res.status === 404) {
@@ -55,7 +51,6 @@
 
   onMount(() => {
     load();
-    // Refresh every 60 seconds
     const interval = setInterval(load, 60000);
     return () => clearInterval(interval);
   });
@@ -76,12 +71,6 @@
     if (s === 'operational') return 'bg-green-50 border-green-200 dark:bg-green-950/20 dark:border-green-900';
     if (s === 'degraded') return 'bg-yellow-50 border-yellow-200 dark:bg-yellow-950/20 dark:border-yellow-900';
     return 'bg-red-50 border-red-200 dark:bg-red-950/20 dark:border-red-900';
-  }
-
-  function monitorStatusIcon(s: string) {
-    if (s === 'up') return CheckCircle;
-    if (s === 'down') return XCircle;
-    return MinusCircle;
   }
 
   function monitorStatusColor(s: string) {
@@ -111,43 +100,41 @@
 </script>
 
 <svelte:head>
-  <title>{data?.projectName ?? slug} — Status</title>
+  <title>{data?.projectName ?? $page.params.projectSlug} — Status</title>
 </svelte:head>
 
 <div class="mx-auto max-w-2xl px-4 py-12">
   {#if loading}
     <div class="flex items-center justify-center py-24">
-      <RefreshCw class="h-7 w-7 animate-spin text-muted-foreground" />
+      <svg class="h-7 w-7 animate-spin text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+        <path d="M21 12a9 9 0 1 1-6.22-8.56" />
+      </svg>
     </div>
   {:else if notFound}
     <div class="text-center py-24">
-      <Activity class="mx-auto h-12 w-12 text-muted-foreground mb-4" />
       <h1 class="text-2xl font-semibold mb-2">Status page not found</h1>
-      <p class="text-muted-foreground">The project <code class="font-mono">{slug}</code> does not have a public status page.</p>
+      <p class="text-gray-500">The project <code class="font-mono">{$page.params.projectSlug}</code> does not have a public status page.</p>
     </div>
   {:else if fetchError}
-    <div class="rounded-md border border-destructive/50 bg-destructive/10 p-4 text-sm text-destructive text-center">
+    <div class="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-600 text-center">
       {fetchError}
     </div>
   {:else if data}
     <!-- Page header -->
     <div class="mb-8 text-center">
-      <div class="flex items-center justify-center gap-2 mb-2">
-        <Activity class="h-6 w-6 text-primary" />
-        <h1 class="text-2xl font-bold">{data.projectName}</h1>
-      </div>
-      <p class="text-sm text-muted-foreground">Service status</p>
+      <h1 class="text-2xl font-bold">{data.projectName}</h1>
+      <p class="text-sm text-gray-500 mt-1">Service status</p>
     </div>
 
     <!-- Overall status banner -->
     <div class="rounded-xl border p-5 mb-8 {statusBg(data.overallStatus)}">
       <div class="flex items-center gap-3">
         {#if data.overallStatus === 'operational'}
-          <CheckCircle class="h-6 w-6 text-green-500" />
+          <span class="text-green-500 text-xl">&#10003;</span>
         {:else if data.overallStatus === 'degraded'}
-          <MinusCircle class="h-6 w-6 text-yellow-500" />
+          <span class="text-yellow-500 text-xl">&#9888;</span>
         {:else}
-          <XCircle class="h-6 w-6 text-red-500" />
+          <span class="text-red-500 text-xl">&#10007;</span>
         {/if}
         <span class="text-lg font-semibold {overallStatusColor(data.overallStatus)}">
           {overallStatusLabel(data.overallStatus)}
@@ -157,26 +144,26 @@
 
     <!-- Monitors -->
     {#if data.monitors.length === 0}
-      <p class="text-center text-muted-foreground py-8">No monitors configured</p>
+      <p class="text-center text-gray-500 py-8">No monitors configured</p>
     {:else}
       <div class="space-y-3">
         {#each data.monitors as monitor (monitor.name)}
-          <div class="rounded-lg border bg-card p-4">
+          <div class="rounded-lg border bg-white dark:bg-gray-900 p-4">
             <div class="flex items-center justify-between mb-3">
               <div class="flex items-center gap-2">
                 {#if monitor.status === 'up'}
-                  <CheckCircle class="h-4 w-4 text-green-500" />
+                  <span class="h-2.5 w-2.5 rounded-full bg-green-500"></span>
                 {:else if monitor.status === 'down'}
-                  <XCircle class="h-4 w-4 text-red-500" />
+                  <span class="h-2.5 w-2.5 rounded-full bg-red-500"></span>
                 {:else}
-                  <MinusCircle class="h-4 w-4 text-gray-400" />
+                  <span class="h-2.5 w-2.5 rounded-full bg-gray-400"></span>
                 {/if}
                 <span class="font-medium">{monitor.name}</span>
-                <span class="text-xs text-muted-foreground capitalize">({monitor.type})</span>
+                <span class="text-xs text-gray-500 capitalize">({monitor.type})</span>
               </div>
               <div class="flex items-center gap-3">
                 {#if avgUptime(monitor.uptimeHistory) != null}
-                  <span class="text-xs text-muted-foreground">{avgUptime(monitor.uptimeHistory)}% uptime</span>
+                  <span class="text-xs text-gray-500">{avgUptime(monitor.uptimeHistory)}% uptime</span>
                 {/if}
                 <span class="text-sm font-medium {monitorStatusColor(monitor.status)}">
                   {monitorStatusLabel(monitor.status)}
@@ -189,13 +176,13 @@
               <div class="flex items-end gap-0.5 h-8">
                 {#each monitor.uptimeHistory.slice(-60) as bucket}
                   <div
-                    class="flex-1 rounded-sm {uptimeBarColor(bucket.uptimePct)} min-h-[3px] transition-all"
+                    class="flex-1 rounded-sm {uptimeBarColor(bucket.uptimePct)} transition-all"
                     style="height: {Math.max(8, (bucket.uptimePct / 100) * 32)}px; min-height: 3px"
                     title="{new Date(bucket.bucket).toLocaleDateString()} — {bucket.uptimePct.toFixed(1)}%"
                   ></div>
                 {/each}
               </div>
-              <div class="mt-1 flex justify-between text-xs text-muted-foreground">
+              <div class="mt-1 flex justify-between text-xs text-gray-500">
                 <span>{Math.min(monitor.uptimeHistory.length, 60)} days ago</span>
                 <span>Today</span>
               </div>
@@ -206,7 +193,7 @@
     {/if}
 
     <!-- Footer -->
-    <div class="mt-8 text-center text-xs text-muted-foreground">
+    <div class="mt-8 text-center text-xs text-gray-500">
       <p>Last updated: {new Date(data.lastUpdated).toLocaleString()}</p>
       <p class="mt-1">Powered by <a href="https://logtide.dev" class="hover:underline">LogTide</a></p>
     </div>
