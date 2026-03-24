@@ -113,12 +113,17 @@ export interface OrganizationInvitationsTable {
   created_at: Generated<Timestamp>;
 }
 
+export type StatusPageVisibility = 'disabled' | 'public' | 'password' | 'members_only';
+
 export interface ProjectsTable {
   id: Generated<string>;
   organization_id: string;
   user_id: string; // Keep for tracking who created the project
   name: string;
+  slug: string;
   description: string | null;
+  status_page_visibility: Generated<StatusPageVisibility>;
+  status_page_password_hash: string | null;
   created_at: Generated<Timestamp>;
   updated_at: Generated<Timestamp>;
 }
@@ -420,9 +425,131 @@ export interface IncidentsTable {
   mitre_techniques: string[] | null;
   ip_reputation: ColumnType<Record<string, unknown> | null, Record<string, unknown> | null, Record<string, unknown> | null>;
   geo_data: ColumnType<Record<string, unknown> | null, Record<string, unknown> | null, Record<string, unknown> | null>;
+  source: Generated<string>;
+  monitor_id: string | null;
   created_at: Generated<Timestamp>;
   updated_at: Generated<Timestamp>;
   resolved_at: Timestamp | null;
+}
+
+// ============================================================================
+// SERVICE HEALTH MONITORING TABLES
+// ============================================================================
+
+export type MonitorType = 'http' | 'tcp' | 'heartbeat';
+export type MonitorStatusValue = 'up' | 'down' | 'unknown';
+
+export interface MonitorHttpConfig {
+  method?: string;
+  expectedStatus?: number;
+  headers?: Record<string, string>;
+  bodyAssertion?: { type: 'contains'; value: string } | { type: 'regex'; pattern: string };
+}
+
+export interface MonitorsTable {
+  id: Generated<string>;
+  organization_id: string;
+  project_id: string;
+  name: string;
+  type: MonitorType;
+  target: string | null;
+  interval_seconds: Generated<number>;
+  timeout_seconds: Generated<number>;
+  failure_threshold: Generated<number>;
+  auto_resolve: Generated<boolean>;
+  enabled: Generated<boolean>;
+  http_config: MonitorHttpConfig | null;
+  severity: Generated<string>;
+  created_at: Generated<Timestamp>;
+  updated_at: Generated<Timestamp>;
+}
+
+export interface MonitorStatusTable {
+  monitor_id: string;
+  status: Generated<MonitorStatusValue>;
+  consecutive_failures: Generated<number>;
+  consecutive_successes: Generated<number>;
+  last_checked_at: Timestamp | null;
+  last_status_change_at: Timestamp | null;
+  response_time_ms: number | null;
+  last_error_code: string | null;
+  incident_id: string | null;
+  updated_at: Generated<Timestamp>;
+}
+
+export interface MonitorResultsTable {
+  time: Timestamp;
+  id: Generated<string>;
+  monitor_id: string;
+  organization_id: string;
+  project_id: string;
+  status: 'up' | 'down';
+  response_time_ms: number | null;
+  status_code: number | null;
+  error_code: string | null;
+  is_heartbeat: Generated<boolean>;
+}
+
+export interface MonitorUptimeDailyTable {
+  bucket: Timestamp;
+  monitor_id: string;
+  organization_id: string;
+  project_id: string;
+  total_checks: number;
+  successful_checks: number;
+  uptime_pct: number | null;
+}
+
+// ============================================================================
+// STATUS PAGE INCIDENTS
+// ============================================================================
+
+export type StatusIncidentStatus = 'investigating' | 'identified' | 'monitoring' | 'resolved';
+export type StatusIncidentSeverity = 'minor' | 'major' | 'critical';
+
+export interface StatusIncidentsTable {
+  id: Generated<string>;
+  organization_id: string;
+  project_id: string;
+  title: string;
+  status: Generated<StatusIncidentStatus>;
+  severity: Generated<StatusIncidentSeverity>;
+  created_by: string | null;
+  created_at: Generated<Timestamp>;
+  updated_at: Generated<Timestamp>;
+  resolved_at: Timestamp | null;
+}
+
+export interface StatusIncidentUpdatesTable {
+  id: Generated<string>;
+  incident_id: string;
+  status: StatusIncidentStatus;
+  message: string;
+  created_by: string | null;
+  created_at: Generated<Timestamp>;
+}
+
+// ============================================================================
+// SCHEDULED MAINTENANCES
+// ============================================================================
+
+export type MaintenanceStatus = 'scheduled' | 'in_progress' | 'completed';
+
+export interface ScheduledMaintenancesTable {
+  id: Generated<string>;
+  organization_id: string;
+  project_id: string;
+  title: string;
+  description: string | null;
+  status: Generated<MaintenanceStatus>;
+  scheduled_start: Timestamp;
+  scheduled_end: Timestamp;
+  actual_start: Timestamp | null;
+  actual_end: Timestamp | null;
+  auto_update_status: Generated<boolean>;
+  created_by: string | null;
+  created_at: Generated<Timestamp>;
+  updated_at: Generated<Timestamp>;
 }
 
 export interface IncidentAlertsTable {
@@ -920,4 +1047,13 @@ export interface Database {
   metric_exemplars: MetricExemplarsTable;
   // Log pipelines
   log_pipelines: LogPipelinesTable;
+  // Service health monitoring
+  monitors: MonitorsTable;
+  monitor_status: MonitorStatusTable;
+  monitor_results: MonitorResultsTable;
+  monitor_uptime_daily: MonitorUptimeDailyTable;
+  // Status page incidents & maintenances
+  status_incidents: StatusIncidentsTable;
+  status_incident_updates: StatusIncidentUpdatesTable;
+  scheduled_maintenances: ScheduledMaintenancesTable;
 }

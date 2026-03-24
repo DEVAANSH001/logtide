@@ -89,11 +89,15 @@ export function canManageMembers(role: OrgRole): boolean {
 }
 
 // Project types
+export type StatusPageVisibility = 'disabled' | 'public' | 'password' | 'members_only';
+
 export interface Project {
   id: string;
   organizationId: string;
   name: string;
   description?: string;
+  slug: string;
+  statusPageVisibility: StatusPageVisibility;
   createdAt: Date;
   updatedAt: Date;
 }

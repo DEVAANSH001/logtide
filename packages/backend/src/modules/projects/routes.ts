@@ -16,6 +16,8 @@ const createProjectSchema = z.object({
 const updateProjectSchema = z.object({
   name: z.string().min(1).max(100).optional(),
   description: z.string().optional(),
+  statusPageVisibility: z.enum(['disabled', 'public', 'password', 'members_only']).optional(),
+  statusPagePassword: z.string().min(1).max(128).optional(),
 });
 
 const projectIdSchema = z.object({

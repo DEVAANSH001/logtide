@@ -71,7 +71,12 @@ beforeEach(async () => {
     try {
         await db.deleteFrom('logs').execute();
         await db.deleteFrom('alert_history').execute();
+        // Monitoring tables (must delete before monitors and incidents)
+        await db.deleteFrom('monitor_results').execute();
+        await db.deleteFrom('monitor_status').execute();
+        await db.deleteFrom('monitors').execute();
         // SIEM tables (must delete before incidents and sigma_rules)
+        await db.deleteFrom('incident_alerts').execute();
         await db.deleteFrom('incident_comments').execute();
         await db.deleteFrom('incident_history').execute();
         await db.deleteFrom('detection_events').execute();
