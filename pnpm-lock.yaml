@@ -53,7 +53,7 @@ importers:
         version: 0.7.0
       '@logtide/fastify':
         specifier: 0.7.0
-        version: 0.7.0(fastify@5.8.1)
+        version: 0.7.0(fastify@5.8.3)
       '@logtide/reservoir':
         specifier: workspace:*
         version: link:../reservoir
@@ -76,8 +76,8 @@ importers:
         specifier: ^17.2.3
         version: 17.2.3
       fastify:
-        specifier: ^5.8.1
-        version: 5.8.1
+        specifier: ^5.8.3
+        version: 5.8.3
       fastify-plugin:
         specifier: ^5.0.1
         version: 5.1.0
@@ -2031,8 +2031,8 @@ packages:
   fastify-plugin@5.1.0:
     resolution: {integrity: sha512-FAIDA8eovSt5qcDgcBvDuX/v0Cjz0ohGhENZ/wpc3y+oZCY2afZ9Baqql3g/lC+OHRnciQol4ww7tuthOb9idw==}
 
-  fastify@5.8.1:
-    resolution: {integrity: sha512-y0kicFvvn7CYWoPOVLOcvn4YyKQz03DIY7UxmyOy21/J8eXm09R+tmb+tVDBW5h+pja30cHI5dqUcSlvY86V2A==}
+  fastify@5.8.3:
+    resolution: {integrity: sha512-XJXpRQ41+rsJ/GLeP9vyDC+fBXilcTlEXokMSexkdEkla4uf7ZQNaI5xl3el+kW5TZQulqYxLr659ey/KX7XmQ==}
 
   fastq@1.20.1:
     resolution: {integrity: sha512-GGToxJ/w1x32s/D2EKND7kTil4n8OVk/9mycTc4VDza13lOvpUZTGX3mFSCtV9ksdGBVzvsyAVLM6mHFThxXxw==}
@@ -3991,11 +3991,11 @@ snapshots:
     dependencies:
       '@logtide/types': 0.7.0
 
-  '@logtide/fastify@0.7.0(fastify@5.8.1)':
+  '@logtide/fastify@0.7.0(fastify@5.8.3)':
     dependencies:
       '@logtide/core': 0.7.0
       '@logtide/types': 0.7.0
-      fastify: 5.8.1
+      fastify: 5.8.3
       fastify-plugin: 5.1.0
 
   '@logtide/sveltekit@0.7.0(@sveltejs/kit@2.53.4(@opentelemetry/api@1.9.0)(@sveltejs/vite-plugin-svelte@5.1.1(svelte@5.53.6)(vite@6.4.1(@types/node@22.19.7)(jiti@1.21.7)(tsx@4.21.0)))(svelte@5.53.6)(typescript@5.9.3)(vite@6.4.1(@types/node@22.19.7)(jiti@1.21.7)(tsx@4.21.0)))(web-vitals@4.2.4)':
@@ -5253,7 +5253,7 @@ snapshots:
 
   fastify-plugin@5.1.0: {}
 
-  fastify@5.8.1:
+  fastify@5.8.3:
     dependencies:
       '@fastify/ajv-compiler': 4.0.5
       '@fastify/error': 4.2.0
