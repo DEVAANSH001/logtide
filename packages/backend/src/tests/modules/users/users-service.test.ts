@@ -191,6 +191,27 @@ describe('UsersService', () => {
             expect(updatedUser?.lastLogin).not.toBeNull();
         });
 
+        it('should reject login for disabled user', async () => {
+            await usersService.createUser({
+                email: 'disabled@example.com',
+                password: 'password123',
+                name: 'Disabled User',
+            });
+
+            await db
+                .updateTable('users')
+                .set({ disabled: true })
+                .where('email', '=', 'disabled@example.com')
+                .execute();
+
+            await expect(
+                usersService.login({
+                    email: 'disabled@example.com',
+                    password: 'password123',
+                })
+            ).rejects.toThrow('This account has been disabled');
+        });
+
         it('should allow multiple concurrent sessions', async () => {
             await usersService.createUser({
                 email: 'multi@example.com',
