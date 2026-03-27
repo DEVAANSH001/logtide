@@ -283,7 +283,6 @@ export class InvitationsService {
       ])
       .where('organization_invitations.token', '=', token)
       .where('organization_invitations.accepted_at', 'is', null)
-      .where('organization_invitations.expires_at', '>', new Date())
       .executeTakeFirst();
 
     if (!result) {

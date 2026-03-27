@@ -389,9 +389,18 @@ export default async function patternRoutes(fastify: FastifyInstance) {
     },
     async (request: any, reply) => {
       const { id } = request.params;
+      const requestedOrgId = (request as any).organizationId || request.query.organizationId;
+
+      if (!requestedOrgId) {
+        return reply.status(400).send({
+          success: false,
+          error: 'Organization ID is required',
+        });
+      }
+
       const organizationId = await getUserOrganizationId(
         request.user.id,
-        request.query.organizationId
+        requestedOrgId
       );
 
       if (!organizationId) {
@@ -503,9 +512,18 @@ export default async function patternRoutes(fastify: FastifyInstance) {
     },
     async (request: any, reply) => {
       const { id } = request.params;
+      const requestedOrgId = (request as any).organizationId || request.query.organizationId;
+
+      if (!requestedOrgId) {
+        return reply.status(400).send({
+          success: false,
+          error: 'Organization ID is required',
+        });
+      }
+
       const organizationId = await getUserOrganizationId(
         request.user.id,
-        request.query.organizationId
+        requestedOrgId
       );
 
       if (!organizationId) {
