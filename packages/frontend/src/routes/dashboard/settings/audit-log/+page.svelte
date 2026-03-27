@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
+	import { onMount, onDestroy } from 'svelte';
 	import { browser } from '$app/environment';
 	import { goto } from '$app/navigation';
 	import { authStore } from '$lib/stores/auth';
@@ -79,12 +79,17 @@
 	let currentPage = $state(1);
 	const pageSize = 50;
 
-	authStore.subscribe((state) => {
+	const unsubAuthStore = authStore.subscribe((state) => {
 		token = state.token;
 	});
 
-	organizationStore.subscribe((state) => {
+	const unsubOrgStore = organizationStore.subscribe((state) => {
 		currentOrg = state.currentOrganization;
+	});
+
+	onDestroy(() => {
+		unsubAuthStore();
+		unsubOrgStore();
 	});
 
 	onMount(() => {

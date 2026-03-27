@@ -53,7 +53,7 @@ async function groupByTraceId(organizationId: string): Promise<void> {
         'trace_id',
         'project_id',
         db.fn.count<number>('id').as('count'),
-        db.fn.max('severity').as('maxSeverity'), // Highest severity wins
+        sql<string>`(ARRAY['critical','high','medium','low','informational'])[MIN(CASE severity WHEN 'critical' THEN 1 WHEN 'high' THEN 2 WHEN 'medium' THEN 3 WHEN 'low' THEN 4 WHEN 'informational' THEN 5 ELSE 5 END)]`.as('maxSeverity'),
         sql<string[]>`array_agg(id)`.as('eventIds'),
         sql<string[]>`array_agg(service)`.as('services'),
         db.fn.min('time').as('firstSeen'),

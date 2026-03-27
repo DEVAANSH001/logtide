@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, onDestroy } from 'svelte';
   import { goto } from '$app/navigation';
   import { page } from '$app/state';
   import { authStore } from '$lib/stores/auth';
@@ -54,8 +54,12 @@
     checkingAuthMode = false;
   });
 
-  authStore.subscribe((state) => {
+  const unsubAuthStore = authStore.subscribe((state) => {
     token = state.token;
+  });
+
+  onDestroy(() => {
+    unsubAuthStore();
   });
 
   function validateForm(): boolean {

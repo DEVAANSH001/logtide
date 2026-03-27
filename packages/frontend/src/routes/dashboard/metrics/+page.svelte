@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from "svelte";
+  import { onMount, onDestroy } from "svelte";
   import { goto } from "$app/navigation";
   import * as echarts from "echarts";
   import {
@@ -69,8 +69,12 @@
 
   // Local project and time range state
   let token = $state<string | null>(null);
-  authStore.subscribe((state) => { token = state.token; });
+  const unsubAuthStore = authStore.subscribe((state) => { token = state.token; });
   let projectsAPI = $derived(new ProjectsAPI(() => token));
+
+  onDestroy(() => {
+    unsubAuthStore();
+  });
 
   let projects = $state<Project[]>([]);
   let selectedProject = $state<string | null>(null);

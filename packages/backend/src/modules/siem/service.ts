@@ -267,12 +267,12 @@ export class SiemService {
     const result = await this.db
       .updateTable('incidents')
       .set({
-        ...(updates.title && { title: updates.title }),
+        ...(updates.title !== undefined && { title: updates.title }),
         ...(updates.description !== undefined && {
           description: updates.description,
         }),
-        ...(updates.severity && { severity: updates.severity }),
-        ...(updates.status && { status: updates.status }),
+        ...(updates.severity !== undefined && { severity: updates.severity }),
+        ...(updates.status !== undefined && { status: updates.status }),
         ...(updates.assigneeId !== undefined && {
           assignee_id: updates.assigneeId,
         }),

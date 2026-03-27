@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onDestroy } from 'svelte';
   import { onboardingStore } from '$lib/stores/onboarding';
   import { authStore } from '$lib/stores/auth';
   import { organizationStore } from '$lib/stores/organization';
@@ -26,12 +27,17 @@
 
   let isFormValid = $derived(orgName.trim().length > 0);
 
-  authStore.subscribe((state) => {
+  const unsubAuthStore = authStore.subscribe((state) => {
     token = state.token;
   });
 
-  onboardingStore.subscribe((state) => {
+  const unsubOnboardingStore = onboardingStore.subscribe((state) => {
     skipAfterOrgCreation = state.skipAfterOrgCreation;
+  });
+
+  onDestroy(() => {
+    unsubAuthStore();
+    unsubOnboardingStore();
   });
 
   // Domain-based suggestions

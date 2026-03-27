@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, onDestroy } from 'svelte';
   import { goto } from '$app/navigation';
   import { authStore } from '$lib/stores/auth';
   import { toastStore } from '$lib/stores/toast';
@@ -104,8 +104,12 @@
   let testMaskedFields = $state<string[]>([]);
   let testing = $state(false);
 
-  authStore.subscribe((state) => {
+  const unsubAuthStore = authStore.subscribe((state) => {
     token = state.token;
+  });
+
+  onDestroy(() => {
+    unsubAuthStore();
   });
 
   onMount(async () => {

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, onDestroy } from 'svelte';
   import { goto } from '$app/navigation';
   import { authStore } from '$lib/stores/auth';
   import { organizationStore, currentOrganization } from '$lib/stores/organization';
@@ -25,14 +25,19 @@
 
   let organizationsAPI = $derived(new OrganizationsAPI(() => token));
 
-  authStore.subscribe((state) => {
+  const unsubAuthStore = authStore.subscribe((state) => {
     isAuthenticated = !!state.user;
     token = state.token;
     userName = state.user?.name || state.user?.email?.split('@')[0] || 'there';
   });
 
-  onboardingStore.subscribe((state) => {
+  const unsubOnboardingStore = onboardingStore.subscribe((state) => {
     currentStep = state.currentStep;
+  });
+
+  onDestroy(() => {
+    unsubAuthStore();
+    unsubOnboardingStore();
   });
 
   // Only redirect to dashboard if onboarding is complete AND user has organizations

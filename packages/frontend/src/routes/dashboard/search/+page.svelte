@@ -116,7 +116,7 @@
 
   let projectsAPI = $derived(new ProjectsAPI(() => token));
 
-  authStore.subscribe((state) => {
+  const unsubAuthStore = authStore.subscribe((state) => {
     token = state.token;
   });
 
@@ -516,6 +516,8 @@
   }
 
   onDestroy(() => {
+    unsubAuthStore();
+    if (searchDebounceTimer) clearTimeout(searchDebounceTimer);
     stopLiveTail();
     shortcutsStore.unregisterScope('search');
   });

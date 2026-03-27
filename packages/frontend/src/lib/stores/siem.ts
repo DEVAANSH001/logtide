@@ -8,6 +8,7 @@ import {
 	type Severity,
 } from '$lib/api/siem';
 import { getApiUrl } from '$lib/config';
+import { getAuthToken } from '$lib/utils/auth';
 
 // ============================================================================
 // TYPES
@@ -140,6 +141,7 @@ function createSiemStore() {
 				update((state) => ({
 					...state,
 					incidents: response.incidents,
+					incidentsTotal: response.total,
 					incidentsLoading: false,
 				}));
 			} catch (error) {
@@ -193,7 +195,7 @@ function createSiemStore() {
 				currentState.sseConnection.close();
 			}
 
-			const token = localStorage.getItem('session_token');
+			const token = getAuthToken();
 			if (!token) return;
 
 			const params = new URLSearchParams({ organizationId });
