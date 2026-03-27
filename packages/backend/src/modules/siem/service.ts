@@ -304,7 +304,8 @@ export class SiemService {
    */
   async linkDetectionEventsToIncident(
     incidentId: string,
-    detectionEventIds: string[]
+    detectionEventIds: string[],
+    organizationId?: string
   ): Promise<void> {
     if (detectionEventIds.length === 0) return;
 
@@ -320,12 +321,17 @@ export class SiemService {
       )
       .execute();
 
-    // Update detection_events to set incident_id
-    await this.db
+    // Update detection_events to set incident_id (scoped to org if provided)
+    let updateQuery = this.db
       .updateTable('detection_events')
       .set({ incident_id: incidentId })
-      .where('id', 'in', detectionEventIds)
-      .execute();
+      .where('id', 'in', detectionEventIds);
+
+    if (organizationId) {
+      updateQuery = updateQuery.where('organization_id', '=', organizationId);
+    }
+
+    await updateQuery.execute();
 
     // Update incident detection_count
     await this.db
@@ -340,11 +346,17 @@ export class SiemService {
   /**
    * Get detection events for an incident
    */
-  async getIncidentDetections(incidentId: string): Promise<DetectionEvent[]> {
-    const results = await this.db
+  async getIncidentDetections(incidentId: string, organizationId?: string): Promise<DetectionEvent[]> {
+    let query = this.db
       .selectFrom('detection_events')
       .selectAll()
-      .where('incident_id', '=', incidentId)
+      .where('incident_id', '=', incidentId);
+
+    if (organizationId) {
+      query = query.where('organization_id', '=', organizationId);
+    }
+
+    const results = await query
       .orderBy('time', 'desc')
       .execute();
 

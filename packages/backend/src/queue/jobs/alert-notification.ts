@@ -156,20 +156,24 @@ export async function processAlertNotification(job: any) {
       console.log(`No webhook configured for: ${data.rule_name}`);
     }
 
-    // Mark as notified (with errors if any)
-    if (errors.length > 0) {
-      await alertsService.markAsNotified(data.historyId, errors.join('; '));
-    } else {
-      await alertsService.markAsNotified(data.historyId);
+    // Mark as notified (with errors if any) - skip for Sigma rules (no history entry)
+    if (data.historyId) {
+      if (errors.length > 0) {
+        await alertsService.markAsNotified(data.historyId, errors.join('; '));
+      } else {
+        await alertsService.markAsNotified(data.historyId);
+      }
     }
 
     console.log(`Alert notification processed: ${data.rule_name}`);
   } catch (error) {
     console.error(`Failed to process alert notification: ${data.rule_name}`, error);
-    await alertsService.markAsNotified(
-      data.historyId,
-      error instanceof Error ? error.message : 'Unknown error'
-    );
+    if (data.historyId) {
+      await alertsService.markAsNotified(
+        data.historyId,
+        error instanceof Error ? error.message : 'Unknown error'
+      );
+    }
     throw error;
   }
 }

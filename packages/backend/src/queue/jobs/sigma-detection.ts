@@ -169,6 +169,8 @@ export async function processSigmaDetection(job: any) {
           historyId: null, // No alert history for Sigma rules
           rule_id: sigmaRule.id,
           rule_name: `[Sigma] ${firstMatch.ruleTitle}`,
+          organization_id: data.organizationId,
+          project_id: data.projectId || null,
           log_count: matches.length,
           threshold: 1, // Sigma rules are match-based, not threshold-based
           time_window: 1, // Immediate detection
