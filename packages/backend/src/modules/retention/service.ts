@@ -328,6 +328,18 @@ export class RetentionService {
       projectsByOrg.set(p.organization_id, list);
     }
 
+    // Early return if no organizations exist
+    if (organizations.length === 0) {
+      return {
+        totalOrganizations: 0,
+        successfulOrganizations: 0,
+        failedOrganizations: 0,
+        totalLogsDeleted: 0,
+        totalExecutionTimeMs: Date.now() - startTime,
+        results: [],
+      };
+    }
+
     // Find max retention (used for drop_chunks)
     const maxRetention = Math.max(...organizations.map(o => o.retention_days));
     const maxCutoff = new Date(Date.now() - maxRetention * 24 * 60 * 60 * 1000);

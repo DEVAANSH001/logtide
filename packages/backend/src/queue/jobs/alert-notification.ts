@@ -213,8 +213,35 @@ async function sendEmailNotification(data: AlertNotificationData & { organizatio
   console.log(`Email sent to: ${data.email_recipients.join(', ')}`);
 }
 
+const BLOCKED_HOSTS = ['localhost', '127.0.0.1', '0.0.0.0', '[::1]', 'metadata.google.internal'];
+
+function isPrivateIP(hostname: string): boolean {
+  if (BLOCKED_HOSTS.includes(hostname.toLowerCase())) return true;
+  const parts = hostname.split('.').map(Number);
+  if (parts.length !== 4 || parts.some(isNaN)) return false;
+  if (parts[0] === 10) return true;
+  if (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31) return true;
+  if (parts[0] === 192 && parts[1] === 168) return true;
+  if (parts[0] === 169 && parts[1] === 254) return true;
+  if (parts[0] === 127) return true;
+  return false;
+}
+
 async function sendWebhookNotification(data: AlertNotificationData) {
   if (!data.webhook_url) return;
+
+  // SSRF protection
+  try {
+    const url = new URL(data.webhook_url);
+    if (isPrivateIP(url.hostname)) {
+      throw new Error('Webhook URLs pointing to private/internal addresses are not allowed');
+    }
+  } catch (e) {
+    if (e instanceof TypeError) {
+      throw new Error(`Invalid webhook URL: ${data.webhook_url}`);
+    }
+    throw e;
+  }
 
   const frontendUrl = getFrontendUrl();
 
@@ -240,7 +267,8 @@ async function sendWebhookNotification(data: AlertNotificationData) {
   });
 
   if (!response.ok) {
-    throw new Error(`Webhook request failed: ${response.statusText}`);
+    const errorText = await response.text().catch(() => '');
+    throw new Error(`Webhook request failed: HTTP ${response.status}${errorText ? ` - ${errorText}` : ''}`);
   }
 
   console.log(`Webhook notification sent to: ${data.webhook_url}`);
