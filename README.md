@@ -82,6 +82,43 @@ Total control over your data. Uses pre-built images from Docker Hub.
     * **Frontend:** `http://localhost:3000`
     * **API:** `http://localhost:8080`
 
+> **Note:** The default `docker compose up` starts **5 services**: PostgreSQL (TimescaleDB), Redis, backend, worker, and frontend. ClickHouse, MongoDB, and Fluent Bit are opt-in via [Docker profiles](#optional-profiles) and won't run unless explicitly enabled.
+
+#### Lightweight Setup (3 containers)
+
+For low-resource environments like a Raspberry Pi or a homelab, use the simplified compose that removes Redis entirely:
+
+```bash
+mkdir logtide && cd logtide
+curl -O https://raw.githubusercontent.com/logtide-dev/logtide/main/docker/docker-compose.simple.yml
+curl -O https://raw.githubusercontent.com/logtide-dev/logtide/main/docker/.env.example
+mv .env.example .env
+docker compose -f docker-compose.simple.yml up -d
+```
+
+This runs only **PostgreSQL + backend + frontend**. The backend automatically uses PostgreSQL-based alternatives for job queues and live tail streaming. See the [Deployment docs](https://logtide.dev/docs/deployment#simplified-deployment) for details.
+
+#### Optional Profiles
+
+Enable additional services with `--profile`:
+
+```bash
+# Docker log collection (Fluent Bit)
+docker compose --profile logging up -d
+
+# System metrics (CPU, memory, disk, network)
+docker compose --profile metrics up -d
+
+# ClickHouse storage engine
+docker compose --profile clickhouse up -d
+
+# MongoDB storage engine
+docker compose --profile mongodb up -d
+
+# Combine profiles
+docker compose --profile logging --profile metrics up -d
+```
+
 ### Option B: Cloud (Fastest & Free)
 We host it for you. Perfect for testing. [**Sign up at logtide.dev**](https://logtide.dev).
 
