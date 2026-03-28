@@ -146,7 +146,7 @@ export async function listIncidents(filters: IncidentFilters): Promise<{ inciden
     searchParams.append('limit', filters.limit.toString());
   }
 
-  if (filters.offset) {
+  if (filters.offset != null) {
     searchParams.append('offset', filters.offset.toString());
   }
 

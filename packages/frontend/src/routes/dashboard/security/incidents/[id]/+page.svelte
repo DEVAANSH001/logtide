@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { onDestroy } from 'svelte';
 	import { browser } from '$app/environment';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
@@ -13,6 +14,7 @@
 		type IncidentHistoryEntry,
 	} from '$lib/api/siem';
 	import { OrganizationsAPI, type OrganizationMemberWithUser } from '$lib/api/organizations';
+	import { getAuthToken } from '$lib/utils/auth';
 	import { toastStore } from '$lib/stores/toast';
 	import Button from '$lib/components/ui/button/button.svelte';
 	import { Card, CardContent, CardHeader, CardTitle } from '$lib/components/ui/card';
@@ -82,8 +84,12 @@
 
 	// Auth token for API calls
 	let authToken: string | null = null;
-	authStore.subscribe((state) => {
+	const unsubAuthStore = authStore.subscribe((state) => {
 		authToken = state.token;
+	});
+
+	onDestroy(() => {
+		unsubAuthStore();
 	});
 
 	const incidentId = $derived(page.params.id);
@@ -200,7 +206,7 @@
 	function startSSE() {
 		if (!browser || !$currentOrganization || !incidentId) return;
 
-		const token = localStorage.getItem('session_token');
+		const token = getAuthToken();
 		if (!token) return;
 
 		const params = new URLSearchParams({

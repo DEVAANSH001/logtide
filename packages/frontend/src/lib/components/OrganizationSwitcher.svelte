@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onDestroy } from "svelte";
   import { organizationStore } from "$lib/stores/organization";
   import { toastStore } from "$lib/stores/toast";
   import { OrganizationsAPI } from "$lib/api/organizations";
@@ -32,12 +33,17 @@
   let authState = $state({ user: null, token: null, loading: false });
   let orgState = $state({ organizations: [], currentOrganization: null });
 
-  authStore.subscribe((state) => {
+  const unsubAuthStore = authStore.subscribe((state) => {
     authState = state;
   });
 
-  organizationStore.subscribe((state) => {
+  const unsubOrgStore = organizationStore.subscribe((state) => {
     orgState = state;
+  });
+
+  onDestroy(() => {
+    unsubAuthStore();
+    unsubOrgStore();
   });
 
   let organizations = $derived(orgState.organizations);

@@ -287,7 +287,8 @@ export async function siemRoutes(fastify: FastifyInstance) {
         if (body.detectionEventIds && body.detectionEventIds.length > 0) {
           await siemService.linkDetectionEventsToIncident(
             incident.id,
-            body.detectionEventIds
+            body.detectionEventIds,
+            body.organizationId
           );
 
           // Enrich incident with IP data after linking events
@@ -479,7 +480,7 @@ export async function siemRoutes(fastify: FastifyInstance) {
 
         // Get related data
         const [detections, comments, history] = await Promise.all([
-          siemService.getIncidentDetections(params.id),
+          siemService.getIncidentDetections(params.id, query.organizationId),
           siemService.getIncidentComments(params.id),
           siemService.getIncidentHistory(params.id),
         ]);

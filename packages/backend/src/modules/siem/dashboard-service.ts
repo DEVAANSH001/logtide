@@ -108,7 +108,7 @@ export class SiemDashboardService {
     let query = this.db
       .selectFrom('detection_events')
       .select([
-        sql<Date>`time_bucket(${bucketInterval}, time)`.as('timestamp'),
+        sql<Date>`time_bucket(${bucketInterval}::interval, time)`.as('timestamp'),
         sql<number>`count(*)::int`.as('count'),
       ])
       .where('organization_id', '=', filters.organizationId)

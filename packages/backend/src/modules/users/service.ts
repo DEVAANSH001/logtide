@@ -110,7 +110,7 @@ export class UsersService {
     // Find user by email
     const user = await db
       .selectFrom('users')
-      .select(['id', 'email', 'password_hash'])
+      .select(['id', 'email', 'password_hash', 'disabled'])
       .where('email', '=', input.email)
       .executeTakeFirst();
 
@@ -127,6 +127,11 @@ export class UsersService {
     const isValidPassword = await this.verifyPassword(input.password, user.password_hash);
     if (!isValidPassword) {
       throw new Error('Invalid email or password');
+    }
+
+    // Check if account is disabled
+    if (user.disabled) {
+      throw new Error('This account has been disabled');
     }
 
     // Update last login

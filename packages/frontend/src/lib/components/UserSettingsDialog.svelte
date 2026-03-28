@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onDestroy } from 'svelte';
   import { authStore } from '$lib/stores/auth';
   import { toastStore } from '$lib/stores/toast';
   import { onboardingStore } from '$lib/stores/onboarding';
@@ -52,13 +53,17 @@
 
   let deletePassword = $state('');
 
-  authStore.subscribe((state) => {
+  const unsubAuthStore = authStore.subscribe((state) => {
     user = state.user;
     token = state.token;
     if (user) {
       name = user.name || '';
       email = user.email || '';
     }
+  });
+
+  onDestroy(() => {
+    unsubAuthStore();
   });
 
   $effect(() => {

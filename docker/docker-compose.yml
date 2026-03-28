@@ -101,6 +101,7 @@ services:
     ports:
       - "8080:8080"
     environment:
+      NODE_ENV: production
       TRUST_PROXY: ${TRUST_PROXY:-false}
       FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
       DATABASE_URL: postgresql://${DB_USER}:${DB_PASSWORD}@postgres:5432/${DB_NAME}

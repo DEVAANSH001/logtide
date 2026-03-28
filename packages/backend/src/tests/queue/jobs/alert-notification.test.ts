@@ -478,4 +478,165 @@ describe('Alert Notification Job', () => {
             );
         });
     });
+
+    describe('SSRF protection and null historyId', () => {
+        it('should block webhook to private IP addresses', async () => {
+            const { organization, project } = await createTestContext();
+            const { alertsService } = await import('../../../modules/alerts/index.js');
+
+            // Mock notification channel with webhook pointing to loopback
+            mockGetAlertRuleChannels.mockResolvedValueOnce([{
+                id: '00000000-0000-0000-0000-000000000010',
+                type: 'webhook',
+                enabled: true,
+                config: { url: 'http://127.0.0.1/webhook' },
+            }]);
+
+            const jobData: AlertNotificationData = {
+                historyId: '00000000-0000-0000-0000-000000000001',
+                rule_id: '00000000-0000-0000-0000-000000000002',
+                rule_name: 'SSRF Loopback Test',
+                organization_id: organization.id,
+                project_id: project.id,
+                log_count: 100,
+                threshold: 50,
+                time_window: 5,
+                email_recipients: [],
+                webhook_url: undefined,
+            };
+
+            await processAlertNotification({ data: jobData });
+
+            // fetch should NOT have been called since the URL is blocked
+            expect(mockFetch).not.toHaveBeenCalled();
+            // markAsNotified should be called with an error about private addresses
+            expect(alertsService.markAsNotified).toHaveBeenCalledWith(
+                jobData.historyId,
+                expect.stringContaining('private/internal')
+            );
+        });
+
+        it('should block webhook to link-local addresses', async () => {
+            const { organization, project } = await createTestContext();
+            const { alertsService } = await import('../../../modules/alerts/index.js');
+
+            // Mock notification channel with webhook pointing to cloud metadata endpoint
+            mockGetAlertRuleChannels.mockResolvedValueOnce([{
+                id: '00000000-0000-0000-0000-000000000010',
+                type: 'webhook',
+                enabled: true,
+                config: { url: 'http://169.254.169.254/latest/meta-data/' },
+            }]);
+
+            const jobData: AlertNotificationData = {
+                historyId: '00000000-0000-0000-0000-000000000001',
+                rule_id: '00000000-0000-0000-0000-000000000002',
+                rule_name: 'SSRF Link-Local Test',
+                organization_id: organization.id,
+                project_id: project.id,
+                log_count: 100,
+                threshold: 50,
+                time_window: 5,
+                email_recipients: [],
+                webhook_url: undefined,
+            };
+
+            await processAlertNotification({ data: jobData });
+
+            // fetch should NOT have been called since the URL is blocked
+            expect(mockFetch).not.toHaveBeenCalled();
+            // markAsNotified should be called with an error about private addresses
+            expect(alertsService.markAsNotified).toHaveBeenCalledWith(
+                jobData.historyId,
+                expect.stringContaining('private/internal')
+            );
+        });
+
+        it('should skip markAsNotified when historyId is null', async () => {
+            const { organization, project } = await createTestContext();
+            const { alertsService } = await import('../../../modules/alerts/index.js');
+
+            const jobData: AlertNotificationData = {
+                historyId: null as any,
+                rule_id: '00000000-0000-0000-0000-000000000002',
+                rule_name: 'Null HistoryId Alert',
+                organization_id: organization.id,
+                project_id: project.id,
+                log_count: 100,
+                threshold: 50,
+                time_window: 5,
+                email_recipients: [],
+                webhook_url: undefined,
+            };
+
+            await processAlertNotification({ data: jobData });
+
+            expect(alertsService.markAsNotified).not.toHaveBeenCalled();
+        });
+
+        it('should still call markAsNotified when historyId is present', async () => {
+            const { organization, project } = await createTestContext();
+            const { alertsService } = await import('../../../modules/alerts/index.js');
+
+            const jobData: AlertNotificationData = {
+                historyId: '00000000-0000-0000-0000-000000000001',
+                rule_id: '00000000-0000-0000-0000-000000000002',
+                rule_name: 'Valid HistoryId Alert',
+                organization_id: organization.id,
+                project_id: project.id,
+                log_count: 100,
+                threshold: 50,
+                time_window: 5,
+                email_recipients: [],
+                webhook_url: undefined,
+            };
+
+            await processAlertNotification({ data: jobData });
+
+            expect(alertsService.markAsNotified).toHaveBeenCalledWith(
+                jobData.historyId
+            );
+        });
+
+        it('should include HTTP status code in webhook error', async () => {
+            const { organization, project } = await createTestContext();
+            const { alertsService } = await import('../../../modules/alerts/index.js');
+
+            mockFetch.mockResolvedValueOnce({
+                ok: false,
+                status: 503,
+                statusText: '',
+                text: () => Promise.resolve('Service Unavailable'),
+            });
+
+            // Mock notification channel with webhook
+            mockGetAlertRuleChannels.mockResolvedValueOnce([{
+                id: '00000000-0000-0000-0000-000000000010',
+                type: 'webhook',
+                enabled: true,
+                config: { url: 'https://hooks.example.com/failing-503' },
+            }]);
+
+            const jobData: AlertNotificationData = {
+                historyId: '00000000-0000-0000-0000-000000000001',
+                rule_id: '00000000-0000-0000-0000-000000000002',
+                rule_name: 'HTTP Status Code Test',
+                organization_id: organization.id,
+                project_id: project.id,
+                log_count: 100,
+                threshold: 50,
+                time_window: 5,
+                email_recipients: [],
+                webhook_url: undefined,
+            };
+
+            await processAlertNotification({ data: jobData });
+
+            // markAsNotified should be called with an error containing the 503 status
+            expect(alertsService.markAsNotified).toHaveBeenCalledWith(
+                jobData.historyId,
+                expect.stringContaining('503')
+            );
+        });
+    });
 });

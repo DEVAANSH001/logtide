@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, onDestroy } from 'svelte';
   import { goto } from '$app/navigation';
   import { authStore } from '$lib/stores/auth';
   import { organizationStore } from '$lib/stores/organization';
@@ -69,18 +69,23 @@
   let leavingOrg = $state(false);
   let lastLoadedOrgId = $state<string | null>(null);
 
-  authStore.subscribe((state) => {
+  const unsubAuthStore = authStore.subscribe((state) => {
     user = state.user;
     token = state.token;
   });
 
-  organizationStore.subscribe((state) => {
+  const unsubOrgStore = organizationStore.subscribe((state) => {
     currentOrg = state.currentOrganization;
     if (currentOrg && currentOrg.id !== lastLoadedOrgId) {
       lastLoadedOrgId = currentOrg.id;
       loadMembers();
       loadInvitations();
     }
+  });
+
+  onDestroy(() => {
+    unsubAuthStore();
+    unsubOrgStore();
   });
 
   onMount(() => {

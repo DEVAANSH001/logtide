@@ -28,7 +28,7 @@
   let token = $state<string | null>(null);
   let logsAPI = $derived(new LogsAPI(() => token));
 
-  authStore.subscribe((state) => {
+  const unsubAuthStore = authStore.subscribe((state) => {
     token = state.token;
   });
 
@@ -36,7 +36,7 @@
     projectId: null,
     apiKey: null
   });
-  onboardingStore.subscribe((state) => {
+  const unsubOnboardingStore = onboardingStore.subscribe((state) => {
     onboardingState = {
       projectId: state.projectId,
       apiKey: state.apiKey
@@ -140,6 +140,8 @@
   });
 
   onDestroy(() => {
+    unsubAuthStore();
+    unsubOnboardingStore();
     if (pollInterval) {
       clearInterval(pollInterval);
     }

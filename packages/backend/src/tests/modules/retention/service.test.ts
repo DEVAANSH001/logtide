@@ -296,6 +296,16 @@ describe('RetentionService', () => {
 
       expect(summary.totalExecutionTimeMs).toBeGreaterThanOrEqual(0);
     });
+
+    it('should return early when no organizations exist', async () => {
+      const summary = await service.executeRetentionForAllOrganizations();
+
+      expect(summary.totalOrganizations).toBe(0);
+      expect(summary.successfulOrganizations).toBe(0);
+      expect(summary.failedOrganizations).toBe(0);
+      expect(summary.totalLogsDeleted).toBe(0);
+      expect(summary.results).toEqual([]);
+    });
   });
 
   describe('getOrganizationRetentionStatus - edge cases', () => {

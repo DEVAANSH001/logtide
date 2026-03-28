@@ -397,6 +397,69 @@ describe('Pattern Routes', () => {
 
             expect(response.statusCode).toBe(400);
         });
+
+        it('should return 403 when user has no access to the specified organization', async () => {
+            // Create a second user to own the other org
+            const otherUser = await db
+                .insertInto('users')
+                .values({
+                    email: 'other-put@example.com',
+                    password_hash: 'hash',
+                    name: 'Other User',
+                })
+                .returningAll()
+                .executeTakeFirstOrThrow();
+
+            // Create an organization that testUser is NOT a member of
+            const otherOrg = await db
+                .insertInto('organizations')
+                .values({
+                    name: 'Other Org',
+                    slug: `other-org-put-${Date.now()}`,
+                    owner_id: otherUser.id,
+                })
+                .returningAll()
+                .executeTakeFirstOrThrow();
+
+            // Add otherUser as member (but NOT testUser)
+            await db
+                .insertInto('organization_members')
+                .values({
+                    organization_id: otherOrg.id,
+                    user_id: otherUser.id,
+                    role: 'owner',
+                })
+                .execute();
+
+            // Create a pattern in the other org
+            const pattern = await db
+                .insertInto('identifier_patterns')
+                .values({
+                    organization_id: otherOrg.id,
+                    name: 'other_org_pattern',
+                    display_name: 'Other Org Pattern',
+                    pattern: '\\bOTHER\\b',
+                    field_names: [],
+                    enabled: true,
+                    priority: 50,
+                })
+                .returningAll()
+                .executeTakeFirstOrThrow();
+
+            // Try to update it with testUser's auth token
+            const response = await app.inject({
+                method: 'PUT',
+                url: `/v1/patterns/${pattern.id}?organizationId=${otherOrg.id}`,
+                headers: {
+                    Authorization: `Bearer ${authToken}`,
+                },
+                payload: {
+                    displayName: 'Hacked Pattern',
+                },
+            });
+
+            expect(response.statusCode).toBe(403);
+        });
     });
 
     describe('DELETE /v1/patterns/:id', () => {
@@ -459,6 +522,66 @@ describe('Pattern Routes', () => {
             });
 
             expect(response.statusCode).toBe(400);
+        });
+
+        it('should return 403 when user has no access to the specified organization', async () => {
+            // Create a second user to own the other org
+            const otherUser = await db
+                .insertInto('users')
+                .values({
+                    email: 'other-delete@example.com',
+                    password_hash: 'hash',
+                    name: 'Other User',
+                })
+                .returningAll()
+                .executeTakeFirstOrThrow();
+
+            // Create an organization that testUser is NOT a member of
+            const otherOrg = await db
+                .insertInto('organizations')
+                .values({
+                    name: 'Other Org',
+                    slug: `other-org-del-${Date.now()}`,
+                    owner_id: otherUser.id,
+                })
+                .returningAll()
+                .executeTakeFirstOrThrow();
+
+            // Add otherUser as member (but NOT testUser)
+            await db
+                .insertInto('organization_members')
+                .values({
+                    organization_id: otherOrg.id,
+                    user_id: otherUser.id,
+                    role: 'owner',
+                })
+                .execute();
+
+            // Create a pattern in the other org
+            const pattern = await db
+                .insertInto('identifier_patterns')
+                .values({
+                    organization_id: otherOrg.id,
+                    name: 'other_org_pattern_del',
+                    display_name: 'Other Org Pattern',
+                    pattern: '\\bOTHER\\b',
+                    field_names: [],
+                    enabled: true,
+                    priority: 50,
+                })
+                .returningAll()
+                .executeTakeFirstOrThrow();
+
+            // Try to delete it with testUser's auth token
+            const response = await app.inject({
+                method: 'DELETE',
+                url: `/v1/patterns/${pattern.id}?organizationId=${otherOrg.id}`,
+                headers: {
+                    Authorization: `Bearer ${authToken}`,
+                },
+            });
+
+            expect(response.statusCode).toBe(403);
         });
     });
 

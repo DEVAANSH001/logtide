@@ -387,14 +387,26 @@ export default async function patternRoutes(fastify: FastifyInstance) {
         },
       },
     },
-    async (request, reply) => {
+    async (request: any, reply) => {
       const { id } = request.params;
-      const organizationId = (request as any).organizationId || request.query.organizationId;
+      const requestedOrgId = (request as any).organizationId || request.query.organizationId;
 
-      if (!organizationId) {
+      if (!requestedOrgId) {
         return reply.status(400).send({
           success: false,
           error: 'Organization ID is required',
+        });
+      }
+
+      const organizationId = await getUserOrganizationId(
+        request.user.id,
+        requestedOrgId
+      );
+
+      if (!organizationId) {
+        return reply.status(403).send({
+          success: false,
+          error: 'No organization access',
         });
       }
 
@@ -498,14 +510,26 @@ export default async function patternRoutes(fastify: FastifyInstance) {
         },
       },
     },
-    async (request, reply) => {
+    async (request: any, reply) => {
       const { id } = request.params;
-      const organizationId = (request as any).organizationId || request.query.organizationId;
+      const requestedOrgId = (request as any).organizationId || request.query.organizationId;
 
-      if (!organizationId) {
+      if (!requestedOrgId) {
         return reply.status(400).send({
           success: false,
           error: 'Organization ID is required',
+        });
+      }
+
+      const organizationId = await getUserOrganizationId(
+        request.user.id,
+        requestedOrgId
+      );
+
+      if (!organizationId) {
+        return reply.status(403).send({
+          success: false,
+          error: 'No organization access',
         });
       }
 

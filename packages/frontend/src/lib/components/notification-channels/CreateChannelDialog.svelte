@@ -166,6 +166,13 @@
 			} catch {
 				return 'Invalid webhook URL';
 			}
+			if (webhookHeaders.trim()) {
+				try {
+					JSON.parse(webhookHeaders);
+				} catch {
+					return 'Custom headers must be valid JSON';
+				}
+			}
 		}
 
 		return null;
