@@ -6,10 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
-## [0.8.6] - 2026-03-29
+## [0.8.6] - 2026-03-31
 
 ### Fixed
 - **ClickHouse traces/metrics data-availability always empty**: `queryTraces` and `queryMetrics` passed raw `0` for epoch dates as `DateTime64(3)` parameter, which ClickHouse can't parse; now uses the same `toDateTime64()` clamp used by log queries
+- **Stale session after volume reset**: dashboard only checked `localStorage` for a token without validating it against the backend; now calls `/auth/me` on load and auto-logs out if the session is invalid
 
 ## [0.8.5] - 2026-03-28
 
