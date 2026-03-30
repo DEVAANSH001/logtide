@@ -10,7 +10,7 @@ import type {
 } from '../../core/types.js';
 
 /** ClickHouse can't parse 0 as DateTime64(3) — clamp to 1ms after epoch */
-function toDateTime64(date: Date): number {
+export function toDateTime64(date: Date): number {
   return Math.max(date.getTime() / 1000, 0.001);
 }
 

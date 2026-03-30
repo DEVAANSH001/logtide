@@ -57,7 +57,7 @@ import type {
   MetricsOverviewParams,
   MetricsOverviewResult,
 } from '../../core/types.js';
-import { ClickHouseQueryTranslator } from './query-translator.js';
+import { ClickHouseQueryTranslator, toDateTime64 } from './query-translator.js';
 
 export interface ClickHouseEngineOptions {
   /** Use an existing ClickHouse client instead of creating a new one */
@@ -841,9 +841,9 @@ export class ClickHouseEngine extends StorageEngine {
 
     // Time range
     conditions.push(`time ${params.fromExclusive ? '>' : '>='} {p_from:DateTime64(3)}`);
-    queryParams.p_from = Math.floor(params.from.getTime() / 1000);
+    queryParams.p_from = toDateTime64(params.from);
     conditions.push(`time ${params.toExclusive ? '<' : '<='} {p_to:DateTime64(3)}`);
-    queryParams.p_to = Math.floor(params.to.getTime() / 1000);
+    queryParams.p_to = toDateTime64(params.to);
 
     if (params.projectId) {
       const pids = Array.isArray(params.projectId) ? params.projectId : [params.projectId];
@@ -920,9 +920,9 @@ export class ClickHouseEngine extends StorageEngine {
     const queryParams: Record<string, unknown> = {};
 
     conditions.push(`start_time >= {p_from:DateTime64(3)}`);
-    queryParams.p_from = Math.floor(params.from.getTime() / 1000);
+    queryParams.p_from = toDateTime64(params.from);
     conditions.push(`start_time <= {p_to:DateTime64(3)}`);
-    queryParams.p_to = Math.floor(params.to.getTime() / 1000);
+    queryParams.p_to = toDateTime64(params.to);
 
     if (params.projectId) {
       const pids = Array.isArray(params.projectId) ? params.projectId : [params.projectId];
@@ -996,11 +996,11 @@ export class ClickHouseEngine extends StorageEngine {
 
     if (from) {
       timeFilter += ` AND child.start_time >= {p_from:DateTime64(3)}`;
-      queryParams.p_from = Math.floor(from.getTime() / 1000);
+      queryParams.p_from = toDateTime64(from);
     }
     if (to) {
       timeFilter += ` AND child.start_time <= {p_to:DateTime64(3)}`;
-      queryParams.p_to = Math.floor(to.getTime() / 1000);
+      queryParams.p_to = toDateTime64(to);
     }
 
     const resultSet = await client.query({
@@ -1058,8 +1058,8 @@ export class ClickHouseEngine extends StorageEngine {
     ];
     const queryParams: Record<string, unknown> = {
       p_pids: pids,
-      p_from: Math.floor(params.from.getTime() / 1000),
-      p_to: Math.floor(params.to.getTime() / 1000),
+      p_from: toDateTime64(params.from),
+      p_to: toDateTime64(params.to),
     };
 
     if (params.serviceName) {
@@ -1161,9 +1161,9 @@ export class ClickHouseEngine extends StorageEngine {
 
     // Time range
     conditions.push(`time ${params.fromExclusive ? '>' : '>='} {p_from:DateTime64(3)}`);
-    queryParams.p_from = Math.floor(params.from.getTime() / 1000);
+    queryParams.p_from = toDateTime64(params.from);
     conditions.push(`time ${params.toExclusive ? '<' : '<='} {p_to:DateTime64(3)}`);
-    queryParams.p_to = Math.floor(params.to.getTime() / 1000);
+    queryParams.p_to = toDateTime64(params.to);
 
     if (params.organizationId) {
       const oids = Array.isArray(params.organizationId) ? params.organizationId : [params.organizationId];
@@ -1305,9 +1305,9 @@ export class ClickHouseEngine extends StorageEngine {
     queryParams.p_pids = pids;
 
     conditions.push(`time >= {p_from:DateTime64(3)}`);
-    queryParams.p_from = Math.floor(params.from.getTime() / 1000);
+    queryParams.p_from = toDateTime64(params.from);
     conditions.push(`time <= {p_to:DateTime64(3)}`);
-    queryParams.p_to = Math.floor(params.to.getTime() / 1000);
+    queryParams.p_to = toDateTime64(params.to);
 
     conditions.push(`metric_name = {p_name:String}`);
     queryParams.p_name = params.metricName;
@@ -1442,8 +1442,8 @@ export class ClickHouseEngine extends StorageEngine {
 
     const queryParams: Record<string, unknown> = {
       p_pids: projectIds,
-      p_from: Math.floor(params.from.getTime() / 1000),
-      p_to: Math.floor(params.to.getTime() / 1000),
+      p_from: toDateTime64(params.from),
+      p_to: toDateTime64(params.to),
       p_name: params.metricName,
     };
 
@@ -1513,11 +1513,11 @@ export class ClickHouseEngine extends StorageEngine {
     }
     if (params.from) {
       conditions.push(`time >= {p_from:DateTime64(3)}`);
-      queryParams.p_from = Math.floor(params.from.getTime() / 1000);
+      queryParams.p_from = toDateTime64(params.from);
     }
     if (params.to) {
       conditions.push(`time <= {p_to:DateTime64(3)}`);
-      queryParams.p_to = Math.floor(params.to.getTime() / 1000);
+      queryParams.p_to = toDateTime64(params.to);
     }
 
     const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
@@ -1560,11 +1560,11 @@ export class ClickHouseEngine extends StorageEngine {
     }
     if (params.from) {
       conditions.push(`time >= {p_from:DateTime64(3)}`);
-      queryParams.p_from = Math.floor(params.from.getTime() / 1000);
+      queryParams.p_from = toDateTime64(params.from);
     }
     if (params.to) {
       conditions.push(`time <= {p_to:DateTime64(3)}`);
-      queryParams.p_to = Math.floor(params.to.getTime() / 1000);
+      queryParams.p_to = toDateTime64(params.to);
     }
 
     const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
@@ -1606,11 +1606,11 @@ export class ClickHouseEngine extends StorageEngine {
     }
     if (params.from) {
       conditions.push(`time >= {p_from:DateTime64(3)}`);
-      queryParams.p_from = Math.floor(params.from.getTime() / 1000);
+      queryParams.p_from = toDateTime64(params.from);
     }
     if (params.to) {
       conditions.push(`time <= {p_to:DateTime64(3)}`);
-      queryParams.p_to = Math.floor(params.to.getTime() / 1000);
+      queryParams.p_to = toDateTime64(params.to);
     }
 
     const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
@@ -1640,8 +1640,8 @@ export class ClickHouseEngine extends StorageEngine {
     ];
     const queryParams: Record<string, unknown> = {
       p_pids: pids,
-      p_from: Math.floor(params.from.getTime() / 1000),
-      p_to: Math.floor(params.to.getTime() / 1000),
+      p_from: toDateTime64(params.from),
+      p_to: toDateTime64(params.to),
     };
 
     if (params.metricName) {
@@ -1671,8 +1671,8 @@ export class ClickHouseEngine extends StorageEngine {
       query: `ALTER TABLE metric_exemplars DELETE WHERE ${exemplarConditions.join(' AND ')}`,
       query_params: {
         p_pids: pids,
-        p_from: Math.floor(params.from.getTime() / 1000),
-        p_to: Math.floor(params.to.getTime() / 1000),
+        p_from: toDateTime64(params.from),
+        p_to: toDateTime64(params.to),
       },
     });
 
@@ -1685,8 +1685,8 @@ export class ClickHouseEngine extends StorageEngine {
     const projectIds = Array.isArray(params.projectId) ? params.projectId : [params.projectId];
     const queryParams: Record<string, unknown> = {
       p_pids: projectIds,
-      p_from: Math.floor(params.from.getTime() / 1000),
-      p_to: Math.floor(params.to.getTime() / 1000),
+      p_from: toDateTime64(params.from),
+      p_to: toDateTime64(params.to),
     };
 
     let serviceFilter = '';
