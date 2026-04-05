@@ -48,6 +48,7 @@ const createMonitorSchema = z.object({
   (d) => {
     if (d.type === 'http') return !!d.target && (d.target.startsWith('http://') || d.target.startsWith('https://'));
     if (d.type === 'tcp') return !!d.target && d.target.includes(':');
+    if (d.type === 'log_heartbeat') return !!d.target && d.target.trim().length > 0;
     return true;
   },
   { message: 'Invalid target for monitor type' }
@@ -118,6 +119,9 @@ export async function monitoringRoutes(fastify: FastifyInstance) {
       }
       if (existing.type === 'tcp' && !parse.data.target.includes(':')) {
         return reply.status(400).send({ error: 'TCP target must be in host:port format' });
+      }
+      if (existing.type === 'log_heartbeat' && !parse.data.target?.trim()) {
+        return reply.status(400).send({ error: 'Log-based monitor requires a service name' });
       }
     }
 

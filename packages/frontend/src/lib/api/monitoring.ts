@@ -1,7 +1,7 @@
 import { getApiUrl } from '$lib/config';
 import { getAuthToken } from '$lib/utils/auth';
 
-export type MonitorType = 'http' | 'tcp' | 'heartbeat';
+export type MonitorType = 'http' | 'tcp' | 'heartbeat' | 'log_heartbeat';
 export type MonitorStatus = 'up' | 'down' | 'unknown';
 
 export interface HttpConfig {

@@ -504,9 +504,8 @@ export class MonitorService {
       } else if (monitor.type === 'tcp') {
         const { host, port } = parseTcpTarget(monitor.target!);
         result = await runTcpCheck(host, port, monitor.timeoutSeconds);
-      } else if (monitor.target) {
-        // Log-based heartbeat: target holds the service name to watch
-        result = await runLogHeartbeatCheck(monitor.target, monitor.projectId, monitor.intervalSeconds, reservoir);
+      } else if (monitor.type === 'log_heartbeat') {
+        result = await runLogHeartbeatCheck(monitor.target!, monitor.projectId, monitor.intervalSeconds, reservoir);
       } else {
         // Ping-based heartbeat: client POSTs to the heartbeat endpoint
         result = await runHeartbeatCheck(monitor.id, monitor.intervalSeconds, this.db);
@@ -516,8 +515,7 @@ export class MonitorService {
     }
 
     // Ping heartbeat 'up' results are recorded by the endpoint, not the worker.
-    // Log-based heartbeats always write (no POST endpoint involved).
-    const skipWrite = monitor.type === 'heartbeat' && !monitor.target && result.status === 'up';
+    const skipWrite = monitor.type === 'heartbeat' && result.status === 'up';
 
     if (!skipWrite) {
       await this.db

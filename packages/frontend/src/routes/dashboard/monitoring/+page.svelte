@@ -5,7 +5,7 @@
   import { monitoringStore, monitors, monitorsLoading, monitorsError } from '$lib/stores/monitoring';
   import { toastStore } from '$lib/stores/toast';
   import { layoutStore } from '$lib/stores/layout';
-  import { type CreateMonitorInput, type Monitor } from '$lib/api/monitoring';
+  import { type CreateMonitorInput, type Monitor, type MonitorType } from '$lib/api/monitoring';
   import { ProjectsAPI } from '$lib/api/projects';
   import { getAuthToken } from '$lib/utils/auth';
   import { getApiBaseUrl } from '$lib/config';
@@ -38,7 +38,7 @@
   let submitting = $state(false);
 
   let formName = $state('');
-  let formType = $state<'http' | 'tcp' | 'heartbeat'>('http');
+  let formType = $state<MonitorType>('http');
   let formTarget = $state('');
   let formInterval = $state(60);
   let formTimeout = $state(10);

@@ -436,7 +436,7 @@ export interface IncidentsTable {
 // SERVICE HEALTH MONITORING TABLES
 // ============================================================================
 
-export type MonitorType = 'http' | 'tcp' | 'heartbeat';
+export type MonitorType = 'http' | 'tcp' | 'heartbeat' | 'log_heartbeat';
 export type MonitorStatusValue = 'up' | 'down' | 'unknown';
 
 export interface MonitorHttpConfig {
