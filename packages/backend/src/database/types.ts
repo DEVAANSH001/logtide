@@ -817,6 +817,13 @@ export interface SigmaRuleChannelsTable {
   created_at: Generated<Timestamp>;
 }
 
+export interface MonitorChannelsTable {
+  id: Generated<string>;
+  monitor_id: string;
+  channel_id: string;
+  created_at: Generated<Timestamp>;
+}
+
 export interface IncidentChannelsTable {
   id: Generated<string>;
   incident_id: string;
@@ -1035,6 +1042,7 @@ export interface Database {
   incident_channels: IncidentChannelsTable;
   error_group_channels: ErrorGroupChannelsTable;
   organization_default_channels: OrganizationDefaultChannelsTable;
+  monitor_channels: MonitorChannelsTable;
   // PII masking
   pii_masking_rules: PiiMaskingRulesTable;
   organization_pii_salts: OrganizationPiiSaltsTable;

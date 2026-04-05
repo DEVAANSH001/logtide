@@ -9,6 +9,7 @@ import { processInvitationEmail, type InvitationEmailData } from './queue/jobs/i
 import { processIncidentNotification, type IncidentNotificationJob } from './queue/jobs/incident-notification.js';
 import { processExceptionParsing, type ExceptionParsingJobData } from './queue/jobs/exception-parsing.js';
 import { processErrorNotification, type ErrorNotificationJobData } from './queue/jobs/error-notification.js';
+import { processMonitorNotification, type MonitorNotificationJob } from './queue/jobs/monitor-notification.js';
 import { processLogPipeline, type LogPipelineJobData } from './queue/jobs/log-pipeline.js';
 import { alertsService } from './modules/alerts/index.js';
 import { monitorService } from './modules/monitoring/index.js';
@@ -63,6 +64,11 @@ const exceptionWorker = createWorker<ExceptionParsingJobData>('exception-parsing
 // Create worker for error notifications
 const errorNotificationWorker = createWorker<ErrorNotificationJobData>('error-notifications', async (job) => {
   await processErrorNotification(job);
+});
+
+// Create worker for monitor notifications
+const monitorNotificationWorker = createWorker<MonitorNotificationJob>('monitor-notifications', async (job) => {
+  await processMonitorNotification(job);
 });
 
 // Create worker for log pipeline processing
@@ -228,6 +234,28 @@ errorNotificationWorker.on('failed', (job, err) => {
       error: { name: err.name, message: err.message, stack: err.stack },
       jobId: job?.id,
       exceptionId: job?.data?.exceptionId,
+    });
+  }
+});
+
+monitorNotificationWorker.on('completed', (job) => {
+  if (isInternalLoggingEnabled()) {
+    hub.captureLog('info', `Monitor notification job completed`, {
+      jobId: job.id,
+      monitorId: job.data?.monitorId,
+      status: job.data?.status,
+    });
+  }
+});
+
+monitorNotificationWorker.on('failed', (job, err) => {
+  console.error(`Monitor notification job ${job?.id} failed:`, err);
+
+  if (isInternalLoggingEnabled()) {
+    hub.captureLog('error', `Monitor notification job failed: ${err.message}`, {
+      error: { name: err.name, message: err.message, stack: err.stack },
+      jobId: job?.id,
+      monitorId: job?.data?.monitorId,
     });
   }
 });
@@ -640,6 +668,7 @@ async function gracefulShutdown(signal: string) {
     await incidentNotificationWorker.close();
     await exceptionWorker.close();
     await errorNotificationWorker.close();
+    await monitorNotificationWorker.close();
     await pipelineWorker.close();
     console.log('[Worker] Workers closed');
 

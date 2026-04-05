@@ -2,14 +2,13 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { MONITOR_TYPES } from '@logtide/shared';
 import { MonitorService } from './service.js';
-import { SiemService } from '../siem/service.js';
 import { authenticate } from '../auth/middleware.js';
 import { db } from '../../database/index.js';
 import { projectsService } from '../projects/service.js';
 import { usersService } from '../users/service.js';
+import { notificationChannelsService } from '../notification-channels/index.js';
 
-const siemService = new SiemService(db);
-export const monitorService = new MonitorService(db, siemService);
+export const monitorService = new MonitorService(db);
 
 async function checkOrgMembership(userId: string, organizationId: string): Promise<boolean> {
   const member = await db
@@ -159,6 +158,35 @@ export async function monitoringRoutes(fastify: FastifyInstance) {
       request.params.id, organizationId, Math.min(Number(days) || 90, 365)
     );
     return reply.send({ history });
+  });
+
+  // ---- Notification channels for monitors ----
+
+  fastify.get('/:id/channels', async (request: any, reply) => {
+    const { organizationId } = request.query as any;
+    if (!organizationId) return reply.status(400).send({ error: 'organizationId required' });
+    if (!(await checkOrgMembership(request.user.id, organizationId))) return reply.status(403).send({ error: 'Forbidden' });
+
+    const monitor = await monitorService.getMonitor(request.params.id, organizationId);
+    if (!monitor) return reply.status(404).send({ error: 'Not found' });
+
+    const channels = await notificationChannelsService.getMonitorChannels(request.params.id);
+    return reply.send({ channels });
+  });
+
+  fastify.put('/:id/channels', async (request: any, reply) => {
+    const { organizationId } = request.query as any;
+    if (!organizationId) return reply.status(400).send({ error: 'organizationId required' });
+    if (!(await checkOrgMembership(request.user.id, organizationId))) return reply.status(403).send({ error: 'Forbidden' });
+
+    const parse = z.object({ channelIds: z.array(z.string().uuid()) }).safeParse(request.body);
+    if (!parse.success) return reply.status(400).send({ error: parse.error.errors[0].message });
+
+    const monitor = await monitorService.getMonitor(request.params.id, organizationId);
+    if (!monitor) return reply.status(404).send({ error: 'Not found' });
+
+    await notificationChannelsService.setMonitorChannels(request.params.id, parse.data.channelIds);
+    return reply.status(204).send();
   });
 }
 

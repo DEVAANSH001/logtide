@@ -272,6 +272,53 @@ export class NotificationChannelsService {
   }
 
   // ============================================================================
+  // CHANNEL ASSOCIATIONS (MONITORS)
+  // ============================================================================
+
+  /**
+   * Set channels for a monitor (replaces existing)
+   */
+  async setMonitorChannels(monitorId: string, channelIds: string[]): Promise<void> {
+    await db.transaction().execute(async (trx) => {
+      await trx
+        .deleteFrom('monitor_channels')
+        .where('monitor_id', '=', monitorId)
+        .execute();
+
+      if (channelIds.length > 0) {
+        await trx
+          .insertInto('monitor_channels')
+          .values(
+            channelIds.map((channelId) => ({
+              monitor_id: monitorId,
+              channel_id: channelId,
+            }))
+          )
+          .execute();
+      }
+    });
+  }
+
+  /**
+   * Get channels for a monitor
+   */
+  async getMonitorChannels(monitorId: string): Promise<NotificationChannel[]> {
+    const rows = await db
+      .selectFrom('monitor_channels')
+      .innerJoin(
+        'notification_channels',
+        'notification_channels.id',
+        'monitor_channels.channel_id'
+      )
+      .selectAll('notification_channels')
+      .where('monitor_channels.monitor_id', '=', monitorId)
+      .where('notification_channels.enabled', '=', true)
+      .execute();
+
+    return rows.map((r) => this.mapChannel(r));
+  }
+
+  // ============================================================================
   // CHANNEL ASSOCIATIONS (INCIDENTS)
   // ============================================================================
 
@@ -457,6 +504,7 @@ export class NotificationChannelsService {
       sigma: [],
       incident: [],
       error: [],
+      monitoring: [],
     };
 
     for (const row of rows) {

@@ -28,6 +28,7 @@ const initialState: NotificationChannelsState = {
     sigma: [],
     incident: [],
     error: [],
+    monitoring: [],
   },
   defaultsLoading: false,
 };

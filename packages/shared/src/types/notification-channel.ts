@@ -10,7 +10,7 @@ export type NotificationChannelType = 'email' | 'webhook';
 /**
  * Event types that can be associated with notification channels
  */
-export type NotificationEventType = 'alert' | 'sigma' | 'incident' | 'error';
+export type NotificationEventType = 'alert' | 'sigma' | 'incident' | 'error' | 'monitoring';
 
 /**
  * Email channel configuration

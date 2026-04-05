@@ -2,8 +2,8 @@ import type { Kysely } from 'kysely';
 import { sql } from 'kysely';
 import type { Database } from '../../database/types.js';
 import type { Severity } from '@logtide/shared';
-import type { SiemService } from '../siem/service.js';
 import { maintenanceService } from '../maintenances/service.js';
+import { monitorNotificationQueue } from '../../queue/jobs/monitor-notification.js';
 import type {
   Monitor,
   MonitorResult,
@@ -55,7 +55,6 @@ interface MonitorWithStatusRow {
 export class MonitorService {
   constructor(
     private db: Kysely<Database>,
-    private siemService: SiemService
   ) {}
 
   // ============================================================================
@@ -572,23 +571,13 @@ export class MonitorService {
         .where('monitor_id', '=', monitor.id)
         .execute();
 
-      // Open incident when threshold is first reached and no active incident exists.
-      // Use atomic WHERE guard to prevent duplicate incidents under concurrent checks.
+      // Send notification when failure threshold is first reached.
+      // Use atomic guard to prevent duplicate notifications under concurrent checks.
       if (
         newFailures >= monitor.failureThreshold &&
         prevConsecutiveFailures < monitor.failureThreshold
       ) {
-        // Atomically claim incident slot: only proceed if incident_id is still null
-        const claimed = await this.db
-          .updateTable('monitor_status')
-          .set({ updated_at: new Date() })
-          .where('monitor_id', '=', monitor.id)
-          .where('incident_id', 'is', null)
-          .executeTakeFirst();
-
-        if (Number(claimed?.numUpdatedRows ?? 0) > 0) {
-          await this.openIncident(monitor);
-        }
+        await this.notifyMonitorDown(monitor, result, newFailures);
       }
 
       if (statusChanged) {
@@ -613,14 +602,9 @@ export class MonitorService {
         .where('monitor_id', '=', monitor.id)
         .execute();
 
-      // Auto-resolve linked incident on recovery
-      if (monitor.autoResolve && currentStatusData.incidentId && prevStatus === 'down') {
-        await this.resolveIncident(currentStatusData.incidentId, monitor.organizationId);
-        await this.db
-          .updateTable('monitor_status')
-          .set({ incident_id: null, updated_at: now })
-          .where('monitor_id', '=', monitor.id)
-          .execute();
+      // Send recovery notification when transitioning from down → up
+      if (prevStatus === 'down') {
+        await this.notifyMonitorRecovered(monitor, currentStatusData.lastStatusChangeAt);
       }
 
       if (statusChanged) {
@@ -629,39 +613,50 @@ export class MonitorService {
     }
   }
 
-  private async openIncident(monitor: Monitor): Promise<void> {
+  private async notifyMonitorDown(monitor: Monitor, result: CheckResult, consecutiveFailures: number): Promise<void> {
     try {
-      const incident = await this.siemService.createIncident({
+      await monitorNotificationQueue.add('monitor-down', {
+        monitorId: monitor.id,
+        monitorName: monitor.name,
         organizationId: monitor.organizationId,
         projectId: monitor.projectId,
-        title: `Monitor down: ${monitor.name}`,
+        status: 'down',
         severity: monitor.severity,
-        status: 'open',
-        affectedServices: [monitor.name],
-        source: 'monitor',
-        monitorId: monitor.id,
+        target: monitor.target,
+        errorCode: result.errorCode,
+        responseTimeMs: result.responseTimeMs,
+        consecutiveFailures,
       });
-
-      await this.db
-        .updateTable('monitor_status')
-        .set({ incident_id: incident.id, updated_at: new Date() })
-        .where('monitor_id', '=', monitor.id)
-        .execute();
-
-      console.log(`[MonitorService] Opened incident ${incident.id} for monitor "${monitor.name}"`);
+      console.log(`[MonitorService] Queued down notification for monitor "${monitor.name}"`);
     } catch (err) {
-      console.error(`[MonitorService] Failed to open incident for monitor ${monitor.id}:`, err);
+      console.error(`[MonitorService] Failed to queue down notification for monitor ${monitor.id}:`, err);
     }
   }
 
-  private async resolveIncident(incidentId: string, organizationId: string): Promise<void> {
+  private async notifyMonitorRecovered(monitor: Monitor, downtimeStart: Date | null): Promise<void> {
     try {
-      await this.siemService.updateIncident(incidentId, organizationId, { status: 'resolved' });
-      // Queue a recovery notification via a new incident notification
-      // The SIEM incident notification system handles email/webhook delivery
-      console.log(`[MonitorService] Resolved incident ${incidentId}`);
+      let downtimeDuration: string | null = null;
+      if (downtimeStart) {
+        const ms = Date.now() - downtimeStart.getTime();
+        const seconds = Math.floor(ms / 1000);
+        if (seconds < 60) downtimeDuration = `${seconds}s`;
+        else if (seconds < 3600) downtimeDuration = `${Math.floor(seconds / 60)}m`;
+        else downtimeDuration = `${Math.floor(seconds / 3600)}h ${Math.floor((seconds % 3600) / 60)}m`;
+      }
+
+      await monitorNotificationQueue.add('monitor-recovered', {
+        monitorId: monitor.id,
+        monitorName: monitor.name,
+        organizationId: monitor.organizationId,
+        projectId: monitor.projectId,
+        status: 'up',
+        severity: monitor.severity,
+        target: monitor.target,
+        downtimeDuration,
+      });
+      console.log(`[MonitorService] Queued recovery notification for monitor "${monitor.name}"`);
     } catch (err) {
-      console.error(`[MonitorService] Failed to resolve incident ${incidentId}:`, err);
+      console.error(`[MonitorService] Failed to queue recovery notification for monitor ${monitor.id}:`, err);
     }
   }
 
