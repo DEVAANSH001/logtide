@@ -194,11 +194,17 @@
               <dd class="font-mono text-xs truncate max-w-[180px]" title={monitor.target}>{monitor.target}</dd>
             </div>
           {/if}
+          {#if monitor.type === 'log_heartbeat' && monitor.target}
+            <div class="flex justify-between gap-2">
+              <dt class="text-muted-foreground">Service</dt>
+              <dd class="font-mono text-xs">{monitor.target}</dd>
+            </div>
+          {/if}
           <div class="flex justify-between">
             <dt class="text-muted-foreground">Interval</dt>
             <dd class="font-medium">{monitor.intervalSeconds}s</dd>
           </div>
-          {#if monitor.type !== 'heartbeat'}
+          {#if monitor.type !== 'heartbeat' && monitor.type !== 'log_heartbeat'}
             <div class="flex justify-between">
               <dt class="text-muted-foreground">Timeout</dt>
               <dd class="font-medium">{monitor.timeoutSeconds}s</dd>
@@ -251,6 +257,14 @@
                 <Copy class="h-3.5 w-3.5" />
               </Button>
             </div>
+          </div>
+        {/if}
+        {#if monitor.type === 'log_heartbeat'}
+          <div class="mt-4 pt-4 border-t">
+            <p class="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">Log-based monitoring</p>
+            <p class="text-xs text-muted-foreground">
+              This monitor checks if the service <code class="bg-muted rounded px-1">{monitor.target}</code> has sent logs within the last {Math.round(monitor.intervalSeconds * 1.5)}s (interval × 1.5).
+            </p>
           </div>
         {/if}
       </div>
