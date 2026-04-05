@@ -9,6 +9,7 @@
   import { ProjectsAPI } from '$lib/api/projects';
   import { getAuthToken } from '$lib/utils/auth';
   import { getApiBaseUrl } from '$lib/config';
+  import { logsAPI } from '$lib/api/logs';
   import type { Project } from '@logtide/shared';
   import Button from '$lib/components/ui/button/button.svelte';
   import { Badge } from '$lib/components/ui/badge';
@@ -46,6 +47,8 @@
   let formAutoResolve = $state(true);
   let formEnabled = $state(true);
   let projectId = $state<string | undefined>(undefined);
+  let availableServices = $state<string[]>([]);
+  let serviceSearchOpen = $state(false);
 
   $effect(() => {
     if (org) {
@@ -60,6 +63,14 @@
         loadIncidents();
         loadMaintenances();
       }
+    }
+  });
+
+  $effect(() => {
+    if (formType === 'log_heartbeat' && projectId && org) {
+      logsAPI.getServices({ projectId }).then((services) => {
+        availableServices = services;
+      }).catch(() => { availableServices = []; });
     }
   });
 
@@ -111,6 +122,11 @@
       if (formType === 'tcp') {
         if (!formTarget || !formTarget.includes(':')) {
           return 'TCP target must be in host:port format';
+        }
+      }
+      if (formType === 'log_heartbeat') {
+        if (!formTarget || !formTarget.trim()) {
+          return 'Service name is required for log-based monitors';
         }
       }
     }
@@ -191,6 +207,7 @@
   function typeIcon(type: string) {
     if (type === 'http') return Globe;
     if (type === 'tcp') return Wifi;
+    if (type === 'log_heartbeat') return Activity;
     return Heart;
   }
 
@@ -542,16 +559,50 @@
             >
               <option value="http">HTTP / HTTPS</option>
               <option value="tcp">TCP</option>
-              <option value="heartbeat">Heartbeat</option>
+              <option value="heartbeat">Heartbeat (Push)</option>
+              <option value="log_heartbeat">Log Based</option>
             </select>
           </div>
         {/if}
 
-        {#if formType !== 'heartbeat' || editingMonitor}
+        {#if formType === 'log_heartbeat'}
+          <div class={!editingMonitor ? '' : 'sm:col-span-2'}>
+            <label class="mb-1 block text-sm font-medium">Service name</label>
+            <div class="relative">
+              <input
+                bind:value={formTarget}
+                onfocus={() => { serviceSearchOpen = true; }}
+                onblur={() => { setTimeout(() => { serviceSearchOpen = false; }, 150); }}
+                class="w-full rounded-md border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                placeholder="e.g. logtide-worker"
+              />
+              {#if serviceSearchOpen && availableServices.length > 0}
+                <div class="absolute z-10 mt-1 w-full rounded-md border bg-popover shadow-md max-h-40 overflow-y-auto">
+                  {#each availableServices.filter((s) => !formTarget || s.toLowerCase().includes(formTarget.toLowerCase())) as svc (svc)}
+                    <button
+                      type="button"
+                      class="w-full px-3 py-1.5 text-left text-sm hover:bg-muted"
+                      onmousedown={() => { formTarget = svc; serviceSearchOpen = false; }}
+                    >
+                      {svc}
+                    </button>
+                  {/each}
+                </div>
+              {/if}
+            </div>
+            <p class="mt-1 text-xs text-muted-foreground">Monitor checks if this service sent logs recently</p>
+          </div>
+        {:else if formType === 'heartbeat'}
+          <div class="sm:col-span-2">
+            <div class="rounded-md border border-blue-200 bg-blue-50 dark:border-blue-800 dark:bg-blue-950 px-3 py-2 text-sm text-blue-800 dark:text-blue-200">
+              <p class="font-medium mb-1">Push-based heartbeat</p>
+              <p class="text-xs">After creating this monitor, you'll get an endpoint URL. Your service must send periodic POST requests to it.</p>
+            </div>
+          </div>
+        {:else}
           <div class={!editingMonitor ? '' : 'sm:col-span-2'}>
             <label class="mb-1 block text-sm font-medium">
               {formType === 'tcp' ? 'Target (host:port)' : 'URL'}
-              {#if formType === 'heartbeat' && editingMonitor}(not used for heartbeat){/if}
             </label>
             <input
               bind:value={formTarget}
@@ -572,7 +623,7 @@
           />
         </div>
 
-        {#if formType !== 'heartbeat'}
+        {#if formType !== 'heartbeat' && formType !== 'log_heartbeat'}
           <div>
             <label class="mb-1 block text-sm font-medium">Timeout (seconds)</label>
             <input
@@ -684,10 +735,20 @@
                     <Globe class="h-3.5 w-3.5" />
                   {:else if monitor.type === 'tcp'}
                     <Wifi class="h-3.5 w-3.5" />
+                  {:else if monitor.type === 'log_heartbeat'}
+                    <Activity class="h-3.5 w-3.5" />
                   {:else}
                     <Heart class="h-3.5 w-3.5" />
                   {/if}
-                  <span class="capitalize">{monitor.type}</span>
+                  {#if monitor.type === 'http'}
+                    HTTP
+                  {:else if monitor.type === 'tcp'}
+                    TCP
+                  {:else if monitor.type === 'log_heartbeat'}
+                    Log Based
+                  {:else}
+                    Heartbeat (Push)
+                  {/if}
                 </div>
               </td>
               <td class="px-4 py-3 hidden md:table-cell text-muted-foreground">
