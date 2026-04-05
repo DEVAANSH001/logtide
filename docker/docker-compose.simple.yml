@@ -1,10 +1,10 @@
 # LogTide Docker Compose - Simplified (No Redis)
 #
-# This configuration runs LogTide with PostgreSQL only.
+# This configuration runs LogTide with PostgreSQL/TimescaleDB only.
 # Redis is optional and not required for basic functionality.
 #
 # Benefits:
-# - Simpler deployment (2 containers instead of 3)
+# - Simpler deployment (3 containers instead of 5)
 # - Lower resource usage
 # - Easier backup (single database)
 #
@@ -12,13 +12,14 @@
 # - No distributed rate limiting (single instance only)
 # - No Redis caching (relies on PostgreSQL)
 # - Job queue uses PostgreSQL (graphile-worker)
+# - Live tail uses PostgreSQL LISTEN/NOTIFY instead of Redis pub/sub
 #
 # Usage: docker compose -f docker-compose.simple.yml up -d
 
 services:
   postgres:
     image: timescale/timescaledb:latest-pg16
-    container_name: logtide-postgres
+    container_name: logtide-simple-postgres
     environment:
       POSTGRES_DB: ${DB_NAME}
       POSTGRES_USER: ${DB_USER}
@@ -69,15 +70,17 @@ services:
 
   backend:
     image: ${LOGTIDE_BACKEND_IMAGE:-logtide/backend:latest}
-    container_name: logtide-backend
+    container_name: logtide-simple-backend
     ports:
       - "8080:8080"
     environment:
       NODE_ENV: production
+      TRUST_PROXY: ${TRUST_PROXY:-false}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
       DATABASE_URL: postgresql://${DB_USER}:${DB_PASSWORD}@postgres:5432/${DB_NAME}
       DATABASE_HOST: postgres
       DB_USER: ${DB_USER}
-      # REDIS_URL intentionally not set - uses PostgreSQL queue
+      # REDIS_URL intentionally not set - uses PostgreSQL queue (graphile-worker)
       API_KEY_SECRET: ${API_KEY_SECRET}
       PORT: 8080
       HOST: 0.0.0.0
@@ -88,7 +91,10 @@ services:
       SMTP_FROM: ${SMTP_FROM:-noreply@logtide.local}
       INTERNAL_LOGGING_ENABLED: ${INTERNAL_LOGGING_ENABLED:-false}
       INTERNAL_API_KEY: ${INTERNAL_API_KEY:-}
+      INTERNAL_DSN: ${INTERNAL_DSN:-}
+      DOCKER_CONTAINER: "true"
       SERVICE_NAME: logtide-backend
+      STORAGE_ENGINE: timescale
     depends_on:
       postgres:
         condition: service_healthy
@@ -104,17 +110,21 @@ services:
 
   worker:
     image: ${LOGTIDE_BACKEND_IMAGE:-logtide/backend:latest}
-    container_name: logtide-worker
+    container_name: logtide-simple-worker
     command: ["worker"]
     healthcheck:
       disable: true
     environment:
       NODE_ENV: production
+      TRUST_PROXY: ${TRUST_PROXY:-false}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
       DATABASE_URL: postgresql://${DB_USER}:${DB_PASSWORD}@postgres:5432/${DB_NAME}
       DATABASE_HOST: postgres
       DB_USER: ${DB_USER}
-      # REDIS_URL intentionally not set - uses PostgreSQL queue
+      # REDIS_URL intentionally not set - uses PostgreSQL queue (graphile-worker)
       API_KEY_SECRET: ${API_KEY_SECRET}
+      PORT: 8080
+      HOST: 0.0.0.0
       SMTP_HOST: ${SMTP_HOST:-}
       SMTP_PORT: ${SMTP_PORT:-587}
       SMTP_USER: ${SMTP_USER:-}
@@ -122,7 +132,10 @@ services:
       SMTP_FROM: ${SMTP_FROM:-noreply@logtide.local}
       INTERNAL_LOGGING_ENABLED: ${INTERNAL_LOGGING_ENABLED:-false}
       INTERNAL_API_KEY: ${INTERNAL_API_KEY:-}
+      INTERNAL_DSN: ${INTERNAL_DSN:-}
+      DOCKER_CONTAINER: "true"
       SERVICE_NAME: logtide-worker
+      STORAGE_ENGINE: timescale
     depends_on:
       backend:
         condition: service_healthy
@@ -132,12 +145,14 @@ services:
 
   frontend:
     image: ${LOGTIDE_FRONTEND_IMAGE:-logtide/frontend:latest}
-    container_name: logtide-frontend
+    container_name: logtide-simple-frontend
     ports:
       - "3000:3000"
     environment:
       NODE_ENV: production
       PUBLIC_API_URL: ${PUBLIC_API_URL:-http://localhost:8080}
+      LOGTIDE_DSN: ${LOGTIDE_DSN}
+      PUBLIC_LOGTIDE_DSN: ${PUBLIC_LOGTIDE_DSN}
     depends_on:
       - backend
     restart: unless-stopped

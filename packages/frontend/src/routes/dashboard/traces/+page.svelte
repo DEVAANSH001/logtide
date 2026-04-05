@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount, untrack } from "svelte";
+  import { onMount, onDestroy, untrack } from "svelte";
   import { page } from "$app/state";
   import { goto } from "$app/navigation";
   import { currentOrganization } from "$lib/stores/organization";
@@ -87,8 +87,12 @@
   let mapLoadError = $state<string | null>(null);
   let selectedNode = $state<EnrichedServiceDependencyNode | null>(null);
 
-  authStore.subscribe((state) => {
+  const unsubAuthStore = authStore.subscribe((state) => {
     token = state.token;
+  });
+
+  onDestroy(() => {
+    unsubAuthStore();
   });
 
   // Local project and time range state

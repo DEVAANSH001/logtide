@@ -95,26 +95,13 @@ const queryRoutes: FastifyPluginAsync = async (fastify) => {
       }
 
       if (request.user?.id) {
-        const hasAccess = await verifyProjectAccess(
-          Array.isArray(projectId) ? projectId[0] : projectId,
-          request.user.id
-        );
-
-        if (!hasAccess) {
-          return reply.code(403).send({
-            error: 'Access denied - you do not have access to this project',
-          });
-        }
-
-        // If multiple projects requested, verify access to all
-        if (Array.isArray(projectId)) {
-          for (const pid of projectId) {
-            const access = await verifyProjectAccess(pid, request.user.id);
-            if (!access) {
-              return reply.code(403).send({
-                error: `Access denied - you do not have access to project ${pid}`,
-              });
-            }
+        const projectIds = Array.isArray(projectId) ? projectId : [projectId];
+        for (const pid of projectIds) {
+          const hasAccess = await verifyProjectAccess(pid, request.user.id);
+          if (!hasAccess) {
+            return reply.code(403).send({
+              error: `Access denied - you do not have access to project ${pid}`,
+            });
           }
         }
       }
@@ -761,8 +748,9 @@ const queryRoutes: FastifyPluginAsync = async (fastify) => {
       reply.raw.setHeader('Cache-Control', 'no-cache');
       reply.raw.setHeader('Connection', 'keep-alive');
 
-      // Track last timestamp to avoid duplicates
+      // Track last timestamp and sent IDs to avoid duplicates
       let lastTimestamp = new Date();
+      let sentIds = new Set<string>();
 
       // Send initial connection message
       reply.raw.write(`data: ${JSON.stringify({ type: 'connected', timestamp: new Date() })}\n\n`);
@@ -781,13 +769,26 @@ const queryRoutes: FastifyPluginAsync = async (fastify) => {
           });
 
           if (newLogs.logs.length > 0) {
-            // Update last timestamp
-            const latestLog = newLogs.logs[newLogs.logs.length - 1];
-            lastTimestamp = new Date(latestLog.time);
+            // Filter out already-sent logs
+            const unseenLogs = newLogs.logs.filter((log: any) => !sentIds.has(log.id));
 
-            // Send each log as separate event
-            for (const log of newLogs.logs) {
-              reply.raw.write(`data: ${JSON.stringify({ type: 'log', data: log })}\n\n`);
+            if (unseenLogs.length > 0) {
+              // Update last timestamp
+              const latestLog = unseenLogs[unseenLogs.length - 1];
+              lastTimestamp = new Date(latestLog.time);
+
+              // Rebuild sentIds with only logs at the latest timestamp to bound memory
+              sentIds = new Set<string>();
+              for (const log of newLogs.logs) {
+                if (new Date(log.time).getTime() === lastTimestamp.getTime()) {
+                  sentIds.add(log.id);
+                }
+              }
+
+              // Send each new log as separate event
+              for (const log of unseenLogs) {
+                reply.raw.write(`data: ${JSON.stringify({ type: 'log', data: log })}\n\n`);
+              }
             }
           }
 

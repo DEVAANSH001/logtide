@@ -122,7 +122,7 @@ export class TracesAPI {
     if (filters.from) params.append('from', filters.from);
     if (filters.to) params.append('to', filters.to);
     if (filters.limit) params.append('limit', filters.limit.toString());
-    if (filters.offset) params.append('offset', filters.offset.toString());
+    if (filters.offset != null) params.append('offset', filters.offset.toString());
 
     const url = `${getApiBaseUrl()}/traces?${params.toString()}`;
 

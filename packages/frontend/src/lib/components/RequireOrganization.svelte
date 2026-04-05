@@ -57,7 +57,17 @@
         }
       } else {
         // Standard mode: check for token
-        if (!$authStore.user) {
+        if (!$authStore.token) {
+          goto('/login');
+          return;
+        }
+
+        // Validate token against backend (catches stale localStorage tokens)
+        try {
+          const { user } = await authAPI.getMe($authStore.token);
+          authStore.updateUser(user);
+        } catch {
+          authStore.clearAuth();
           goto('/login');
           return;
         }

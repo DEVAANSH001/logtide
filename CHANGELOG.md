@@ -52,6 +52,52 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **Step builder**: interactive UI for adding, reordering, and configuring parser, grok, and geoip steps with per-type configuration forms
   - **Pipeline edit page** redirects to the list when the active organization is switched, preventing stale-ID errors
 
+## [0.8.6] - 2026-03-31
+
+### Fixed
+- **ClickHouse traces/metrics data-availability always empty**: `queryTraces` and `queryMetrics` passed raw `0` for epoch dates as `DateTime64(3)` parameter, which ClickHouse can't parse; now uses the same `toDateTime64()` clamp used by log queries
+- **Stale session after volume reset**: dashboard only checked `localStorage` for a token without validating it against the backend; now calls `/auth/me` on load and auto-logs out if the session is invalid
+
+## [0.8.5] - 2026-03-28
+
+### Security
+- **Cross-org isolation fix in SIEM**: `linkDetectionEventsToIncident` now scopes detection events to the requesting organization, preventing cross-tenant data corruption via crafted API calls
+- **Cross-org auth bypass in pattern routes**: PUT and DELETE handlers for correlation patterns now verify organization membership before mutating data (same check GET/POST already had)
+- **SSRF protection for legacy webhook path**: the alert-notification job's direct `fetch()` call now validates URLs against private/internal IP ranges, matching the `WebhookProvider` safeguard
+- **Disabled user login blocked**: `POST /login` now checks the `disabled` flag before creating a session, preventing disabled accounts from obtaining tokens
+- **Expired invitation info leak**: `getInvitationByToken` now filters on `expires_at > NOW()`, preventing enumeration of expired invitation details
+
+### Fixed
+- **SIEM dashboard timeline crash**: `time_bucket()` call was missing `::interval` cast on the parameterized bucket width, causing a PostgreSQL type error that broke the timeline widget for all users
+- **SSE real-time events broken**: SIEM store and incident detail page read auth token from `localStorage('session_token')` (wrong key), so the SSE connection never authenticated; now uses `getAuthToken()` from the shared auth utility
+- **SSE log stream duplicate emission**: when multiple logs shared the same timestamp, the inclusive `from` bound caused them to be re-sent on every poll tick; stream now tracks sent log IDs to deduplicate
+- **Incident severity auto-grouping wrong**: `MAX(severity)` used PostgreSQL alphabetical ordering (`medium` > `critical`), producing incorrect severity on auto-grouped incidents; now uses ordinal ranking
+- **Sigma notification failures silent**: notification job payload was missing `organization_id` and `project_id`, and `markAsNotified` was called with `null` historyId; both now handled correctly
+- **Incidents pagination total always zero**: `loadIncidents` in the SIEM store never wrote `response.total` to `incidentsTotal`
+- **Memory leaks on navigation**: 20+ Svelte components called `authStore.subscribe()` without cleanup; all now store the unsubscribe function and call it in `onDestroy`
+- **`offset=0` silently dropped**: API client functions used `if (filters.offset)` which is falsy for zero, so page-1 requests never sent the `offset` parameter; changed to `if (filters.offset != null)`
+- **Search debounce timer leak**: `searchDebounceTimer` was not cleared in `onDestroy`, causing post-unmount API calls when navigating away mid-search
+- **`verifyProjectAccess` double call**: when `projectId` is an array, the first element was verified twice (once before the loop, once inside it); consolidated into a single loop
+- **`updateIncident` silent field skip**: `title`, `severity`, and `status` used truthy checks (`&&`) instead of `!== undefined`, inconsistent with `description` and `assigneeId`
+- **Webhook error messages empty**: `response.statusText` is empty for HTTP/2; error now reads the response body for useful detail
+- **Retention job crash on empty orgs**: `Math.max(...[])` returns `-Infinity`, cascading to an `Invalid Date` in the `drop_chunks` call; early return added when no organizations exist
+- **`escapeHtml` DOM leak**: PDF export's `escapeHtml` created orphaned DOM nodes in the parent document; replaced with pure string replacement
+- **Webhook headers validation missing**: `CreateChannelDialog` silently swallowed invalid JSON in the custom headers field; now validates on submit
+- **`getIncidentDetections` no org scope**: query now accepts optional `organizationId` for defense-in-depth filtering
+- **Stale shared package types**: dist contained outdated `Project` and `Incident` interfaces with phantom fields (`slug`, `statusPageVisibility`, `source`, `monitorId`); rebuilt from source
+
+### Changed
+- **Docker config sync**: `docker-compose.build.yml` now matches `docker-compose.yml` with all environment variables (MongoDB, `TRUST_PROXY`, `FRONTEND_URL`, `INTERNAL_DSN`, `DOCKER_CONTAINER`), MongoDB service, and `fluent-bit-metrics` service
+- **`NODE_ENV` for backend**: production `docker-compose.yml` now sets `NODE_ENV: production` on the backend service (worker and frontend already had it)
+- **`docker/.env.example`**: added `STORAGE_ENGINE`, ClickHouse, and MongoDB configuration sections
+
+### Dependencies
+- `picomatch` 4.0.3 → 4.0.4 (fix ReDoS via extglob quantifiers + POSIX character class method injection)
+- `brace-expansion` 5.0.2 → 5.0.5 (fix zero-step sequence DoS)
+- `fast-xml-parser` 5.5.6 → 5.5.9 (fix entity expansion limits bypass)
+- `fastify` bumped via dependabot
+- `kysely` bumped via dependabot
+
 ## [0.8.4] - 2026-03-19
 
 ### Added

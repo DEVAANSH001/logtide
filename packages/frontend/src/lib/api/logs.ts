@@ -122,7 +122,7 @@ export class LogsAPI {
     if (filters.q) params.append('q', filters.q);
     if (filters.searchMode) params.append('searchMode', filters.searchMode);
     if (filters.limit) params.append('limit', filters.limit.toString());
-    if (filters.offset) params.append('offset', filters.offset.toString());
+    if (filters.offset != null) params.append('offset', filters.offset.toString());
     if (filters.cursor) params.append('cursor', filters.cursor);
 
     const url = `${getApiBaseUrl()}/logs?${params.toString()}`;

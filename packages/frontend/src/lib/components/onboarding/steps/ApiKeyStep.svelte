@@ -14,7 +14,7 @@
   import ChevronRight from '@lucide/svelte/icons/chevron-right';
   import AlertTriangle from '@lucide/svelte/icons/alert-triangle';
   import { getApiUrl } from '$lib/config';
-  import { onMount } from 'svelte';
+  import { onMount, onDestroy } from 'svelte';
   import { copyToClipboard } from '$lib/utils/clipboard';
 
   let isLoading = $state(false);
@@ -29,13 +29,18 @@
   let token = $state<string | null>(null);
   let apiKeysAPI = $derived(new ApiKeysAPI(() => token));
 
-  authStore.subscribe((state) => {
+  const unsubAuthStore = authStore.subscribe((state) => {
     token = state.token;
   });
 
   let onboardingState = $state<{ projectId: string | null }>({ projectId: null });
-  onboardingStore.subscribe((state) => {
+  const unsubOnboardingStore = onboardingStore.subscribe((state) => {
     onboardingState = { projectId: state.projectId };
+  });
+
+  onDestroy(() => {
+    unsubAuthStore();
+    unsubOnboardingStore();
   });
 
   async function generateApiKey() {

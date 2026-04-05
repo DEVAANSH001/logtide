@@ -37,7 +37,7 @@ describe('BootstrapService', () => {
     });
 
     describe('ensureInitialAdmin', () => {
-        it('should skip when env vars not set', async () => {
+        it('should create default system admin when env vars not set', async () => {
             // Mock config without initial admin
             const originalEmail = config.INITIAL_ADMIN_EMAIL;
             const originalPassword = config.INITIAL_ADMIN_PASSWORD;
@@ -47,9 +47,11 @@ describe('BootstrapService', () => {
 
             await bootstrapService.ensureInitialAdmin();
 
-            // No users should be created
+            // A default system admin should be created with fallback email
             const users = await db.selectFrom('users').selectAll().execute();
-            expect(users).toHaveLength(0);
+            expect(users).toHaveLength(1);
+            expect(users[0].email).toBe('system@logtide.internal');
+            expect(users[0].is_admin).toBe(true);
 
             // Restore
             (config as any).INITIAL_ADMIN_EMAIL = originalEmail;

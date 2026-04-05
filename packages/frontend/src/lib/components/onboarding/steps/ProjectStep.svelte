@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onDestroy } from 'svelte';
   import { onboardingStore } from '$lib/stores/onboarding';
   import { authStore } from '$lib/stores/auth';
   import { organizationStore } from '$lib/stores/organization';
@@ -27,13 +28,18 @@
 
   let isFormValid = $derived(projectName.trim().length > 0);
 
-  authStore.subscribe((state) => {
+  const unsubAuthStore = authStore.subscribe((state) => {
     token = state.token;
   });
 
   let currentOrgId = $state<string | null>(null);
-  organizationStore.subscribe((state) => {
+  const unsubOrgStore = organizationStore.subscribe((state) => {
     currentOrgId = state.currentOrganization?.id || null;
+  });
+
+  onDestroy(() => {
+    unsubAuthStore();
+    unsubOrgStore();
   });
 
   // Environment presets

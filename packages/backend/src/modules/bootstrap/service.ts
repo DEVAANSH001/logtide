@@ -9,6 +9,7 @@
  * This runs at server startup
  */
 
+import crypto from 'node:crypto';
 import bcrypt from 'bcrypt';
 import { db } from '../../database/connection.js';
 import { config } from '../../config/index.js';
@@ -39,11 +40,6 @@ export class BootstrapService {
     // Check if env vars are configured
     const { INITIAL_ADMIN_EMAIL, INITIAL_ADMIN_PASSWORD, INITIAL_ADMIN_NAME } = config;
 
-    if (!INITIAL_ADMIN_EMAIL || !INITIAL_ADMIN_PASSWORD) {
-      // No initial admin configured, skip
-      return;
-    }
-
     // Check if any "real" users exist (with password set - excludes system@logtide.internal)
     const userCount = await db
       .selectFrom('users')
@@ -58,16 +54,19 @@ export class BootstrapService {
       return;
     }
 
-    // Create the initial admin user
-    console.log(`[Bootstrap] No users found. Creating initial admin: ${INITIAL_ADMIN_EMAIL}`);
-
-    const passwordHash = await bcrypt.hash(INITIAL_ADMIN_PASSWORD, SALT_ROUNDS);
+    // Use env vars if set, otherwise generate random credentials
+    const adminEmail = INITIAL_ADMIN_EMAIL || 'system@logtide.internal';
+    const adminPassword = INITIAL_ADMIN_PASSWORD || crypto.randomBytes(16).toString('base64url');
     const adminName = INITIAL_ADMIN_NAME || 'Admin';
+
+    console.log(`[Bootstrap] No users found. Creating initial admin: ${adminEmail}`);
+
+    const passwordHash = await bcrypt.hash(adminPassword, SALT_ROUNDS);
 
     const user = await db
       .insertInto('users')
       .values({
-        email: INITIAL_ADMIN_EMAIL,
+        email: adminEmail,
         password_hash: passwordHash,
         name: adminName,
         is_admin: true,
@@ -75,7 +74,16 @@ export class BootstrapService {
       .returning(['id', 'email', 'name', 'is_admin', 'disabled', 'created_at', 'last_login'])
       .executeTakeFirstOrThrow();
 
-    console.log(`[Bootstrap] Initial admin created successfully: ${user.email} (ID: ${user.id})`);
+    console.log('');
+    console.log('╔══════════════════════════════════════════════════════════╗');
+    console.log('║              INITIAL ADMIN ACCOUNT CREATED              ║');
+    console.log('╠══════════════════════════════════════════════════════════╣');
+    console.log(`║  Email:    ${adminEmail.padEnd(44)}║`);
+    console.log(`║  Password: ${adminPassword.padEnd(44)}║`);
+    console.log('╠══════════════════════════════════════════════════════════╣');
+    console.log('║  ⚠  Change this password after first login!            ║');
+    console.log('╚══════════════════════════════════════════════════════════╝');
+    console.log('');
 
     // Set this user as default user for auth-free mode
     await settingsService.set('auth.default_user_id', user.id);

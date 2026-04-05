@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, onDestroy } from 'svelte';
   import { page } from '$app/state';
   import { goto } from '$app/navigation';
   import { authStore } from '$lib/stores/auth';
@@ -38,9 +38,13 @@
   let success = $state(false);
   let acceptedOrgId = $state<string | null>(null);
 
-  authStore.subscribe((state) => {
+  const unsubAuthStore = authStore.subscribe((state) => {
     user = state.user;
     authToken = state.token;
+  });
+
+  onDestroy(() => {
+    unsubAuthStore();
   });
 
   onMount(async () => {
