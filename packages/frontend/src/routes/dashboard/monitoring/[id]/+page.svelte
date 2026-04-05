@@ -165,9 +165,9 @@
         <div class="flex items-end gap-0.5 h-12">
           {#each recentUptime as bucket}
             <div
-              class="flex-1 rounded-sm {uptimeColor(bucket.uptimePct)} transition-all"
-              style="height: {Math.max(8, (bucket.uptimePct / 100) * 48)}px; min-height: 4px"
-              title="{new Date(bucket.bucket).toLocaleDateString()} — {bucket.uptimePct.toFixed(1)}%"
+              class="flex-1 rounded-sm {uptimeColor(Number(bucket.uptimePct))} transition-all"
+              style="height: {Math.max(8, (Number(bucket.uptimePct) / 100) * 48)}px; min-height: 4px"
+              title="{new Date(bucket.bucket).toLocaleDateString()} — {Number(bucket.uptimePct).toFixed(1)}%"
             ></div>
           {/each}
         </div>
