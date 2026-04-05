@@ -16,14 +16,14 @@
   <a href="https://codecov.io/gh/logtide-dev/logtide"><img src="https://codecov.io/gh/logtide-dev/logtide/branch/main/graph/badge.svg" alt="Coverage"></a>
   <a href="https://hub.docker.com/r/logtide/backend"><img src="https://img.shields.io/docker/v/logtide/backend?label=docker&logo=docker" alt="Docker"></a>
   <a href="https://artifacthub.io/packages/helm/logtide/logtide"><img src="https://img.shields.io/endpoint?url=https://artifacthub.io/badge/repository/logtide" alt="Artifact Hub"></a>
-  <img src="https://img.shields.io/badge/version-0.8.6-blue.svg" alt="Version">
+  <img src="https://img.shields.io/badge/version-0.9.0-blue.svg" alt="Version">
   <img src="https://img.shields.io/badge/license-AGPLv3-blue.svg" alt="License">
   <img src="https://img.shields.io/badge/status-stable_alpha-success.svg" alt="Status">
 </div>
 
 <br />
 
-> **🚀 RELEASE 0.8.6:** LogTide now supports **Multi-Engine Storage** (ClickHouse, MongoDB) and **Advanced Browser Observability**.
+> **🚀 RELEASE 0.9.0:** LogTide now supports **Multi-Engine Storage** (ClickHouse, MongoDB) and **Advanced Browser Observability**.
 
 ---
 
@@ -46,7 +46,7 @@ Designed for teams that need **GDPR compliance**, **full data ownership**, and *
 ### Logs Explorer
 ![LogTide Logs](docs/images/logs.png)
 
-### Performance & Metrics (New in 0.8.6)
+### Performance & Metrics (New in 0.9.0)
 ![LogTide Metrics](docs/images/metrics.png)
 
 ### Distributed Tracing
@@ -124,7 +124,7 @@ We host it for you. Perfect for testing. [**Sign up at logtide.dev**](https://lo
 
 ---
 
-## ✨ Core Features (v0.8.6)
+## ✨ Core Features (v0.9.0)
 
 * 🚀 **Multi-Engine Reservoir:** Pluggable storage layer supporting **TimescaleDB**, **ClickHouse**, and **MongoDB**.
 * 🌐 **Browser SDK Enhancements:** Automatic collection of **Web Vitals** (LCP, INP, CLS), user session tracking, and click/network breadcrumbs.

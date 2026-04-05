@@ -171,6 +171,13 @@
     if (s === 'degraded') return { bg: 'bg-yellow-500/10 border-yellow-500/20', text: 'text-yellow-700 dark:text-yellow-400', dot: 'bg-yellow-400 shadow-yellow-400/50', label: 'Partial system outage' };
     return { bg: 'bg-red-500/10 border-red-500/20', text: 'text-red-700 dark:text-red-400', dot: 'bg-red-500 shadow-red-500/50', label: 'Major system outage' };
   }
+
+  function getMonitorTypeLabel(type: string): string {
+    if (type === 'http') return 'HTTP';
+    if (type === 'tcp') return 'TCP';
+    if (type === 'log_heartbeat') return 'Log Based';
+    return 'Heartbeat';
+  }
 </script>
 
 <svelte:head>
@@ -319,7 +326,7 @@
           <div class="flex items-center gap-3 mb-3">
             <span class="h-2.5 w-2.5 rounded-full {statusDot(monitor.status)} shadow-sm shrink-0"></span>
             <span class="font-medium text-sm flex-1 truncate">{monitor.name}</span>
-            <span class="text-[10px] uppercase tracking-wider text-muted-foreground font-medium px-1.5 py-0.5 rounded bg-muted">{monitor.type}</span>
+            <span class="text-[10px] uppercase tracking-wider text-muted-foreground font-medium px-1.5 py-0.5 rounded bg-muted">{getMonitorTypeLabel(monitor.type)}</span>
             {#if avgUptime(monitor.uptimeHistory) != null}
               <span class="text-xs font-semibold tabular-nums px-2 py-0.5 rounded-full ring-1 ring-inset {badgeColor(avgUptime(monitor.uptimeHistory) ?? 0)}">
                 {avgUptime(monitor.uptimeHistory)?.toFixed(1)}%
