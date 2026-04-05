@@ -186,18 +186,17 @@
         <dl class="space-y-2 text-sm">
           <div class="flex justify-between">
             <dt class="text-muted-foreground">Type</dt>
-            <dd class="font-medium capitalize">{monitor.type}</dd>
+            <dd class="font-medium">{monitor.type === 'log_heartbeat' ? 'Log Based' : monitor.type === 'heartbeat' ? 'Heartbeat (Push)' : monitor.type.toUpperCase()}</dd>
           </div>
-          {#if monitor.target}
-            <div class="flex justify-between gap-2">
-              <dt class="text-muted-foreground">Target</dt>
-              <dd class="font-mono text-xs truncate max-w-[180px]" title={monitor.target}>{monitor.target}</dd>
-            </div>
-          {/if}
           {#if monitor.type === 'log_heartbeat' && monitor.target}
             <div class="flex justify-between gap-2">
               <dt class="text-muted-foreground">Service</dt>
               <dd class="font-mono text-xs">{monitor.target}</dd>
+            </div>
+          {:else if monitor.target}
+            <div class="flex justify-between gap-2">
+              <dt class="text-muted-foreground">Target</dt>
+              <dd class="font-mono text-xs truncate max-w-[180px]" title={monitor.target}>{monitor.target}</dd>
             </div>
           {/if}
           <div class="flex justify-between">

@@ -113,6 +113,11 @@
   let formError = $state<string | null>(null);
 
   function validateForm(): string | null {
+    if (formType === 'log_heartbeat') {
+      if (!formTarget || !formTarget.trim()) {
+        return 'Service name is required for log-based monitors';
+      }
+    }
     if (!editingMonitor) {
       if (formType === 'http') {
         if (!formTarget || !(formTarget.startsWith('http://') || formTarget.startsWith('https://'))) {
@@ -122,11 +127,6 @@
       if (formType === 'tcp') {
         if (!formTarget || !formTarget.includes(':')) {
           return 'TCP target must be in host:port format';
-        }
-      }
-      if (formType === 'log_heartbeat') {
-        if (!formTarget || !formTarget.trim()) {
-          return 'Service name is required for log-based monitors';
         }
       }
     }
