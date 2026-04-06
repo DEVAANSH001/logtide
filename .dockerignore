@@ -1,11 +1,26 @@
 # Dependencies
+# IMPORTANT: nested node_modules MUST be excluded explicitly. The bare
+# `node_modules/` pattern only matches the root-level directory; pnpm-style
+# workspaces have a `node_modules` inside every package and the symlinks
+# inside them point to absolute host paths (e.g. G:/... on Windows) that
+# break the build inside the container.
+node_modules
 node_modules/
+**/node_modules
+**/node_modules/
 .pnpm-store/
 
 # Build output
+dist
 dist/
+**/dist
+**/dist/
+build
 build/
+**/build
+**/build/
 .svelte-kit/
+**/.svelte-kit/
 
 # Environment
 .env
