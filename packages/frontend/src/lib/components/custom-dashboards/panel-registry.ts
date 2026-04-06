@@ -24,6 +24,11 @@ import Hash from '@lucide/svelte/icons/hash';
 import List from '@lucide/svelte/icons/list';
 import Radio from '@lucide/svelte/icons/radio';
 import Bell from '@lucide/svelte/icons/bell';
+import Activity from '@lucide/svelte/icons/activity';
+import Gauge from '@lucide/svelte/icons/gauge';
+import Network from '@lucide/svelte/icons/network';
+import Shield from '@lucide/svelte/icons/shield';
+import HeartPulse from '@lucide/svelte/icons/heart-pulse';
 import type {
   PanelType,
   PanelConfig,
@@ -34,6 +39,11 @@ import type {
   TopNTableConfig,
   LiveLogStreamConfig,
   AlertStatusConfig,
+  MetricChartConfig,
+  MetricStatConfig,
+  TraceLatencyConfig,
+  DetectionEventsConfig,
+  MonitorStatusConfig,
 } from '@logtide/shared';
 
 import TimeSeriesPanel from './panels/TimeSeriesPanel.svelte';
@@ -41,12 +51,22 @@ import SingleStatPanel from './panels/SingleStatPanel.svelte';
 import TopNTablePanel from './panels/TopNTablePanel.svelte';
 import LiveLogStreamPanel from './panels/LiveLogStreamPanel.svelte';
 import AlertStatusPanel from './panels/AlertStatusPanel.svelte';
+import MetricChartPanel from './panels/MetricChartPanel.svelte';
+import MetricStatPanel from './panels/MetricStatPanel.svelte';
+import TraceLatencyPanel from './panels/TraceLatencyPanel.svelte';
+import DetectionEventsPanel from './panels/DetectionEventsPanel.svelte';
+import MonitorStatusPanel from './panels/MonitorStatusPanel.svelte';
 
 import TimeSeriesConfigForm from './config-forms/TimeSeriesConfigForm.svelte';
 import SingleStatConfigForm from './config-forms/SingleStatConfigForm.svelte';
 import TopNTableConfigForm from './config-forms/TopNTableConfigForm.svelte';
 import LiveLogStreamConfigForm from './config-forms/LiveLogStreamConfigForm.svelte';
 import AlertStatusConfigForm from './config-forms/AlertStatusConfigForm.svelte';
+import MetricChartConfigForm from './config-forms/MetricChartConfigForm.svelte';
+import MetricStatConfigForm from './config-forms/MetricStatConfigForm.svelte';
+import TraceLatencyConfigForm from './config-forms/TraceLatencyConfigForm.svelte';
+import DetectionEventsConfigForm from './config-forms/DetectionEventsConfigForm.svelte';
+import MonitorStatusConfigForm from './config-forms/MonitorStatusConfigForm.svelte';
 
 export interface PanelComponentProps<TConfig extends PanelConfig = PanelConfig> {
   config: TConfig;
@@ -172,6 +192,108 @@ const registry: Record<PanelType, FrontendPanelDefinition> = {
     } as AlertStatusConfig,
     component: AlertStatusPanel as Component<PanelComponentProps>,
     configForm: AlertStatusConfigForm as Component<ConfigFormProps>,
+    minW: 3,
+    minH: 2,
+  },
+  metric_chart: {
+    type: 'metric_chart',
+    label: 'Metric Chart',
+    description: 'OTLP metric over time with aggregation (avg, p95, sum...).',
+    icon: Activity,
+    defaultLayout: { x: 0, y: 0, w: 6, h: 4 },
+    defaultConfig: {
+      type: 'metric_chart',
+      title: 'Metric',
+      source: 'metrics',
+      projectId: null,
+      metricName: '',
+      aggregation: 'avg',
+      interval: '5m',
+      timeRange: '24h',
+      serviceName: null,
+    } as MetricChartConfig,
+    component: MetricChartPanel as Component<PanelComponentProps>,
+    configForm: MetricChartConfigForm as Component<ConfigFormProps>,
+    minW: 4,
+    minH: 3,
+  },
+  metric_stat: {
+    type: 'metric_stat',
+    label: 'Metric Stat',
+    description: 'Single OTLP metric value with aggregation.',
+    icon: Gauge,
+    defaultLayout: { x: 0, y: 0, w: 3, h: 2 },
+    defaultConfig: {
+      type: 'metric_stat',
+      title: 'Metric value',
+      source: 'metrics',
+      projectId: null,
+      metricName: '',
+      aggregation: 'last',
+      timeRange: '1h',
+      serviceName: null,
+      unit: null,
+    } as MetricStatConfig,
+    component: MetricStatPanel as Component<PanelComponentProps>,
+    configForm: MetricStatConfigForm as Component<ConfigFormProps>,
+    minW: 2,
+    minH: 2,
+  },
+  trace_latency: {
+    type: 'trace_latency',
+    label: 'Trace Latency',
+    description: 'Span latency percentiles (p50/p95/p99) over time.',
+    icon: Network,
+    defaultLayout: { x: 0, y: 0, w: 6, h: 4 },
+    defaultConfig: {
+      type: 'trace_latency',
+      title: 'Latency',
+      source: 'traces',
+      projectId: null,
+      serviceName: null,
+      timeRange: '24h',
+      showPercentiles: ['p50', 'p95', 'p99'],
+    } as TraceLatencyConfig,
+    component: TraceLatencyPanel as Component<PanelComponentProps>,
+    configForm: TraceLatencyConfigForm as Component<ConfigFormProps>,
+    minW: 4,
+    minH: 3,
+  },
+  detection_events: {
+    type: 'detection_events',
+    label: 'Detection Events',
+    description: 'Sigma detection events over time, by severity.',
+    icon: Shield,
+    defaultLayout: { x: 0, y: 0, w: 6, h: 4 },
+    defaultConfig: {
+      type: 'detection_events',
+      title: 'Detections',
+      source: 'detections',
+      projectId: null,
+      timeRange: '24h',
+      severities: ['critical', 'high', 'medium', 'low'],
+    } as DetectionEventsConfig,
+    component: DetectionEventsPanel as Component<PanelComponentProps>,
+    configForm: DetectionEventsConfigForm as Component<ConfigFormProps>,
+    minW: 4,
+    minH: 3,
+  },
+  monitor_status: {
+    type: 'monitor_status',
+    label: 'Monitor Status',
+    description: 'Uptime and current status of HTTP/heartbeat monitors.',
+    icon: HeartPulse,
+    defaultLayout: { x: 0, y: 0, w: 6, h: 3 },
+    defaultConfig: {
+      type: 'monitor_status',
+      title: 'Monitors',
+      source: 'monitors',
+      projectId: null,
+      monitorIds: [],
+      limit: 5,
+    } as MonitorStatusConfig,
+    component: MonitorStatusPanel as Component<PanelComponentProps>,
+    configForm: MonitorStatusConfigForm as Component<ConfigFormProps>,
     minW: 3,
     minH: 2,
   },

@@ -19,6 +19,7 @@
     onEdit?: (panelId: string) => void;
     onRemove?: (panelId: string) => void;
     onRefresh?: (panelId: string) => void;
+    onResizeStart?: (panelId: string, ev: PointerEvent) => void;
   }
 
   let {
@@ -30,10 +31,17 @@
     onEdit,
     onRemove,
     onRefresh,
+    onResizeStart,
   }: Props = $props();
 
   const def = $derived(getPanelDefinition(panel.config.type));
   const PanelComponent = $derived(def.component);
+
+  function handleResizePointerDown(ev: PointerEvent) {
+    ev.preventDefault();
+    ev.stopPropagation();
+    onResizeStart?.(panel.id, ev);
+  }
 </script>
 
 <div
@@ -98,4 +106,19 @@
       <PanelComponent config={panel.config as any} {data} {loading} {error} />
     {/if}
   </div>
+
+  <!-- Resize handle (edit mode only) -->
+  {#if editMode}
+    <button
+      type="button"
+      class="absolute bottom-0 right-0 w-4 h-4 cursor-nwse-resize text-muted-foreground hover:text-primary z-20"
+      title="Drag to resize"
+      onpointerdown={handleResizePointerDown}
+      aria-label="Resize panel"
+    >
+      <svg viewBox="0 0 16 16" class="w-full h-full" fill="currentColor" aria-hidden="true">
+        <path d="M14 14h-2v-2h2v2zm0-4h-2V8h2v2zm0-4h-2V4h2v2zm-4 8H8v-2h2v2zm0-4H8V8h2v2zm-4 4H4v-2h2v2z" />
+      </svg>
+    </button>
+  {/if}
 </div>

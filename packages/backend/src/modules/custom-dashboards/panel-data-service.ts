@@ -18,10 +18,22 @@ import type {
   TopNTableConfig,
   LiveLogStreamConfig,
   AlertStatusConfig,
+  MetricChartConfig,
+  MetricStatConfig,
+  TraceLatencyConfig,
+  DetectionEventsConfig,
+  MonitorStatusConfig,
 } from '@logtide/shared';
 import { dashboardService } from '../dashboard/service.js';
 import { alertsService } from '../alerts/service.js';
+import { metricsService } from '../metrics/service.js';
+import { monitorService } from '../monitoring/routes.js';
+import { SiemDashboardService } from '../siem/dashboard-service.js';
+import { db } from '../../database/index.js';
 import { reservoir } from '../../database/reservoir.js';
+import { sql } from 'kysely';
+
+const siemDashboardService = new SiemDashboardService(db);
 
 export interface PanelDataContext {
   organizationId: string;
@@ -85,6 +97,58 @@ export interface AlertStatusData {
     triggeredAt: string;
     logCount: number;
   }>;
+}
+
+export interface MetricChartData {
+  metricName: string;
+  metricType: string;
+  series: Array<{ time: string; value: number; labels?: Record<string, string> }>;
+  aggregation: string;
+  interval: string;
+}
+
+export interface MetricStatData {
+  metricName: string;
+  value: number | null;
+  unit: string | null;
+  aggregation: string;
+}
+
+export interface TraceLatencyData {
+  series: Array<{
+    time: string;
+    p50: number | null;
+    p95: number | null;
+    p99: number | null;
+    spanCount: number;
+    errorRate: number;
+  }>;
+  serviceName: string | null;
+}
+
+export interface DetectionEventsData {
+  series: Array<{ time: string; count: number }>;
+  totalDetections: number;
+  bySeverity: Array<{ severity: string; count: number }>;
+}
+
+export interface MonitorStatusEntry {
+  id: string;
+  name: string;
+  type: string;
+  status: string | null;
+  enabled: boolean;
+  lastCheckedAt: string | null;
+  responseTimeMs: number | null;
+  consecutiveFailures: number;
+  severity: string;
+}
+
+export interface MonitorStatusData {
+  monitors: MonitorStatusEntry[];
+  totalUp: number;
+  totalDown: number;
+  totalUnknown: number;
 }
 
 // ─── Fetchers ──────────────────────────────────────────────────────────────
@@ -325,7 +389,237 @@ const alertStatusFetcher: PanelDataSource<AlertStatusConfig, AlertStatusData> = 
   },
 };
 
+const metricChartFetcher: PanelDataSource<MetricChartConfig, MetricChartData> = {
+  type: 'metric_chart',
+  async fetchData(config, ctx) {
+    const projectIds = config.projectId
+      ? [config.projectId]
+      : await resolveProjectIdsForOrg(ctx.organizationId);
+
+    if (projectIds.length === 0) {
+      return {
+        metricName: config.metricName,
+        metricType: 'gauge',
+        series: [],
+        aggregation: config.aggregation,
+        interval: config.interval,
+      };
+    }
+
+    const now = new Date();
+    const from = new Date(now.getTime() - timeRangeToMs(config.timeRange));
+
+    const result = await metricsService.aggregateMetrics({
+      projectId: projectIds,
+      metricName: config.metricName,
+      from,
+      to: now,
+      interval: config.interval,
+      aggregation: config.aggregation,
+      serviceName: config.serviceName ?? undefined,
+    });
+
+    return {
+      metricName: result.metricName,
+      metricType: result.metricType,
+      aggregation: config.aggregation,
+      interval: config.interval,
+      series: result.timeseries.map((b) => ({
+        time: b.bucket.toISOString(),
+        value: Number(b.value ?? 0),
+        labels: b.labels,
+      })),
+    };
+  },
+};
+
+const metricStatFetcher: PanelDataSource<MetricStatConfig, MetricStatData> = {
+  type: 'metric_stat',
+  async fetchData(config, ctx) {
+    const projectIds = config.projectId
+      ? [config.projectId]
+      : await resolveProjectIdsForOrg(ctx.organizationId);
+
+    if (projectIds.length === 0) {
+      return {
+        metricName: config.metricName,
+        value: null,
+        unit: config.unit,
+        aggregation: config.aggregation,
+      };
+    }
+
+    const now = new Date();
+    const from = new Date(now.getTime() - timeRangeToMs(config.timeRange));
+
+    // Use a single bucket spanning the whole window for the stat value.
+    // 1d is the largest supported aggregation interval that fits any
+    // timeRange this panel exposes (1h, 6h, 24h).
+    const result = await metricsService.aggregateMetrics({
+      projectId: projectIds,
+      metricName: config.metricName,
+      from,
+      to: now,
+      interval: '1d',
+      aggregation: config.aggregation,
+      serviceName: config.serviceName ?? undefined,
+    });
+
+    // Pick the latest non-null bucket
+    const latest = [...result.timeseries].reverse().find((b) => b.value != null);
+
+    return {
+      metricName: result.metricName,
+      value: latest ? Number(latest.value) : null,
+      unit: config.unit,
+      aggregation: config.aggregation,
+    };
+  },
+};
+
+const traceLatencyFetcher: PanelDataSource<TraceLatencyConfig, TraceLatencyData> = {
+  type: 'trace_latency',
+  async fetchData(config, ctx) {
+    const projectIds = config.projectId
+      ? [config.projectId]
+      : await resolveProjectIdsForOrg(ctx.organizationId);
+
+    if (projectIds.length === 0 || reservoir.getEngineType() !== 'timescale') {
+      return { series: [], serviceName: config.serviceName };
+    }
+
+    const now = new Date();
+    const rangeMs = timeRangeToMs(config.timeRange);
+    const from = new Date(now.getTime() - rangeMs);
+    // Use hourly aggregate for ranges <= 48h, daily otherwise.
+    const useHourly = rangeMs <= 48 * 60 * 60 * 1000;
+    const table = useHourly ? 'spans_hourly_stats' : 'spans_daily_stats';
+
+    let query = db
+      .selectFrom(table)
+      .select([
+        'bucket',
+        sql<string>`SUM(span_count)`.as('span_count'),
+        sql<string>`MAX(duration_p50_ms)`.as('p50'),
+        sql<string>`MAX(duration_p95_ms)`.as('p95'),
+        sql<string>`MAX(duration_p99_ms)`.as('p99'),
+        sql<string>`CASE WHEN SUM(span_count) > 0
+          THEN SUM(COALESCE(error_count, 0))::float / SUM(span_count)
+          ELSE 0 END`.as('error_rate'),
+      ])
+      .where('project_id', 'in', projectIds)
+      .where('bucket', '>=', from)
+      .where('bucket', '<=', now);
+
+    if (config.serviceName) {
+      query = query.where('service_name', '=', config.serviceName);
+    }
+
+    const rows = await query
+      .groupBy('bucket')
+      .orderBy('bucket', 'asc')
+      .execute();
+
+    return {
+      serviceName: config.serviceName,
+      series: rows.map((r) => ({
+        time: new Date(r.bucket as unknown as string).toISOString(),
+        p50: r.p50 != null ? Number(r.p50) : null,
+        p95: r.p95 != null ? Number(r.p95) : null,
+        p99: r.p99 != null ? Number(r.p99) : null,
+        spanCount: Number(r.span_count ?? 0),
+        errorRate: Number(r.error_rate ?? 0),
+      })),
+    };
+  },
+};
+
+const detectionEventsFetcher: PanelDataSource<
+  DetectionEventsConfig,
+  DetectionEventsData
+> = {
+  type: 'detection_events',
+  async fetchData(config, ctx) {
+    const stats = await siemDashboardService.getDashboardStats({
+      organizationId: ctx.organizationId,
+      projectId: config.projectId ?? undefined,
+      timeRange: config.timeRange,
+      severity: config.severities,
+    });
+
+    return {
+      series: stats.timeline.map((b) => ({
+        time: (b.timestamp instanceof Date
+          ? b.timestamp
+          : new Date(b.timestamp)
+        ).toISOString(),
+        count: b.count,
+      })),
+      totalDetections: stats.totalDetections,
+      bySeverity: stats.severityDistribution.map((s) => ({
+        severity: s.severity,
+        count: s.count,
+      })),
+    };
+  },
+};
+
+const monitorStatusFetcher: PanelDataSource<MonitorStatusConfig, MonitorStatusData> = {
+  type: 'monitor_status',
+  async fetchData(config, ctx) {
+    const monitors = await monitorService.listMonitors(
+      ctx.organizationId,
+      config.projectId ?? undefined
+    );
+
+    const filtered = config.monitorIds.length > 0
+      ? monitors.filter((m) => config.monitorIds.includes(m.id))
+      : monitors;
+
+    // Totals counted across the full filtered list (not just the rows we
+    // render), so the summary stays accurate even when limit truncates.
+    const totalUp = filtered.filter((m) => m.status?.status === 'up').length;
+    const totalDown = filtered.filter((m) => m.status?.status === 'down').length;
+    const totalUnknown = filtered.length - totalUp - totalDown;
+
+    const entries: MonitorStatusEntry[] = filtered.slice(0, config.limit).map((m) => ({
+      id: m.id,
+      name: m.name,
+      type: m.type,
+      status: m.status?.status ?? null,
+      enabled: m.enabled,
+      lastCheckedAt: m.status?.lastCheckedAt
+        ? (m.status.lastCheckedAt instanceof Date
+            ? m.status.lastCheckedAt
+            : new Date(m.status.lastCheckedAt)
+          ).toISOString()
+        : null,
+      responseTimeMs: m.status?.responseTimeMs ?? null,
+      consecutiveFailures: m.status?.consecutiveFailures ?? 0,
+      severity: m.severity,
+    }));
+
+    return {
+      monitors: entries,
+      totalUp,
+      totalDown,
+      totalUnknown,
+    };
+  },
+};
+
 // ─── Helpers ───────────────────────────────────────────────────────────────
+
+function timeRangeToMs(range: string): number {
+  switch (range) {
+    case '1h': return 60 * 60 * 1000;
+    case '6h': return 6 * 60 * 60 * 1000;
+    case '24h': return 24 * 60 * 60 * 1000;
+    case '7d': return 7 * 24 * 60 * 60 * 1000;
+    case '30d': return 30 * 24 * 60 * 60 * 1000;
+    default: return 24 * 60 * 60 * 1000;
+  }
+}
 
 async function resolveProjectIdsForOrg(organizationId: string): Promise<string[]> {
   const { db } = await import('../../database/index.js');
@@ -381,6 +675,11 @@ const dataFetchers: Record<PanelType, AnyFetcher> = {
   top_n_table: topNTableFetcher as AnyFetcher,
   live_log_stream: liveLogStreamFetcher as AnyFetcher,
   alert_status: alertStatusFetcher as AnyFetcher,
+  metric_chart: metricChartFetcher as AnyFetcher,
+  metric_stat: metricStatFetcher as AnyFetcher,
+  trace_latency: traceLatencyFetcher as AnyFetcher,
+  detection_events: detectionEventsFetcher as AnyFetcher,
+  monitor_status: monitorStatusFetcher as AnyFetcher,
 };
 
 export async function fetchPanelData(

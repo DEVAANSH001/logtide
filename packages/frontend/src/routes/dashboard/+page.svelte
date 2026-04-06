@@ -178,6 +178,10 @@
     customDashboardsStore.setPendingPanels(panels);
   }
 
+  function handleResizePanel(panelId: string, layout: import('@logtide/shared').PanelLayout) {
+    customDashboardsStore.updatePanelLayout(panelId, layout);
+  }
+
   function handleEditPanel(panelId: string) {
     editingPanelId = panelId;
   }
@@ -337,6 +341,7 @@
         panelData={$panelDataMap}
         editMode={$editMode}
         onReorder={handleReorder}
+        onResizePanel={handleResizePanel}
         onEditPanel={handleEditPanel}
         onRemovePanel={handleRemovePanel}
         onRefreshPanel={handleRefreshPanel}

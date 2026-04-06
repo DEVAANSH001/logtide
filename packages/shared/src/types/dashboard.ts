@@ -19,7 +19,12 @@ export type PanelType =
   | 'single_stat'
   | 'top_n_table'
   | 'live_log_stream'
-  | 'alert_status';
+  | 'alert_status'
+  | 'metric_chart'
+  | 'metric_stat'
+  | 'trace_latency'
+  | 'detection_events'
+  | 'monitor_status';
 
 // ─── Layout (12-column grid) ────────────────────────────────────────────────
 
@@ -83,12 +88,90 @@ export interface AlertStatusConfig {
   limit: number; // 5–20
 }
 
+// ─── Metrics panels (OTLP) ───────────────────────────────────────────────────
+
+export type MetricAggregation =
+  | 'avg'
+  | 'sum'
+  | 'min'
+  | 'max'
+  | 'count'
+  | 'last'
+  | 'p50'
+  | 'p95'
+  | 'p99';
+
+export type MetricInterval = '1m' | '5m' | '15m' | '1h' | '6h' | '1d';
+
+export interface MetricChartConfig {
+  type: 'metric_chart';
+  title: string;
+  source: 'metrics';
+  projectId: string | null;
+  metricName: string;
+  aggregation: MetricAggregation;
+  interval: MetricInterval;
+  timeRange: '1h' | '6h' | '24h' | '7d' | '30d';
+  serviceName: string | null;
+}
+
+export interface MetricStatConfig {
+  type: 'metric_stat';
+  title: string;
+  source: 'metrics';
+  projectId: string | null;
+  metricName: string;
+  aggregation: MetricAggregation;
+  timeRange: '1h' | '6h' | '24h';
+  serviceName: string | null;
+  unit: string | null;
+}
+
+// ─── Trace latency panel ─────────────────────────────────────────────────────
+
+export interface TraceLatencyConfig {
+  type: 'trace_latency';
+  title: string;
+  source: 'traces';
+  projectId: string | null;
+  serviceName: string | null;
+  timeRange: '1h' | '6h' | '24h' | '7d';
+  showPercentiles: Array<'p50' | 'p95' | 'p99'>;
+}
+
+// ─── Detection events panel ──────────────────────────────────────────────────
+
+export interface DetectionEventsConfig {
+  type: 'detection_events';
+  title: string;
+  source: 'detections';
+  projectId: string | null;
+  timeRange: '24h' | '7d' | '30d';
+  severities: Array<'critical' | 'high' | 'medium' | 'low' | 'informational'>;
+}
+
+// ─── Monitor status panel ────────────────────────────────────────────────────
+
+export interface MonitorStatusConfig {
+  type: 'monitor_status';
+  title: string;
+  source: 'monitors';
+  projectId: string | null;
+  monitorIds: string[]; // empty = show all monitors in scope
+  limit: number; // 3–20
+}
+
 export type PanelConfig =
   | TimeSeriesConfig
   | SingleStatConfig
   | TopNTableConfig
   | LiveLogStreamConfig
-  | AlertStatusConfig;
+  | AlertStatusConfig
+  | MetricChartConfig
+  | MetricStatConfig
+  | TraceLatencyConfig
+  | DetectionEventsConfig
+  | MonitorStatusConfig;
 
 // ─── Panel instance (layout + config) ───────────────────────────────────────
 

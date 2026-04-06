@@ -8,23 +8,24 @@
     getTooltipStyle,
     getLegendStyle,
   } from '$lib/utils/echarts-theme';
-  import type { TimeSeriesConfig } from '@logtide/shared';
+  import type { TraceLatencyConfig } from '@logtide/shared';
 
-  interface TimeSeriesPanelData {
-    series: Array<{
-      time: string;
-      total: number;
-      debug: number;
-      info: number;
-      warn: number;
-      error: number;
-      critical: number;
-    }>;
-    interval: string;
+  interface TraceLatencyRow {
+    time: string;
+    p50: number | null;
+    p95: number | null;
+    p99: number | null;
+    spanCount: number;
+    errorRate: number;
+  }
+
+  interface TraceLatencyData {
+    series: TraceLatencyRow[];
+    serviceName: string | null;
   }
 
   interface Props {
-    config: TimeSeriesConfig;
+    config: TraceLatencyConfig;
     data: unknown;
     loading: boolean;
     error: string | null;
@@ -33,11 +34,10 @@
   let { config, data }: Props = $props();
   let chartContainer: HTMLDivElement;
   let chart: echarts.ECharts | null = null;
+  const typed = $derived(data as TraceLatencyData | null);
 
-  const typedData = $derived(data as TimeSeriesPanelData | null);
-
-  function formatTimeLabel(time: string): string {
-    return new Date(time).toLocaleTimeString(undefined, {
+  function fmtTime(t: string): string {
+    return new Date(t).toLocaleTimeString(undefined, {
       hour: '2-digit',
       minute: '2-digit',
       hour12: false,
@@ -48,84 +48,61 @@
     const axisStyle = getAxisStyle();
     const tooltipStyle = getTooltipStyle();
     const legendStyle = getLegendStyle();
-    const series = typedData?.series ?? [];
-    const showDebug = config.levels.includes('debug');
-    const showInfo = config.levels.includes('info');
-    const showWarn = config.levels.includes('warn');
-    const showError = config.levels.includes('error');
-    const showCritical = config.levels.includes('critical');
+    const series = typed?.series ?? [];
+    const xData = series.map((d) => fmtTime(d.time));
 
     const lineSeries: echarts.SeriesOption[] = [];
-    if (showDebug) {
+    if (config.showPercentiles.includes('p50')) {
       lineSeries.push({
-        name: 'Debug',
+        name: 'p50',
         type: 'line',
         smooth: true,
         showSymbol: false,
-        data: series.map((d) => d.debug),
-        lineStyle: { color: chartColors.series.gray ?? '#9ca3af' },
-        itemStyle: { color: chartColors.series.gray ?? '#9ca3af' },
-      });
-    }
-    if (showInfo) {
-      lineSeries.push({
-        name: 'Info',
-        type: 'line',
-        smooth: true,
-        showSymbol: false,
-        data: series.map((d) => d.info),
+        data: series.map((d) => d.p50),
         lineStyle: { color: chartColors.series.green },
         itemStyle: { color: chartColors.series.green },
       });
     }
-    if (showWarn) {
+    if (config.showPercentiles.includes('p95')) {
       lineSeries.push({
-        name: 'Warn',
+        name: 'p95',
         type: 'line',
         smooth: true,
         showSymbol: false,
-        data: series.map((d) => d.warn),
+        data: series.map((d) => d.p95),
         lineStyle: { color: chartColors.series.amber },
         itemStyle: { color: chartColors.series.amber },
       });
     }
-    if (showError) {
+    if (config.showPercentiles.includes('p99')) {
       lineSeries.push({
-        name: 'Error',
+        name: 'p99',
         type: 'line',
         smooth: true,
         showSymbol: false,
-        data: series.map((d) => d.error),
+        data: series.map((d) => d.p99),
         lineStyle: { color: chartColors.series.red },
         itemStyle: { color: chartColors.series.red },
       });
     }
-    if (showCritical) {
-      lineSeries.push({
-        name: 'Critical',
-        type: 'line',
-        smooth: true,
-        showSymbol: false,
-        data: series.map((d) => d.critical),
-        lineStyle: { color: chartColors.series.purple ?? '#a855f7' },
-        itemStyle: { color: chartColors.series.purple ?? '#a855f7' },
-      });
-    }
 
     return {
-      tooltip: { trigger: 'axis', axisPointer: { type: 'cross' }, ...tooltipStyle },
+      tooltip: {
+        trigger: 'axis',
+        axisPointer: { type: 'cross' },
+        valueFormatter: (v) => (v == null ? '-' : `${Number(v).toFixed(0)} ms`),
+        ...tooltipStyle,
+      },
       legend: { bottom: 0, ...legendStyle },
       grid: { left: '3%', right: '4%', top: 8, bottom: 32, containLabel: true },
-      xAxis: {
-        type: 'category',
-        boundaryGap: false,
-        data: series.map((d) => formatTimeLabel(d.time)),
-        ...axisStyle,
-      },
+      xAxis: { type: 'category', boundaryGap: false, data: xData, ...axisStyle },
       yAxis: {
         type: 'value',
-        minInterval: 1,
         ...axisStyle,
+        axisLabel: {
+          ...axisStyle.axisLabel,
+          formatter: (v: number) => `${v} ms`,
+        },
       },
       series: lineSeries,
     };
@@ -134,14 +111,11 @@
   onMount(() => {
     chart = echarts.init(chartContainer);
     chart.setOption(buildOption());
-
     const observer = new ResizeObserver(() => chart?.resize());
     observer.observe(chartContainer);
-
     const unsub = themeStore.subscribe(() => {
       if (chart) chart.setOption(buildOption(), true);
     });
-
     return () => {
       observer.disconnect();
       unsub();
@@ -150,7 +124,7 @@
   });
 
   $effect(() => {
-    if (chart && typedData) {
+    if (chart && typed) {
       chart.setOption(buildOption(), true);
     }
   });
