@@ -34,10 +34,10 @@ describe('Sigma Detection Job', () => {
     });
 
     describe('processSigmaDetection', () => {
-        it('should process logs with no matches', async () => {
+        it('should process logs with no matches without errors', async () => {
             const { organization } = await createTestContext();
 
-            const consoleSpy = vi.spyOn(console, 'log');
+            const consoleErrorSpy = vi.spyOn(console, 'error');
 
             const jobData: SigmaDetectionData = {
                 logs: [
@@ -51,11 +51,11 @@ describe('Sigma Detection Job', () => {
                 organizationId: organization.id,
             };
 
-            await processSigmaDetection({ data: jobData });
-
-            expect(consoleSpy).toHaveBeenCalledWith(
-                expect.stringContaining('No matches found')
-            );
+            // Should complete without throwing — no rules, so no matches expected
+            await expect(
+                processSigmaDetection({ data: jobData })
+            ).resolves.toBeUndefined();
+            expect(consoleErrorSpy).not.toHaveBeenCalled();
         });
 
         it('should find matches when logs match Sigma rules', async () => {
