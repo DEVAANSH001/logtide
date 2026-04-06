@@ -33,6 +33,7 @@ interface MonitorWithStatusRow {
   target: string | null;
   interval_seconds: number;
   timeout_seconds: number;
+  grace_period_seconds: number | null;
   failure_threshold: number;
   auto_resolve: boolean;
   enabled: boolean;
