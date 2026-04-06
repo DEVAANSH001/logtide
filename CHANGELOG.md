@@ -52,6 +52,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **Step builder**: interactive UI for adding, reordering, and configuring parser, grok, and geoip steps with per-type configuration forms
   - **Pipeline edit page** redirects to the list when the active organization is switched, preventing stale-ID errors
 
+- **Custom dashboards with configurable panels** (issue #151): user-built dashboards replace the previous fixed `/dashboard` page, with team-specific views across all observability domains
+  - **9 panel types** covering every data source: time series, single stat, top-N table, live log stream, alert status (logs/alerts), metric chart and metric stat (OTLP metrics with avg/sum/min/max/count/last/p50/p95/p99 aggregations), trace latency (p50/p95/p99 from spans), detection events (SIEM by severity), monitor status (uptime + response time)
+  - **Panel registry architecture**: adding a new panel type touches only 6 files (shared types, backend Zod schema, backend fetcher, frontend panel component, frontend config form, frontend registry entry); the renderer, container, store, and routes never need to change
+  - **Drag-and-drop reorder** via `svelte-dnd-action` with optimistic local state and a single PUT save
+  - **Drag-to-resize** with bottom-right pointer-event handle, snapping to grid units; constrained by per-type min width/height from the registry
+  - **Responsive 12/6/1 column grid** that collapses panels to 6 columns on tablet (640-1024px) and 1 column on mobile (<640px); stored widths are always in the canonical 12-col reference and scale proportionally
+  - **Auto-created Default dashboard** per organization, idempotent via Postgres unique-violation guard, replicating the previous fixed layout (4 stat cards + log volume + top services + top error messages) so existing users see no visual change
+  - **Inline edit mode** with toggle, no separate edit page; pending changes are kept in a snapshot and discarded on Cancel
+  - **Per-panel configuration dialogs** with type-specific forms (level toggles, intervals, aggregation pickers, percentile selectors)
+  - **Dashboard switcher dropdown** in the page header with personal/shared distinction, create, delete (default protected), import, export
+  - **YAML import/export**: dashboards round-trip through YAML for version-controlling alongside infrastructure code; import regenerates panel IDs and uses `JSON_SCHEMA` to block JS-tag prototype pollution
+  - **Versioned JSON schema** (`schema_version: 1`) with a migration framework in `@logtide/shared`: each version writes a `MigrationFn` indexed by target version, `migrateDashboard` walks the chain on every read; clamps out-of-range versions defensively
+  - **Cross-org isolation guard**: every panel data fetch verifies that `config.projectId` belongs to the requesting org, preventing data leaks via crafted YAML imports or stale references
+  - **Batch panel data endpoint** (`POST /:id/panels/data`): single round-trip fetches all panel data via `Promise.allSettled`, individual panel errors do not fail the dashboard
+  - **Organization scoping**: dashboards are org-scoped with optional `is_personal` flag (only visible to creator) and `created_by` tracking; partial unique indexes prevent multiple defaults per (org, project) scope
+  - **Migration `039_custom_dashboards.sql`**: JSONB `panels` column with GIN index for future panel-type filtering, partial unique indexes for default scope guarantees
+
 ## [0.8.6] - 2026-03-31
 
 ### Fixed
