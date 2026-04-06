@@ -44,6 +44,7 @@
   let formInterval = $state(60);
   let formTimeout = $state(10);
   let formThreshold = $state(2);
+  let formGracePeriod = $state<number | null>(null);
   let formAutoResolve = $state(true);
   let formEnabled = $state(true);
   let projectId = $state<string | undefined>(undefined);
@@ -81,6 +82,7 @@
     formInterval = 60;
     formTimeout = 10;
     formThreshold = 2;
+    formGracePeriod = null;
     formAutoResolve = true;
     formEnabled = true;
   }
@@ -98,6 +100,7 @@
     formInterval = monitor.intervalSeconds;
     formTimeout = monitor.timeoutSeconds;
     formThreshold = monitor.failureThreshold;
+    formGracePeriod = monitor.gracePeriodSeconds;
     formAutoResolve = monitor.autoResolve;
     formEnabled = monitor.enabled;
     editingMonitor = monitor;
@@ -152,6 +155,7 @@
           target: formTarget || null,
           intervalSeconds: formInterval,
           timeoutSeconds: formTimeout,
+          gracePeriodSeconds: formType === 'log_heartbeat' ? formGracePeriod : null,
           failureThreshold: formThreshold,
           autoResolve: formAutoResolve,
           enabled: formEnabled,
@@ -166,6 +170,7 @@
           target: formTarget || null,
           intervalSeconds: formInterval,
           timeoutSeconds: formTimeout,
+          gracePeriodSeconds: formType === 'log_heartbeat' ? formGracePeriod : null,
           failureThreshold: formThreshold,
           autoResolve: formAutoResolve,
           enabled: formEnabled,
@@ -633,6 +638,21 @@
               max="60"
               class="w-full rounded-md border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
             />
+          </div>
+        {/if}
+
+        {#if formType === 'log_heartbeat'}
+          <div>
+            <label class="mb-1 block text-sm font-medium">Silence threshold (seconds)</label>
+            <input
+              type="number"
+              bind:value={formGracePeriod}
+              min="60"
+              max="86400"
+              placeholder={String(Math.round(formInterval * 1.5))}
+              class="w-full rounded-md border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+            />
+            <p class="mt-1 text-xs text-muted-foreground">Mark as down after this many seconds without logs. Default: {Math.round(formInterval * 1.5)}s (interval × 1.5)</p>
           </div>
         {/if}
 

@@ -31,6 +31,7 @@ export interface Monitor {
   target: string | null;
   intervalSeconds: number;
   timeoutSeconds: number;
+  gracePeriodSeconds: number | null;
   failureThreshold: number;
   autoResolve: boolean;
   enabled: boolean;
@@ -81,6 +82,7 @@ export interface CreateMonitorInput {
   target?: string | null;
   intervalSeconds?: number;
   timeoutSeconds?: number;
+  gracePeriodSeconds?: number | null;
   failureThreshold?: number;
   autoResolve?: boolean;
   enabled?: boolean;
@@ -93,6 +95,7 @@ export interface UpdateMonitorInput {
   target?: string | null;
   intervalSeconds?: number;
   timeoutSeconds?: number;
+  gracePeriodSeconds?: number | null;
   failureThreshold?: number;
   autoResolve?: boolean;
   enabled?: boolean;

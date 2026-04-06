@@ -262,7 +262,7 @@
           <div class="mt-4 pt-4 border-t">
             <p class="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">Log-based monitoring</p>
             <p class="text-xs text-muted-foreground">
-              This monitor checks if the service <code class="bg-muted rounded px-1">{monitor.target}</code> has sent logs within the last {Math.round(monitor.intervalSeconds * 1.5)}s (interval × 1.5).
+              This monitor checks if the service <code class="bg-muted rounded px-1">{monitor.target}</code> has sent logs within the last {monitor.gracePeriodSeconds ?? Math.round(monitor.intervalSeconds * 1.5)}s.
             </p>
           </div>
         {/if}

@@ -148,10 +148,10 @@ export async function runHeartbeatCheck(
 export async function runLogHeartbeatCheck(
   serviceName: string,
   projectId: string,
-  intervalSeconds: number,
+  graceSeconds: number,
   reservoir: Reservoir
 ): Promise<CheckResult> {
-  const graceMs = intervalSeconds * 1.5 * 1000;
+  const graceMs = graceSeconds * 1000;
   const since = new Date(Date.now() - graceMs);
 
   const result = await reservoir.query({

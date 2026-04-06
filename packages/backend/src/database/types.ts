@@ -460,6 +460,7 @@ export interface MonitorsTable {
   enabled: Generated<boolean>;
   http_config: MonitorHttpConfig | null;
   severity: Generated<string>;
+  grace_period_seconds: number | null;
   created_at: Generated<Timestamp>;
   updated_at: Generated<Timestamp>;
 }

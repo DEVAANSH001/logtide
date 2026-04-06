@@ -122,6 +122,7 @@ export class MonitorService {
           target: input.target ?? null,
           interval_seconds: input.intervalSeconds ?? 60,
           timeout_seconds: input.timeoutSeconds ?? 10,
+          grace_period_seconds: input.gracePeriodSeconds ?? null,
           failure_threshold: input.failureThreshold ?? 2,
           auto_resolve: input.autoResolve ?? true,
           enabled: input.enabled ?? true,
@@ -153,6 +154,7 @@ export class MonitorService {
         ...(input.target !== undefined && { target: input.target }),
         ...(input.intervalSeconds !== undefined && { interval_seconds: input.intervalSeconds }),
         ...(input.timeoutSeconds !== undefined && { timeout_seconds: input.timeoutSeconds }),
+        ...(input.gracePeriodSeconds !== undefined && { grace_period_seconds: input.gracePeriodSeconds }),
         ...(input.failureThreshold !== undefined && { failure_threshold: input.failureThreshold }),
         ...(input.autoResolve !== undefined && { auto_resolve: input.autoResolve }),
         ...(input.enabled !== undefined && { enabled: input.enabled }),
@@ -504,7 +506,8 @@ export class MonitorService {
         const { host, port } = parseTcpTarget(monitor.target!);
         result = await runTcpCheck(host, port, monitor.timeoutSeconds);
       } else if (monitor.type === 'log_heartbeat') {
-        result = await runLogHeartbeatCheck(monitor.target!, monitor.projectId, monitor.intervalSeconds, reservoir);
+        const graceSeconds = monitor.gracePeriodSeconds ?? Math.round(monitor.intervalSeconds * 1.5);
+        result = await runLogHeartbeatCheck(monitor.target!, monitor.projectId, graceSeconds, reservoir);
       } else {
         // Ping-based heartbeat: client POSTs to the heartbeat endpoint
         result = await runHeartbeatCheck(monitor.id, monitor.intervalSeconds, this.db);
@@ -675,6 +678,7 @@ export class MonitorService {
       target: row.target,
       intervalSeconds: row.interval_seconds,
       timeoutSeconds: row.timeout_seconds,
+      gracePeriodSeconds: row.grace_period_seconds ?? null,
       failureThreshold: row.failure_threshold,
       autoResolve: row.auto_resolve,
       enabled: row.enabled,
