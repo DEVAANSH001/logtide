@@ -16,6 +16,7 @@ import type {
   ChannelConfig,
   PackCategory,
   ApiKeyType,
+  PanelInstance,
 } from '@logtide/shared';
 
 // Re-export types for backward compatibility (modules importing from database/types)
@@ -970,6 +971,25 @@ export interface MetricExemplarsTable {
 }
 
 // ============================================================================
+// CUSTOM DASHBOARDS TABLE
+// ============================================================================
+
+export interface CustomDashboardsTable {
+  id: Generated<string>;
+  organization_id: string;
+  project_id: string | null;
+  created_by: string | null;
+  name: string;
+  description: string | null;
+  is_default: Generated<boolean>;
+  is_personal: Generated<boolean>;
+  schema_version: Generated<number>;
+  panels: ColumnType<PanelInstance[], PanelInstance[] | string, PanelInstance[] | string>;
+  created_at: Generated<Timestamp>;
+  updated_at: Generated<Timestamp>;
+}
+
+// ============================================================================
 // LOG PIPELINES TABLE
 // ============================================================================
 
@@ -1056,6 +1076,8 @@ export interface Database {
   metric_exemplars: MetricExemplarsTable;
   // Log pipelines
   log_pipelines: LogPipelinesTable;
+  // Custom dashboards
+  custom_dashboards: CustomDashboardsTable;
   // Service health monitoring
   monitors: MonitorsTable;
   monitor_status: MonitorStatusTable;

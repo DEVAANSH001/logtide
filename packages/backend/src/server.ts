@@ -32,6 +32,7 @@ import { retentionRoutes } from './modules/retention/index.js';
 import { correlationRoutes, patternRoutes } from './modules/correlation/index.js';
 import { piiMaskingRoutes } from './modules/pii-masking/index.js';
 import { pipelineRoutes } from './modules/log-pipeline/index.js';
+import { customDashboardsRoutes } from './modules/custom-dashboards/index.js';
 import { monitoringRoutes, heartbeatRoutes, publicStatusRoutes } from './modules/monitoring/index.js';
 import { statusIncidentRoutes } from './modules/status-incidents/routes.js';
 import { maintenanceRoutes } from './modules/maintenances/routes.js';
@@ -185,6 +186,7 @@ export async function build(opts = {}) {
   await fastify.register(patternRoutes, { prefix: '/api' });
   await fastify.register(piiMaskingRoutes, { prefix: '/api' });
   await fastify.register(pipelineRoutes, { prefix: '/api/v1/log-pipelines' });
+  await fastify.register(customDashboardsRoutes, { prefix: '/api/v1/custom-dashboards' });
   await fastify.register(otlpRoutes);
   await fastify.register(otlpTraceRoutes);
   await fastify.register(otlpMetricRoutes);
