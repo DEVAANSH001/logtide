@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - **Quick Start cURL example failed validation**: the empty-state code snippet sent `{logs: [{level, service, message}]}` without a `time` field, but `logSchema` required it for the standard ingestion path (only the array-format path ran `normalizeLogData`). The schema now defaults `time` to the current ISO string when missing, so copy-paste examples and minimal payloads validate without requiring users to inject a timestamp.
 - **Noisy Sigma worker logs**: `[SigmaDetection] No matches found` was emitted at info level on every batch with no detections, flooding worker output in normal operation. The line is now gated behind `DEBUG_SIGMA=true` so it only appears when explicitly opted in.
+- **No admin user when `INITIAL_ADMIN_*` not set** ([#188](https://github.com/logtide-dev/logtide/issues/188)): on a fresh instance without `INITIAL_ADMIN_EMAIL`/`INITIAL_ADMIN_PASSWORD`, no usable admin existed and admin settings were unreachable. The bootstrap no longer creates a system fallback user; instead, the first user to register (via `/register` or external auth provider) is automatically promoted to admin if no admin exists yet.
 
 ## [0.8.6] - 2026-03-31
 

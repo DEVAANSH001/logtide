@@ -64,7 +64,23 @@ export class UsersService {
   }
 
   /**
-   * Create a new user
+   * Check if any admin user currently exists in the database.
+   * Used to decide whether a newly registered user should be promoted to admin.
+   */
+  async hasAnyAdmin(): Promise<boolean> {
+    const result = await db
+      .selectFrom('users')
+      .select(db.fn.count('id').as('count'))
+      .where('is_admin', '=', true)
+      .executeTakeFirst();
+
+    return Number(result?.count || 0) > 0;
+  }
+
+  /**
+   * Create a new user.
+   * If no admin exists yet, the new user is automatically promoted to admin
+   * so the instance always has at least one user able to access admin settings.
    */
   async createUser(input: CreateUserInput): Promise<UserProfile> {
     // Check if user already exists
@@ -81,6 +97,12 @@ export class UsersService {
     // Hash the password
     const passwordHash = await this.hashPassword(input.password);
 
+    // Promote first user to admin if no admin exists yet
+    const shouldBeAdmin = !(await this.hasAnyAdmin());
+    if (shouldBeAdmin) {
+      console.log(`[Users] No admin exists yet. Promoting ${input.email} to admin on registration.`);
+    }
+
     // Insert the user
     const user = await db
       .insertInto('users')
@@ -88,6 +110,7 @@ export class UsersService {
         email: input.email,
         password_hash: passwordHash,
         name: input.name,
+        is_admin: shouldBeAdmin,
       })
       .returning(['id', 'email', 'name', 'is_admin', 'disabled', 'created_at', 'last_login'])
       .executeTakeFirstOrThrow();

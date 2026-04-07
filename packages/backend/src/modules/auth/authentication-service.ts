@@ -333,6 +333,17 @@ export class AuthenticationService {
       );
     }
 
+    // Promote first user to admin if no admin exists yet (matches local registration behavior)
+    const adminCount = await db
+      .selectFrom('users')
+      .select(db.fn.count('id').as('count'))
+      .where('is_admin', '=', true)
+      .executeTakeFirst();
+    const shouldBeAdmin = Number(adminCount?.count || 0) === 0;
+    if (shouldBeAdmin) {
+      console.log(`[Auth] No admin exists yet. Promoting ${email} to admin on first external login.`);
+    }
+
     // Create new user
     const newUser = await db
       .insertInto('users')
@@ -340,6 +351,7 @@ export class AuthenticationService {
         email,
         name,
         password_hash: null, // External auth users don't have local passwords
+        is_admin: shouldBeAdmin,
         last_login: new Date(),
       })
       .returning(['id', 'email', 'name', 'is_admin', 'disabled', 'created_at', 'last_login'])
