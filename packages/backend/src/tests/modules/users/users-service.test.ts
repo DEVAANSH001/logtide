@@ -80,6 +80,17 @@ describe('UsersService', () => {
 
     describe('createUser', () => {
         it('should create a user with valid input', async () => {
+            // Seed an existing admin so the new user is created as a regular (non-admin) user
+            await db
+                .insertInto('users')
+                .values({
+                    email: 'existing-admin@example.com',
+                    password_hash: await usersService.hashPassword('adminpass'),
+                    name: 'Existing Admin',
+                    is_admin: true,
+                })
+                .execute();
+
             const user = await usersService.createUser({
                 email: 'test@example.com',
                 password: 'password123',
@@ -91,6 +102,32 @@ describe('UsersService', () => {
             expect(user.name).toBe('Test User');
             expect(user.is_admin).toBe(false);
             expect(user.disabled).toBe(false);
+        });
+
+        it('should promote the first user to admin when no admin exists', async () => {
+            const user = await usersService.createUser({
+                email: 'first@example.com',
+                password: 'password123',
+                name: 'First User',
+            });
+
+            expect(user.is_admin).toBe(true);
+        });
+
+        it('should not promote subsequent users to admin', async () => {
+            const first = await usersService.createUser({
+                email: 'first@example.com',
+                password: 'password123',
+                name: 'First User',
+            });
+            expect(first.is_admin).toBe(true);
+
+            const second = await usersService.createUser({
+                email: 'second@example.com',
+                password: 'password123',
+                name: 'Second User',
+            });
+            expect(second.is_admin).toBe(false);
         });
 
         it('should throw error for duplicate email', async () => {

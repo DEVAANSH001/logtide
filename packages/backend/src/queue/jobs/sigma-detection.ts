@@ -70,7 +70,12 @@ export async function processSigmaDetection(job: any) {
     });
 
     if (allMatches.length === 0) {
-      console.log(`[SigmaDetection] No matches found`);
+      // No detections — log only when DEBUG_SIGMA is enabled to avoid noisy worker output
+      if (process.env.DEBUG_SIGMA === 'true') {
+        console.log(
+          `[SigmaDetection] No matches for ${data.logs.length} logs (org ${data.organizationId})`
+        );
+      }
       return;
     }
 

@@ -969,6 +969,94 @@ describe('AuthenticationService', () => {
     });
 
     // ==========================================================================
+    // First-user-becomes-admin promotion (issue #188)
+    // ==========================================================================
+    describe('findOrCreateUser - First User Admin Promotion', () => {
+        const mockProviderForNewUser = (slug: string, email: string, providerUserId: string) => {
+            const providerId = crypto.randomUUID();
+            const mockProvider = {
+                config: {
+                    id: providerId,
+                    type: 'oidc',
+                    slug,
+                    enabled: true,
+                    config: { allowAutoRegister: true },
+                },
+                authenticate: vi.fn().mockResolvedValue({
+                    success: true,
+                    providerUserId,
+                    email,
+                    name: 'External User',
+                }),
+                supportsRedirect: () => true,
+            };
+            return { providerId, mockProvider };
+        };
+
+        it('should promote first externally-registered user to admin when no admin exists', async () => {
+            const { providerId, mockProvider } = mockProviderForNewUser(
+                'oidc-first-admin',
+                'first-external@example.com',
+                'first-external'
+            );
+
+            await db.insertInto('auth_providers').values({
+                id: providerId,
+                type: 'oidc',
+                name: 'OIDC',
+                slug: 'oidc-first-admin',
+                enabled: true,
+                config: { allowAutoRegister: true },
+            }).execute();
+
+            const getProviderSpy = vi.spyOn(providerRegistryModule.providerRegistry, 'getProvider')
+                .mockResolvedValue(mockProvider as any);
+
+            const result = await authService.authenticateWithProvider('oidc-first-admin', {});
+
+            expect(result.isNewUser).toBe(true);
+            expect(result.user.is_admin).toBe(true);
+
+            getProviderSpy.mockRestore();
+        });
+
+        it('should not promote subsequent externally-registered users to admin', async () => {
+            // Pre-existing admin
+            await createTestUser({ email: 'existing-admin@example.com' });
+            await db
+                .updateTable('users')
+                .set({ is_admin: true })
+                .where('email', '=', 'existing-admin@example.com')
+                .execute();
+
+            const { providerId, mockProvider } = mockProviderForNewUser(
+                'oidc-second',
+                'second-external@example.com',
+                'second-external'
+            );
+
+            await db.insertInto('auth_providers').values({
+                id: providerId,
+                type: 'oidc',
+                name: 'OIDC',
+                slug: 'oidc-second',
+                enabled: true,
+                config: { allowAutoRegister: true },
+            }).execute();
+
+            const getProviderSpy = vi.spyOn(providerRegistryModule.providerRegistry, 'getProvider')
+                .mockResolvedValue(mockProvider as any);
+
+            const result = await authService.authenticateWithProvider('oidc-second', {});
+
+            expect(result.isNewUser).toBe(true);
+            expect(result.user.is_admin).toBe(false);
+
+            getProviderSpy.mockRestore();
+        });
+    });
+
+    // ==========================================================================
     // Local Identity Unlinking (Password Hash Clearing)
     // ==========================================================================
     describe('unlinkIdentity - Local Provider Password Clearing', () => {

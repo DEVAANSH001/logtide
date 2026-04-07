@@ -23,7 +23,11 @@ export const exceptionLanguageSchema = z.enum(EXCEPTION_LANGUAGES);
 export const apiKeyTypeSchema = z.enum(API_KEY_TYPES);
 
 export const logSchema = z.object({
-  time: z.string().datetime().or(z.date()),
+  time: z
+    .string()
+    .datetime()
+    .or(z.date())
+    .default(() => new Date().toISOString()),
   service: z.string().min(1).max(100),
   level: logLevelSchema,
   message: z.string().min(1),
