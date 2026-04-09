@@ -13,7 +13,11 @@
   import type { Project } from '@logtide/shared';
   import Button from '$lib/components/ui/button/button.svelte';
   import { Badge } from '$lib/components/ui/badge';
+  import * as Collapsible from '$lib/components/ui/collapsible';
+  import StatusBadgeEmbed from '$lib/components/monitoring/StatusBadgeEmbed.svelte';
   import Activity from '@lucide/svelte/icons/activity';
+  import ChevronDown from '@lucide/svelte/icons/chevron-down';
+  import Code2 from '@lucide/svelte/icons/code-2';
   import Plus from '@lucide/svelte/icons/plus';
   import RefreshCw from '@lucide/svelte/icons/refresh-cw';
   import Trash2 from '@lucide/svelte/icons/trash-2';
@@ -516,6 +520,23 @@
           <Button size="sm" disabled={!statusPagePassword || savingVisibility} onclick={savePassword}>
             Save password
           </Button>
+        </div>
+      {/if}
+
+      {#if selectedProject.statusPageVisibility === 'public' && selectedProject.slug}
+        <div class="border-t pt-2 mt-1">
+          <Collapsible.Root>
+            <Collapsible.Trigger class="group flex w-full items-center justify-between rounded-md px-2 py-1.5 text-sm font-medium hover:bg-accent transition-colors">
+              <span class="flex items-center gap-2">
+                <Code2 class="h-4 w-4 text-muted-foreground" />
+                Embed badge
+              </span>
+              <ChevronDown class="h-4 w-4 text-muted-foreground transition-transform duration-200 group-data-[state=open]:rotate-180" />
+            </Collapsible.Trigger>
+            <Collapsible.Content class="pt-3">
+              <StatusBadgeEmbed projectSlug={selectedProject.slug} />
+            </Collapsible.Content>
+          </Collapsible.Root>
         </div>
       {/if}
     </div>
