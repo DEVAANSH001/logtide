@@ -12,7 +12,7 @@ export type ErrorCode =
   | 'no_heartbeat'
   | 'unexpected';
 
-// Alias for the database JSONB shape — single source of truth in database/types.ts
+// Alias for the database JSONB shape - single source of truth in database/types.ts
 export type HttpConfig = MonitorHttpConfig;
 
 export interface CheckResult {

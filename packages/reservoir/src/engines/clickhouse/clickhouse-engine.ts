@@ -192,7 +192,7 @@ export class ClickHouseEngine extends StorageEngine {
       // index may already exist
     }
 
-    // Bloom filter on id — lets getByIds skip data granules that don't contain
+    // Bloom filter on id - lets getByIds skip data granules that don't contain
     // any of the requested UUIDs without a full project scan.
     try {
       await client.command({
@@ -225,7 +225,7 @@ export class ClickHouseEngine extends StorageEngine {
       // projection may already exist
     }
 
-    // Materialized column for hostname — extracted from metadata JSON once at ingest time.
+    // Materialized column for hostname - extracted from metadata JSON once at ingest time.
     // Eliminates JSONExtractString() calls on every DISTINCT/filter query row.
     // MATERIALIZE backfills existing data parts asynchronously during merges.
     try {

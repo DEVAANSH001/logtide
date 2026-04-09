@@ -1,4 +1,4 @@
-// SIEM & Alerts load test — dashboard, incidents, alert rules under load
+// SIEM & Alerts load test - dashboard, incidents, alert rules under load
 import http from 'k6/http';
 import { check, sleep } from 'k6';
 import { Trend } from 'k6/metrics';

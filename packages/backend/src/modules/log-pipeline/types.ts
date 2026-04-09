@@ -47,7 +47,7 @@ export interface UpdatePipelineInput {
   steps?: PipelineStep[];
 }
 
-/** Input to the pipeline executor — one log entry */
+/** Input to the pipeline executor - one log entry */
 export interface LogForPipeline {
   id: string;
   time: Date;

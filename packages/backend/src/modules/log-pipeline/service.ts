@@ -87,7 +87,7 @@ export class PipelineService {
     return row ? this.mapRow(row as unknown as Record<string, unknown>) : null;
   }
 
-  /** Used by the BullMQ job — cached. Project pipeline takes priority over org-wide. */
+  /** Used by the BullMQ job - cached. Project pipeline takes priority over org-wide. */
   async getForProject(projectId: string, organizationId: string): Promise<Pipeline | null> {
     const cacheKey = `${organizationId}:${projectId}`;
     const cached = this.cache.get(cacheKey);

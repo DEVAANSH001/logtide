@@ -58,12 +58,12 @@
   }
 
   function formatDate(d: string | null | undefined) {
-    if (!d) return '—';
+    if (!d) return '-';
     return new Date(d).toLocaleString();
   }
 
   function formatResponseTime(ms: number | null | undefined) {
-    if (ms == null) return '—';
+    if (ms == null) return '-';
     return `${ms}ms`;
   }
 
@@ -144,7 +144,7 @@
       <div class="rounded-lg border bg-card p-4">
         <p class="text-xs font-medium uppercase tracking-wider text-muted-foreground">30-day uptime</p>
         <p class="mt-2 text-lg font-semibold">
-          {overallUptime != null ? `${overallUptime}%` : '—'}
+          {overallUptime != null ? `${overallUptime}%` : '-'}
         </p>
       </div>
       <div class="rounded-lg border bg-card p-4">
@@ -167,7 +167,7 @@
             <div
               class="flex-1 rounded-sm {uptimeColor(Number(bucket.uptimePct))} transition-all"
               style="height: {Math.max(8, (Number(bucket.uptimePct) / 100) * 48)}px; min-height: 4px"
-              title="{new Date(bucket.bucket).toLocaleDateString()} — {Number(bucket.uptimePct).toFixed(1)}%"
+              title="{new Date(bucket.bucket).toLocaleDateString()} - {Number(bucket.uptimePct).toFixed(1)}%"
             ></div>
           {/each}
         </div>

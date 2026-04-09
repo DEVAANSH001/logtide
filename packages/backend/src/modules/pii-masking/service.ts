@@ -555,7 +555,7 @@ export class PiiMaskingService {
         .values({ organization_id: organizationId, salt })
         .execute();
     } catch {
-      // race condition — another worker inserted first
+      // race condition - another worker inserted first
       const retry = await db
         .selectFrom('organization_pii_salts')
         .select(['salt'])
@@ -579,7 +579,7 @@ export class PiiMaskingService {
 
     let result = text;
     for (const rule of ruleSet.contentRules) {
-      // Reuse compiled regex — just reset lastIndex for global regexes
+      // Reuse compiled regex - just reset lastIndex for global regexes
       rule.regex.lastIndex = 0;
       result = result.replace(rule.regex, (match) => {
         return this.applyAction(match, rule.action, rule.redactLabel, rule.maskFormatter, ruleSet.orgSalt);
@@ -716,7 +716,7 @@ export class PiiMaskingService {
         const nums = q.match(/\{(\d+)(?:,(\d*))?\}/);
         if (nums) {
           const min = parseInt(nums[1], 10);
-          // {n,} (unbounded upper) is safe — equivalent to + with a minimum
+          // {n,} (unbounded upper) is safe - equivalent to + with a minimum
           const hasComma = nums[2] !== undefined;
           const max = hasComma ? (nums[2] === '' ? min : parseInt(nums[2], 10)) : min;
           if (min > 100 || max > 100) {

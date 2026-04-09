@@ -478,7 +478,7 @@
 						{@const isExpanded = expandedItems.has(item.id)}
 
 						{#if isLog}
-							<!-- Log event — card -->
+							<!-- Log event - card -->
 							<div class="relative pl-12 py-1">
 								<div
 									class="absolute left-0 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full flex items-center justify-center {iconConfig.bg} z-10"
@@ -519,7 +519,7 @@
 								</div>
 							</div>
 						{:else}
-							<!-- Breadcrumb — compact row -->
+							<!-- Breadcrumb - compact row -->
 							<div class="relative pl-12 py-0.5">
 								<div
 									class="absolute left-[7px] top-1/2 -translate-y-1/2 w-6 h-6 rounded-full flex items-center justify-center {iconConfig.bg} z-10"

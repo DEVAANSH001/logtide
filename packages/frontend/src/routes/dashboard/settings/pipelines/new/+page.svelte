@@ -150,7 +150,7 @@
         />
       </div>
       <div class="space-y-2">
-        <Label for="pipeline-project">Project <span class="text-muted-foreground text-xs">(optional — leave empty for org-wide default)</span></Label>
+        <Label for="pipeline-project">Project <span class="text-muted-foreground text-xs">(optional - leave empty for org-wide default)</span></Label>
         <select
           id="pipeline-project"
           class="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm"

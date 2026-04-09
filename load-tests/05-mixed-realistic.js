@@ -1,4 +1,4 @@
-// Mixed realistic load test — simulates real-world usage patterns
+// Mixed realistic load test - simulates real-world usage patterns
 // Multiple user personas acting concurrently
 import http from 'k6/http';
 import { check, sleep } from 'k6';

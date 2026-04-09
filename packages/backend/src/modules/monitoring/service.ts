@@ -259,7 +259,7 @@ export class MonitorService {
   }
 
   // ============================================================================
-  // PUBLIC STATUS PAGE (no auth — scrubbed data)
+  // PUBLIC STATUS PAGE (no auth - scrubbed data)
   // ============================================================================
 
   async getProjectBySlug(slug: string) {
@@ -585,7 +585,7 @@ export class MonitorService {
       }
 
       if (statusChanged) {
-        console.log(`[MonitorService] Monitor "${monitor.name}" (${monitor.id}) is DOWN — ${result.errorCode ?? 'unknown error'}`);
+        console.log(`[MonitorService] Monitor "${monitor.name}" (${monitor.id}) is DOWN - ${result.errorCode ?? 'unknown error'}`);
       }
     } else {
       const newSuccesses = (currentStatusData.consecutiveSuccesses ?? 0) + 1;
@@ -612,7 +612,7 @@ export class MonitorService {
       }
 
       if (statusChanged) {
-        console.log(`[MonitorService] Monitor "${monitor.name}" (${monitor.id}) is UP — recovered after ${prevConsecutiveFailures} failures`);
+        console.log(`[MonitorService] Monitor "${monitor.name}" (${monitor.id}) is UP - recovered after ${prevConsecutiveFailures} failures`);
       }
     }
   }

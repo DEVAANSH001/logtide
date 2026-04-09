@@ -59,7 +59,7 @@ export class FilesystemStorage implements SourceMapStorage {
       try {
         await fs.unlink(filePath);
       } catch {
-        // File already gone — fine
+        // File already gone - fine
       }
     } else {
       // Delete entire release directory
@@ -67,7 +67,7 @@ export class FilesystemStorage implements SourceMapStorage {
       try {
         await fs.rm(dir, { recursive: true, force: true });
       } catch {
-        // Directory already gone — fine
+        // Directory already gone - fine
       }
     }
   }

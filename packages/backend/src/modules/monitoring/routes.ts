@@ -193,7 +193,7 @@ export async function monitoringRoutes(fastify: FastifyInstance) {
 }
 
 // ============================================================================
-// Heartbeat endpoint — accepts API key auth OR session auth
+// Heartbeat endpoint - accepts API key auth OR session auth
 // The global auth plugin already validates API keys and sets request.organizationId.
 // No additional authenticate hook needed here.
 // ============================================================================
@@ -224,7 +224,7 @@ export async function heartbeatRoutes(fastify: FastifyInstance) {
 }
 
 // ============================================================================
-// Public status page — no auth, scrubbed data
+// Public status page - no auth, scrubbed data
 // ============================================================================
 
 export async function publicStatusRoutes(fastify: FastifyInstance) {

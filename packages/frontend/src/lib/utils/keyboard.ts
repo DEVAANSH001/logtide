@@ -83,11 +83,11 @@ export function formatKey(combo: string): string {
  * Check if a KeyboardEvent matches a shortcut combo string.
  *
  * Combos:
- *   'mod+k'    — Cmd+K on Mac, Ctrl+K on Windows
- *   'shift+?'  — Shift + ? (i.e., the "?" key)
- *   'j'        — just the J key
- *   '/'        — just the "/" key
- *   '1'        — just the "1" key
+ *   'mod+k'    - Cmd+K on Mac, Ctrl+K on Windows
+ *   'shift+?'  - Shift + ? (i.e., the "?" key)
+ *   'j'        - just the J key
+ *   '/'        - just the "/" key
+ *   '1'        - just the "1" key
  */
 export function matchesCombo(event: KeyboardEvent, combo: string): boolean {
   const platform = getPlatform();

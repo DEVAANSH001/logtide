@@ -431,7 +431,7 @@
                         {rule.regexPattern}
                       </code>
                     {:else}
-                      <span class="text-xs text-muted-foreground">—</span>
+                      <span class="text-xs text-muted-foreground">-</span>
                     {/if}
                   </TableCell>
                   <TableCell>

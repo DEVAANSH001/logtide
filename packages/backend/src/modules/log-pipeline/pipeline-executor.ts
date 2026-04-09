@@ -6,7 +6,7 @@ import { runGeoIpStep } from './steps/geoip.js';
 export class PipelineExecutor {
   static async execute(log: LogForPipeline, steps: PipelineStep[]): Promise<ExecutorResult> {
     const stepResults: StepResult[] = [];
-    // Accumulated extracted fields — earlier steps take priority (no overwrite)
+    // Accumulated extracted fields - earlier steps take priority (no overwrite)
     const merged: ExtractedFields = {};
 
     // Build a running metadata view that includes extracted fields so later steps can use them

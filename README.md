@@ -33,7 +33,7 @@ LogTide is an open-source, high-performance observability platform and SIEM. It 
 Designed for teams that need **GDPR compliance**, **full data ownership**, and **sub-100ms query performance** without the overhead of ElasticSearch.
 
 ### Why LogTide?
-* 🔌 **Multi-Engine:** Choose your storage — **TimescaleDB** (standard), **ClickHouse** (massive scale), or **MongoDB** (flexibility).
+* 🔌 **Multi-Engine:** Choose your storage - **TimescaleDB** (standard), **ClickHouse** (massive scale), or **MongoDB** (flexibility).
 * 🌐 **Full-Stack Observability:** Monitor everything from backend services to browser **Web Vitals** and user sessions.
 * 🛡️ **Security-First:** Native **Sigma Rules** engine for real-time threat detection and incident management.
 * 🇪🇺 **GDPR Ready:** Keep data on your own infrastructure. Built-in **PII Masking** and **Audit Logs**.

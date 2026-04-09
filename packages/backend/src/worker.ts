@@ -522,7 +522,7 @@ scheduleNextRetentionCleanup();
 setTimeout(runRetentionCleanup, 2 * 60 * 1000);
 
 // ============================================================================
-// SigmaHQ Daily Sync (Daily at 2:30 AM — 30 min after retention cleanup)
+// SigmaHQ Daily Sync (Daily at 2:30 AM - 30 min after retention cleanup)
 // ============================================================================
 
 let isSyncingSigmaRules = false;

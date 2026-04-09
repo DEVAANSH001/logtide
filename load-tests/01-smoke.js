@@ -1,4 +1,4 @@
-// Smoke test — quick validation that all endpoints respond correctly
+// Smoke test - quick validation that all endpoints respond correctly
 import http from 'k6/http';
 import { check, sleep } from 'k6';
 import { BASE_URL, apiKeyHeaders, sessionHeaders, ORG_ID, PROJECT_ID, randomLog, generateBatch, generateTraceId } from './config.js';
@@ -104,5 +104,5 @@ export default function () {
   res = http.get(`${BASE_URL}/api/v1/metrics/overview?from=${fromTime}&to=${toTime}`, { headers: apiKeyHeaders });
   check(res, { 'metrics overview 200': (r) => r.status === 200 });
 
-  console.log('Smoke test completed — all endpoints verified');
+  console.log('Smoke test completed - all endpoints verified');
 }

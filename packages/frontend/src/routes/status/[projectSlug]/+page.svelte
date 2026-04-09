@@ -272,7 +272,7 @@
               <p class="text-xs text-muted-foreground mt-0.5">{m.description}</p>
             {/if}
             <p class="text-xs text-muted-foreground mt-1">
-              {new Date(m.scheduledStart).toLocaleString()} — {new Date(m.scheduledEnd).toLocaleString()}
+              {new Date(m.scheduledStart).toLocaleString()} - {new Date(m.scheduledEnd).toLocaleString()}
             </p>
           </div>
         {/each}
@@ -286,7 +286,7 @@
               <p class="text-xs text-muted-foreground mt-0.5">{m.description}</p>
             {/if}
             <p class="text-xs text-muted-foreground mt-1">
-              {new Date(m.scheduledStart).toLocaleString()} — {new Date(m.scheduledEnd).toLocaleString()}
+              {new Date(m.scheduledStart).toLocaleString()} - {new Date(m.scheduledEnd).toLocaleString()}
             </p>
           </div>
         {/each}

@@ -11,14 +11,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - **Service health monitoring and status pages** (issue #152): proactive uptime monitoring with auto-generated public status pages
   - **3 monitor types**: HTTP/HTTPS (configurable method, expected status, headers, body assertion), TCP ping, and heartbeat (alert when no ping received within grace window)
-  - **HTTP config**: per-monitor `httpConfig` with method, expectedStatus, custom headers, and body assertion (contains or regex) — stored as JSONB, validated via Zod
+  - **HTTP config**: per-monitor `httpConfig` with method, expectedStatus, custom headers, and body assertion (contains or regex) - stored as JSONB, validated via Zod
   - **Per-monitor severity**: incident severity is configurable per monitor (`critical`, `high`, `medium`, `low`, `informational`) instead of hardcoded `high`
   - **BullMQ-style polling**: worker checks all due monitors every 30s, batched in groups of 20 concurrent checks via `Promise.allSettled`
   - **TimescaleDB storage**: `monitor_results` hypertable with 7-day compression, 30-day retention, and `monitor_uptime_daily` continuous aggregate refreshed hourly
   - **State machine**: consecutive failure tracking with configurable threshold, atomic incident dedup guard (`WHERE incident_id IS NULL`), auto-resolve on recovery
   - **Auto-incident creation**: when failure threshold is crossed, a SIEM incident is created with `source: 'monitor'` and linked via `monitor_id`; notifications sent via existing email/webhook channels
   - **Public status page** (`/status/:projectSlug`): Uptime Kuma-inspired design with 45-day heartbeat bar grid, per-monitor uptime badge, overall status banner, custom CSS tooltips, light/dark mode toggle
-  - **Status page access control**: configurable visibility per project — disabled (default), public, password-protected, or org-members-only
+  - **Status page access control**: configurable visibility per project - disabled (default), public, password-protected, or org-members-only
   - **Scheduled maintenances**: create maintenance windows with start/end times; active maintenances suppress monitor incident creation and display a banner on the status page
   - **Manual status incidents**: create public incident communications (investigating → identified → monitoring → resolved) with update timeline, independent from SIEM incidents
   - **Heartbeat endpoint**: `POST /api/v1/monitors/:id/heartbeat` accepts both API key and session auth, rate-limited to 600/min
@@ -35,7 +35,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Target validation on update**: PUT endpoint now validates target format against monitor type (HTTP must start with `http://`/`https://`, TCP must contain `:`)
 - **`$derived.by` fix**: monitor detail page uptime calculation now uses `$derived.by()` instead of `$derived(() => ...)` for correct Svelte 5 reactivity
 - **`@const` placement**: replaced invalid `{@const}` inside `<div>` elements with `{#if}/{:else}` blocks for Svelte 5 compatibility
-- **`uptimePct` type coercion**: Postgres `ROUND()` returns numeric as string — status page now coerces to number before calling `.toFixed()`
+- **`uptimePct` type coercion**: Postgres `ROUND()` returns numeric as string - status page now coerces to number before calling `.toFixed()`
 - **Default `failureThreshold` aligned**: frontend form default changed from 3 to 2 to match backend default
 - **Test setup cleanup**: added `monitor_results`, `monitor_status`, `monitors`, `incident_alerts` to global `beforeEach` cleanup
 
@@ -43,7 +43,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **5 built-in parsers**: nginx (combined log format), apache (identical to nginx), syslog (RFC 3164 and RFC 5424), logfmt, and JSON message body
   - **Custom grok patterns**: `%{PATTERN:field}` and `%{PATTERN:field:type}` syntax with 22 built-in patterns (IPV4, WORD, NOTSPACE, NUMBER, POSINT, DATA, GREEDYDATA, QUOTEDSTRING, METHOD, URIPATH, HTTPDATE, etc.) and optional type coercion (`:int`, `:float`)
   - **GeoIP enrichment**: extract country, city, coordinates, timezone, and ISP data from any IP field using the embedded MaxMind GeoLite2 database
-  - **Async processing via BullMQ**: pipelines run as background jobs after ingestion — zero impact on ingestion latency
+  - **Async processing via BullMQ**: pipelines run as background jobs after ingestion - zero impact on ingestion latency
   - **Project-scoped vs org-wide**: pipelines can target a specific project or apply to all projects in the organization; project-specific pipelines take priority over org-wide ones
   - **Pipeline preview**: test any combination of steps against a sample log message and inspect per-step extracted fields and the final merged result before saving
   - **YAML import/export**: import pipeline definitions from YAML with `name`, `description`, `enabled`, and `steps` fields; upserts (replace existing pipeline for the same scope)
@@ -120,8 +120,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - **Skeleton loaders and loading overlays**: all dashboard pages now show content-shaped loading states instead of blank spinners
   - New `Skeleton`, `SkeletonTable`, and `TableLoadingOverlay` components (`src/lib/components/ui/skeleton/`)
-  - Directional shimmer animation via `@keyframes shimmer` using design tokens — works in light and dark mode, disabled for `prefers-reduced-motion`
-  - **Initial load** (no data yet): animated skeleton rows mirroring the page layout — stat cards on `/dashboard`, project cards on `/dashboard/projects`, table rows on search, traces, errors, admin tables, incidents, alerts history, and members
+  - Directional shimmer animation via `@keyframes shimmer` using design tokens - works in light and dark mode, disabled for `prefers-reduced-motion`
+  - **Initial load** (no data yet): animated skeleton rows mirroring the page layout - stat cards on `/dashboard`, project cards on `/dashboard/projects`, table rows on search, traces, errors, admin tables, incidents, alerts history, and members
   - **Re-fetch** (filter change, pagination): existing content dims with a translucent overlay and centered spinner, preventing layout shift and context loss
   - Pages updated: `/dashboard`, `/dashboard/search`, `/dashboard/projects`, `/dashboard/alerts`, `/dashboard/errors`, `/dashboard/traces`, `/dashboard/security`, `/dashboard/security/incidents`, `/dashboard/admin/organizations`, `/dashboard/admin/users`, `/dashboard/admin/projects`, `/dashboard/settings/members`
   - Automated Helm chart releases: every stable Docker image release now triggers a `repository_dispatch` to `logtide-dev/logtide-helm-chart`, which auto-bumps `appVersion` and chart `version` (patch), commits, and publishes a new chart release to the Helm repo on GitHub Pages
@@ -130,8 +130,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - API 400 responses now include a `details` array with field-level validation errors instead of just a generic message. Covers both Fastify/AJV schema validation and Zod validation errors (including uncaught `ZodError` that previously returned 500)
 - Admin pages returned 502 Bad Gateway on direct load/reload: the admin layout (`+layout@.svelte`) breaks out of the dashboard layout chain, so `ssr = false` was not inherited; added a dedicated `+layout.ts` to the admin section
 - `/dashboard/admin/projects/[id]` crashed with "Something went wrong" due to `formatDate` being called but not defined (function was named `formatTimestamp`)
-- `POST /api/v1/logs/identifiers/batch` slow: the route was calling `reservoir.getByIds` (hitting ClickHouse/TimescaleDB/MongoDB) only to verify project access, then querying `log_identifiers` (PostgreSQL) separately. Since `log_identifiers` already stores `log_id → project_id` + identifier data, the storage engine call is now bypassed entirely — one PostgreSQL query replaces the N×storage-engine-roundtrips loop. Added bloom filter skip index on `id` in ClickHouse and a standalone `id` index in TimescaleDB (migration 032) for `getByIds` used by `findCorrelatedLogs`
-- `GET /api/v1/logs/hostnames` taking 8+ seconds: the 6h window cap was only applied when `from` was absent — explicit `from` params (e.g. 24h range from the search page) bypassed it and triggered a full-range metadata scan; cap now clamps any window to 6h max. Added `limit: 500` to the distinct call. Per-engine optimizations: **ClickHouse** adds a `hostname` materialized column (computed at ingest, eliminates `JSONExtractString` at query time) and uses it directly in distinct queries; **TimescaleDB** adds a composite expression index `(project_id, (metadata->>'hostname'), time)` (migration 032); **MongoDB** adds a sparse compound index on `metadata.hostname`. All three engines also now extract the metadata field in a subquery (once per row vs 3×)
+- `POST /api/v1/logs/identifiers/batch` slow: the route was calling `reservoir.getByIds` (hitting ClickHouse/TimescaleDB/MongoDB) only to verify project access, then querying `log_identifiers` (PostgreSQL) separately. Since `log_identifiers` already stores `log_id → project_id` + identifier data, the storage engine call is now bypassed entirely - one PostgreSQL query replaces the N×storage-engine-roundtrips loop. Added bloom filter skip index on `id` in ClickHouse and a standalone `id` index in TimescaleDB (migration 032) for `getByIds` used by `findCorrelatedLogs`
+- `GET /api/v1/logs/hostnames` taking 8+ seconds: the 6h window cap was only applied when `from` was absent - explicit `from` params (e.g. 24h range from the search page) bypassed it and triggered a full-range metadata scan; cap now clamps any window to 6h max. Added `limit: 500` to the distinct call. Per-engine optimizations: **ClickHouse** adds a `hostname` materialized column (computed at ingest, eliminates `JSONExtractString` at query time) and uses it directly in distinct queries; **TimescaleDB** adds a composite expression index `(project_id, (metadata->>'hostname'), time)` (migration 032); **MongoDB** adds a sparse compound index on `metadata.hostname`. All three engines also now extract the metadata field in a subquery (once per row vs 3×)
 
 ## [0.8.3] - 2026-03-18
 
@@ -346,9 +346,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Array formats auto-normalize fields via `normalizeLogData` (auto-generates `time`, normalizes `level`, extracts `service`)
 
 - **UX Restructuring**: major navigation and page layout overhaul for better discoverability
-  - **Sidebar grouped into sections**: Observe (Logs, Traces, Metrics, Errors), Detect (Alerts, Security), Manage (Projects, Settings) — replaces flat 11-item list
+  - **Sidebar grouped into sections**: Observe (Logs, Traces, Metrics, Errors), Detect (Alerts, Security), Manage (Projects, Settings) - replaces flat 11-item list
   - **Service Map merged into Traces**: list/map view toggle on the Traces page instead of a separate route
-  - **Sigma Rules moved to Security**: Security page now has sub-nav with Dashboard, Rules, Incidents tabs — Alerts page simplified to just Alert Rules and History
+  - **Sigma Rules moved to Security**: Security page now has sub-nav with Dashboard, Rules, Incidents tabs - Alerts page simplified to just Alert Rules and History
   - **Project pages simplified**: removed duplicate log viewer (937 LOC deleted), added "View Logs" button that navigates to global search with project pre-filtered
   - **Settings restructured**: sub-navigation with General, Security & Data, Notifications, Team, Administration sections
   - **Command palette updated**: all 9 main pages accessible with keyboard shortcuts (`g d`, `g s`, `g t`, `g m`, etc.)
@@ -356,7 +356,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - **Admin Dashboard Missing Metrics**: Platform Activity chart now includes a Metrics series alongside Logs, Detections, and Spans, querying `metrics_hourly_stats` continuous aggregate for OTLP metric data points
-- **Live Tail Search Filtering**: incoming logs via WebSocket are now filtered client-side against the active search query, trace ID, and session ID filters — previously live tail showed all incoming logs regardless of search criteria
+- **Live Tail Search Filtering**: incoming logs via WebSocket are now filtered client-side against the active search query, trace ID, and session ID filters - previously live tail showed all incoming logs regardless of search criteria
 - **OTLP Traces Ingestion**: fixed a critical typo in trace transformation where `resource_logs` was used instead of `resource_spans`, preventing proper parsing of OTLP/JSON traces.
 - **OTLP Authentication**: fixed `authPlugin` to correctly handle `/v1/otlp` routes, allowing API Key authentication without requiring a valid user session.
 - **LogTide JavaScript SDKs**: updated `@logtide/core`, `@logtide/fastify`, and `@logtide/sveltekit` to version `0.6.1` for improved OTLP compatibility and TraceID/SpanID serialization.
@@ -366,9 +366,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Python examples now use the `logtide` package with `LogTideClient` and `client.info()` / `client.error()` methods.
   - Added correct Go OpenTelemetry examples in the Traces empty state.
 - **Frontend warning cleanup**: eliminated all 46 TypeScript and Svelte compiler warnings across the codebase (26 unused imports/variables, 4 deprecated `<svelte:component>` usages, 7 a11y label warnings, 2 non-reactive bindings, and miscellaneous Svelte 5 migration issues)
-- **Pagination total count**: search and incidents pages now show total count ("Showing 1 to 25 of ~1,234 logs") instead of incrementing per-page — logs use fast approximate count via EXPLAIN planner estimates (no full table scan), incidents use exact COUNT(*); stale cache entries with missing totals are automatically invalidated
-- **Admin dashboard timeline gaps (ClickHouse)**: periodic drops to zero in Platform Activity chart caused by bucket key format mismatch — ClickHouse produced ISO timestamps (`2026-02-26T13:00:00.000Z`) while PostgreSQL produced text format (`2026-02-26 13:00:00+00`), preventing merge; now all bucket keys are normalized to ISO format and all 24 hourly buckets are pre-filled to eliminate gaps
-- **Chart locale**: timestamps no longer hardcoded to Italian locale — charts now respect user's system language
+- **Pagination total count**: search and incidents pages now show total count ("Showing 1 to 25 of ~1,234 logs") instead of incrementing per-page - logs use fast approximate count via EXPLAIN planner estimates (no full table scan), incidents use exact COUNT(*); stale cache entries with missing totals are automatically invalidated
+- **Admin dashboard timeline gaps (ClickHouse)**: periodic drops to zero in Platform Activity chart caused by bucket key format mismatch - ClickHouse produced ISO timestamps (`2026-02-26T13:00:00.000Z`) while PostgreSQL produced text format (`2026-02-26 13:00:00+00`), preventing merge; now all bucket keys are normalized to ISO format and all 24 hourly buckets are pre-filled to eliminate gaps
+- **Chart locale**: timestamps no longer hardcoded to Italian locale - charts now respect user's system language
 - **Silent API errors**: search and traces pages now show error toasts when data loading fails
 - **Empty states**: added "No services yet" and "No errors yet" empty states to dashboard widgets
 - **Docker initialization**: database is now auto-created if it doesn't exist during startup
@@ -395,7 +395,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- **Unauthenticated SMTP support**: SMTP email notifications no longer require `SMTP_USER` and `SMTP_PASS` — unauthenticated SMTP servers (e.g. port 25) now work correctly by only setting `SMTP_HOST`
+- **Unauthenticated SMTP support**: SMTP email notifications no longer require `SMTP_USER` and `SMTP_PASS` - unauthenticated SMTP servers (e.g. port 25) now work correctly by only setting `SMTP_HOST`
   - `isSmtpConfigured()` now only checks for `SMTP_HOST`
   - All email transporters (alerts, incidents, errors, invitations, notification channels) conditionally include `auth` only when credentials are provided
   - `from` address now always uses `SMTP_FROM` instead of falling back to `SMTP_USER`
@@ -408,10 +408,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - **Write-Only API Keys**: API keys now have a `type` field (`write` or `full`) to support client-side usage safely
-  - `write` keys can only ingest logs — safe to expose in browsers, mobile apps, and frontend code
-  - `full` keys can ingest and query — intended for server-side use only
+  - `write` keys can only ingest logs - safe to expose in browsers, mobile apps, and frontend code
+  - `full` keys can ingest and query - intended for server-side use only
   - New keys default to `write` type
-  - Existing keys migrated to `write` type (breaking change — use `full` type for keys that need read access)
+  - Existing keys migrated to `write` type (breaking change - use `full` type for keys that need read access)
   - Key type displayed as badge in project settings API keys table
   - Key type selector in Create API Key dialog
 
@@ -432,8 +432,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - `hooks.client.ts`: `initLogtide()` for client-side hub initialization, `logtideHandleError()` for browser error capture
   - DSN configuration: `INTERNAL_DSN` env var takes priority, falls back to constructed DSN from `INTERNAL_API_KEY` + `INTERNAL_LOGGING_API_URL` via bootstrap
   - Frontend DSN: `LOGTIDE_DSN` (server-side) and `PUBLIC_LOGTIDE_DSN` (client-side browser)
-  - Removed custom `internal-logging-plugin.ts` request/response hooks — replaced entirely by `@logtide/fastify` lifecycle hooks
-  - Removed `getInternalLogger()` / `LogTideClient` pattern — replaced by `hub.captureLog()` singleton from `@logtide/core`
+  - Removed custom `internal-logging-plugin.ts` request/response hooks - replaced entirely by `@logtide/fastify` lifecycle hooks
+  - Removed `getInternalLogger()` / `LogTideClient` pattern - replaced by `hub.captureLog()` singleton from `@logtide/core`
 
 ### Security
 
@@ -453,7 +453,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - **ClickHouse Storage Engine**: Full ClickHouse support as an alternative to TimescaleDB
-  - New `@logtide/reservoir` package — pluggable storage abstraction with a unified API for both engines
+  - New `@logtide/reservoir` package - pluggable storage abstraction with a unified API for both engines
   - Factory pattern: `StorageEngineFactory.create('timescale'|'clickhouse', config)` for engine selection
   - Engine configured via `STORAGE_ENGINE` environment variable (`timescale` or `clickhouse`)
   - ClickHouse-specific optimizations: `PREWHERE` clauses, `async_insert`, `ngrambf_v1` indexes for full-text search
@@ -499,7 +499,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- **Sigma API missing tags and MITRE fields**: `getSigmaRules` (list) and `getSigmaRuleById` (detail) were not including `tags`, `mitreTactics`, and `mitreTechniques` in the camelCase response transformation — fields were stored correctly in the DB but silently dropped from API responses. Also fixed the same gap in `importSigmaRule` return value.
+- **Sigma API missing tags and MITRE fields**: `getSigmaRules` (list) and `getSigmaRuleById` (detail) were not including `tags`, `mitreTactics`, and `mitreTechniques` in the camelCase response transformation - fields were stored correctly in the DB but silently dropped from API responses. Also fixed the same gap in `importSigmaRule` return value.
 
 - **Keyboard Shortcuts for Power Users** (#42): Comprehensive keyboard shortcuts system for faster navigation and actions
   - **Command Palette** (`Ctrl/Cmd+K`): Fuzzy search over pages and quick actions (toggle sidebar, reload, toggle theme, show shortcuts). Search trigger button with shortcut hint in the header
@@ -519,13 +519,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - 5 new backend endpoints: `platform-timeline`, `active-issues`, `compression`, `continuous-aggregates`, `slow-queries`
 
 - **PII Masking at Ingestion**: Automatic detection and masking of sensitive data in log entries before storage (GDPR-compliant, data never touches disk unmasked)
-  - **Phase 1 — Content patterns**: Built-in regex rules for email, credit card, phone (US), SSN, IPv4, API keys/secrets
-  - **Phase 2 — Field name masking**: Scans metadata JSON keys (`password`, `token`, `secret`, `authorization`, etc.) and masks their values
-  - **Phase 3 — Custom rules**: Users can define org-level or project-level regex patterns and field name lists
-  - Three masking strategies: `mask` (partial — `u***@domain.com`), `redact` (full — `[REDACTED_EMAIL]`), `hash` (SHA-256 with per-org salt — `[HASH:abc123...]`)
+  - **Phase 1 - Content patterns**: Built-in regex rules for email, credit card, phone (US), SSN, IPv4, API keys/secrets
+  - **Phase 2 - Field name masking**: Scans metadata JSON keys (`password`, `token`, `secret`, `authorization`, etc.) and masks their values
+  - **Phase 3 - Custom rules**: Users can define org-level or project-level regex patterns and field name lists
+  - Three masking strategies: `mask` (partial - `u***@domain.com`), `redact` (full - `[REDACTED_EMAIL]`), `hash` (SHA-256 with per-org salt - `[HASH:abc123...]`)
   - REST API: `GET/POST/PUT/DELETE /api/v1/pii-masking/rules` + `POST /api/v1/pii-masking/test`
   - Settings UI at `/dashboard/settings/pii-masking` with rule management, enable/disable switches, action dropdowns, and live test panel (before/after preview)
-  - Built-in rules disabled by default — users opt-in per rule from the UI
+  - Built-in rules disabled by default - users opt-in per rule from the UI
   - Project-level rules override org-level rules with the same name
   - Database migration `021_add_pii_masking` (`pii_masking_rules` + `organization_pii_salts` tables)
 
@@ -538,16 +538,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Graceful degradation: chart unchanged when no events exist
 
 - **Rate-of-Change Alerts**: Baseline-based anomaly detection that compares current log volume against historical patterns, triggering when deviation exceeds a configurable multiplier
-  - **4 baseline methods**: `same_time_yesterday`, `same_day_last_week`, `rolling_7d_avg` (default), `percentile_p95` — all computed on-the-fly from `logs_hourly_stats` continuous aggregate
+  - **4 baseline methods**: `same_time_yesterday`, `same_day_last_week`, `rolling_7d_avg` (default), `percentile_p95` - all computed on-the-fly from `logs_hourly_stats` continuous aggregate
   - **Anti-spam**: Sustained check (configurable minutes before firing), cooldown period (default 60min), minimum baseline value guard (ignores low-traffic noise)
   - **Smart defaults**: 3x deviation multiplier, 10 min baseline, 60min cooldown, 5min sustained check
   - Frontend: Alert type toggle (Threshold / Rate of Change), baseline method picker with descriptions, deviation multiplier slider, collapsible advanced settings (min baseline, cooldown, sustained)
   - History display: "Anomaly" badge for rate-of-change alerts, baseline metadata (current rate vs baseline, deviation ratio, method used)
-  - Email subject line: `[Anomaly] rule — Nx above baseline` (vs `[Alert]` for threshold)
+  - Email subject line: `[Anomaly] rule - Nx above baseline` (vs `[Alert]` for threshold)
   - Webhook payload includes `baseline_metadata` and `event_type: "anomaly"` for rate-of-change alerts
   - Zod validation: rate-of-change requires `baselineType` + `deviationMultiplier`, multiplier range 1.5–20
   - Database migration `022_add_rate_of_change_alerts` (adds columns to `alert_rules` + `baseline_metadata` JSONB to `alert_history`)
-  - 19 new tests (routes, baseline calculator, service dispatching, validation) — 105 total alert tests passing
+  - 19 new tests (routes, baseline calculator, service dispatching, validation) - 105 total alert tests passing
 
 - **Version Update Notifications**: Admin dashboard banner that checks GitHub releases for new versions
   - Backend endpoint `GET /api/v1/admin/version-check` proxies GitHub Releases API with 6-hour cache (via CacheManager)
@@ -562,37 +562,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Client errors returning 500 instead of 4xx**: Multiple API routes were returning Internal Server Error for invalid client input
   - Global error handler now detects Fastify validation errors (`FST_ERR_VALIDATION`) as 400 even when `statusCode` is missing
-  - SIEM routes (10 endpoints): `z.parse()` failures were caught as 500 — now return 400 with validation details
-  - Exceptions routes (8 endpoints): same `z.parse()` pattern — now return 400
+  - SIEM routes (10 endpoints): `z.parse()` failures were caught as 500 - now return 400 with validation details
+  - Exceptions routes (8 endpoints): same `z.parse()` pattern - now return 400
   - OTLP content-type parsers: gzip decompression errors now set `statusCode: 400` instead of falling through to 500
   - Retention route: fixed `error.name === 'ZodError'` check to use `instanceof` for reliability
 
 - **Log Context metadata expanding dialog infinitely**: Opening metadata in the Log Context dialog caused horizontal overflow, stretching the dialog indefinitely. Added `max-w-full` to `<pre>` blocks and `overflow-hidden` to log entry containers so metadata scrolls within its bounds
 
-- **Email logo not rendering in some clients**: Switched logo URLs from `.svg` to `.png` — many email clients (Outlook, Gmail) don't support SVG in `<img>` tags
+- **Email logo not rendering in some clients**: Switched logo URLs from `.svg` to `.png` - many email clients (Outlook, Gmail) don't support SVG in `<img>` tags
 
-- **Client errors (4xx) logged as ERROR**: The `onError` hook in the internal logging plugin was logging all errors at `error` level regardless of status code — a 415 Unsupported Media Type would appear as a critical error in the dashboard. Now 4xx errors are logged as `warn`, 5xx as `error`. Also added `skipPaths` to the `onError` hook to avoid logging noise from ingestion endpoints.
+- **Client errors (4xx) logged as ERROR**: The `onError` hook in the internal logging plugin was logging all errors at `error` level regardless of status code - a 415 Unsupported Media Type would appear as a critical error in the dashboard. Now 4xx errors are logged as `warn`, 5xx as `error`. Also added `skipPaths` to the `onError` hook to avoid logging noise from ingestion endpoints.
 
 - **Continuous Aggregates showing "Refresh: unknown"**: Fixed backend query reading `schedule_interval` from JSONB `config` field instead of the direct column on `timescaledb_information.jobs`
 
 - **HealthStats type mismatch**: Frontend had `'up'|'down'` status values while backend uses `'healthy'|'degraded'|'down'`; also missing `pool` property and `'not_configured'` redis status
 
 - **Admin panel consistency fixes**:
-  - Added admin guard (`is_admin` check + redirect) to Users, Organizations, and Auth Providers pages — previously only checked server-side
+  - Added admin guard (`is_admin` check + redirect) to Users, Organizations, and Auth Providers pages - previously only checked server-side
   - Replaced unsafe click-to-confirm delete patterns (3-5s timeout) with proper `AlertDialog` confirmation modals on Projects list, Project detail, and Organization detail pages
   - Replaced browser `confirm()` in Auth Providers with `AlertDialog`
   - Replaced custom overlay modal in Organization detail with standard `AlertDialog` component
   - Fixed `window.location.href` navigation (full page reload) with SvelteKit `goto()` in Organization detail and Project detail pages
   - Fixed Svelte 4 `authStore.subscribe()` pattern in Auth Providers to use reactive `$authStore`
 
-- **Charts not resizing on sidebar toggle**: ECharts instances (LogsChart, TimelineWidget, SeverityPieChart, MitreHeatmap, ServiceMap, PreviewTimeline) stayed at previous size when toggling the sidebar or changing content density — replaced `window.resize` listener with `ResizeObserver` on chart containers
+- **Charts not resizing on sidebar toggle**: ECharts instances (LogsChart, TimelineWidget, SeverityPieChart, MitreHeatmap, ServiceMap, PreviewTimeline) stayed at previous size when toggling the sidebar or changing content density - replaced `window.resize` listener with `ResizeObserver` on chart containers
 
-- **Notification click navigating to wrong organization**: Clicking a notification while viewing a different organization led to "not found" errors — now auto-switches to the notification's organization before navigating
+- **Notification click navigating to wrong organization**: Clicking a notification while viewing a different organization led to "not found" errors - now auto-switches to the notification's organization before navigating
 
 ### Performance
 
 - **PII masking zero-cost when disabled**: Cache hit is a single `Map.get()` + timestamp check (~0.001ms), returns immediately when no rules are enabled
-- **Compiled regex reuse**: Content rules use `lastIndex = 0` reset instead of `new RegExp()` per string — eliminates ~6000 object allocations per 1000-log batch
+- **Compiled regex reuse**: Content rules use `lastIndex = 0` reset instead of `new RegExp()` per string - eliminates ~6000 object allocations per 1000-log batch
 - **Hot path allocation reduction**: Ingestion path skips path-tracking arrays and template string building (`trackPaths=false`), uses `Object.keys()` instead of `Object.entries()`
 - **Credit card regex rewrite**: Replaced greedy `(?:\d[ -]*?){13,19}` (backtracking-prone, false positives on any 13+ digit sequence) with specific pattern matching `XXXX-XXXX-XXXX-XXXX` format or known issuer prefixes (Visa/MC/Amex/Discover)
 - **Early exit for simple messages**: Skips all regex evaluation for strings <6 chars or containing only `[a-zA-Z0-9 _-]`
@@ -606,7 +606,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - **Detection Category Filter Validation Error**: Fixed `querystring/category must match exactly one schema in oneOf` on `/api/v1/siem/detections`
-  - Replaced `oneOf` schema (string | array) with simple `type: array` — Fastify auto-coerces single values to arrays
+  - Replaced `oneOf` schema (string | array) with simple `type: array` - Fastify auto-coerces single values to arrays
   - Aligned Zod validation schema to match
 
 ### Performance
@@ -619,7 +619,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Error Group Logs Timeout**: Fixed `/api/v1/error-groups/:id/logs` statement timeout on large datasets
   - Added `logs.time` bounds (`firstSeen`/`lastSeen`) to enable TimescaleDB chunk pruning on the hypertable JOIN
-  - Removed expensive `COUNT(*)` query — uses `error_groups.occurrence_count` (maintained by trigger) instead
+  - Removed expensive `COUNT(*)` query - uses `error_groups.occurrence_count` (maintained by trigger) instead
   - Eliminated redundant group fetch (reuses data already loaded for authorization check)
 
 ---

@@ -29,7 +29,7 @@ beforeAll(async () => {
             return false;
         })(error);
         if (isConnRefused) {
-            console.warn('DB not reachable — running in unit-test mode (no DB cleanup)');
+            console.warn('DB not reachable - running in unit-test mode (no DB cleanup)');
         } else {
             console.error('Failed to connect to test database:', error);
             console.error('Make sure the test database is running (docker-compose.test.yml)');
@@ -63,7 +63,7 @@ beforeEach(async () => {
                 await redis.del(...rateLimitKeys);
             }
         } catch {
-            // Redis not available — unit-test mode
+            // Redis not available - unit-test mode
         }
     }
 
@@ -93,7 +93,7 @@ beforeEach(async () => {
         await db.deleteFrom('sessions').execute();
         await db.deleteFrom('users').execute();
     } catch {
-        // DB not available — unit-test mode, skip cleanup
+        // DB not available - unit-test mode, skip cleanup
     }
 });
 

@@ -81,7 +81,7 @@ describe('MongoDBEngine (integration)', () => {
       await directClient.connect();
       await directClient.db().command({ ping: 1 });
     } catch {
-      console.warn(`MongoDB not available at ${TEST_CONFIG.host}:${TEST_CONFIG.port} — skipping integration tests`);
+      console.warn(`MongoDB not available at ${TEST_CONFIG.host}:${TEST_CONFIG.port} - skipping integration tests`);
       try { await directClient.close(); } catch { /* ignore */ }
       return;
     }

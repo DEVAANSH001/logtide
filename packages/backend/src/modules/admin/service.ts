@@ -267,7 +267,7 @@ export class AdminService {
     async getDatabaseStats(): Promise<DatabaseStats> {
         const isClickHouse = reservoir.getEngineType() !== 'timescale';
 
-        // PG tables to query — skip logs/spans/traces when they live in ClickHouse
+        // PG tables to query - skip logs/spans/traces when they live in ClickHouse
         const pgTableNames = isClickHouse
             ? ['users', 'organizations', 'projects', 'alert_rules', 'alert_history', 'api_keys', 'sessions', 'notifications', 'sigma_rules']
             : ['users', 'organizations', 'projects', 'logs', 'alert_rules', 'alert_history', 'api_keys', 'sessions', 'notifications', 'sigma_rules'];

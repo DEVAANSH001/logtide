@@ -6,7 +6,7 @@ import type { CheckResult, HttpConfig, ErrorCode } from './types.js';
 
 /**
  * HTTP/HTTPS health check.
- * Never surfaces raw error messages — maps all failures to sanitized error codes.
+ * Never surfaces raw error messages - maps all failures to sanitized error codes.
  */
 export async function runHttpCheck(
   target: string,
@@ -77,7 +77,7 @@ export async function runHttpCheck(
 }
 
 /**
- * TCP connectivity check — measures time to establish connection.
+ * TCP connectivity check - measures time to establish connection.
  */
 export function runTcpCheck(
   host: string,
@@ -111,7 +111,7 @@ export function runTcpCheck(
 }
 
 /**
- * Heartbeat check — looks for a recent heartbeat ping in monitor_results.
+ * Heartbeat check - looks for a recent heartbeat ping in monitor_results.
  * Returns 'up' if a heartbeat was received within the grace window (interval * 1.5).
  */
 export async function runHeartbeatCheck(
@@ -141,7 +141,7 @@ export async function runHeartbeatCheck(
 }
 
 /**
- * Log-based heartbeat check — queries the reservoir for the last log from a service.
+ * Log-based heartbeat check - queries the reservoir for the last log from a service.
  * Returns 'up' if a log was received within the grace window (interval * 1.5).
  * Works across all storage engines (TimescaleDB, ClickHouse, MongoDB).
  */

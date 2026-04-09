@@ -62,7 +62,7 @@
       <div class="border rounded-lg p-4 space-y-3 bg-muted/20">
         <div class="flex items-center justify-between">
           <span class="text-sm font-medium">
-            Step {i + 1} — {stepTypeLabels[step.type]}
+            Step {i + 1} - {stepTypeLabels[step.type]}
           </span>
           <div class="flex items-center gap-1">
             <Button

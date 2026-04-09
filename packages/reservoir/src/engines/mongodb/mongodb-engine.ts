@@ -692,7 +692,7 @@ export class MongoDBEngine extends StorageEngine {
       filter.start_time = timeFilter;
     }
 
-    // Fetch all spans with parent references — minimal projection
+    // Fetch all spans with parent references - minimal projection
     const allSpans = await col
       .find(filter, {
         projection: { span_id: 1, parent_span_id: 1, service_name: 1, trace_id: 1, _id: 0 },
@@ -920,7 +920,7 @@ export class MongoDBEngine extends StorageEngine {
 
     const pipeline: Document[] = [{ $match: filter }];
 
-    // $last requires sorted input — must come after $match for index usage
+    // $last requires sorted input - must come after $match for index usage
     if (params.aggregation === 'last') {
       pipeline.push({ $sort: { time: 1 } });
     }
@@ -1199,7 +1199,7 @@ export class MongoDBEngine extends StorageEngine {
         });
         return;
       } catch {
-        // Time-series creation failed — fallback to regular collection
+        // Time-series creation failed - fallback to regular collection
         this.useTimeSeries = false;
       }
     }
@@ -1226,7 +1226,7 @@ export class MongoDBEngine extends StorageEngine {
     await safeCreateIndex(col, { project_id: 1, service: 1, time: -1 }, 'idx_project_service_time');
     await safeCreateIndex(col, { project_id: 1, level: 1, time: -1 }, 'idx_project_level_time');
     await safeCreateIndex(col, { project_id: 1, service: 1, level: 1, time: -1 }, 'idx_project_service_level_time');
-    // hostname is stored in metadata.hostname (nested), not top-level — index accordingly.
+    // hostname is stored in metadata.hostname (nested), not top-level - index accordingly.
     // The top-level `hostname` field is always null (ingestion puts it in metadata).
     await safeCreateIndex(col, { 'metadata.hostname': 1, project_id: 1, time: -1 }, 'idx_project_metadata_hostname_time', { sparse: true });
 
@@ -1582,6 +1582,6 @@ async function safeCreateIndex(
   try {
     await col.createIndex(spec, { name, ...options });
   } catch {
-    // Index may already exist or be incompatible — skip silently
+    // Index may already exist or be incompatible - skip silently
   }
 }

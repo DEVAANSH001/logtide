@@ -200,7 +200,7 @@ export async function processMonitorNotification(job: IJob<MonitorNotificationJo
       transporter.sendMail({
         from: config.SMTP_FROM,
         to: email,
-        subject: `[${subjectPrefix}] ${data.monitorName} — ${severityLabels[data.severity]}`,
+        subject: `[${subjectPrefix}] ${data.monitorName} - ${severityLabels[data.severity]}`,
         html,
         text,
       }).catch((err) => console.error(`[MonitorNotification] Failed to send email to ${email}:`, err))

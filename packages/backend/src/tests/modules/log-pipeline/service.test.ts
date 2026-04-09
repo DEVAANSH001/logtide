@@ -179,7 +179,7 @@ describe('pipelineService.getForProject', () => {
     });
     pipelineService.invalidateCache(ctx.organization.id);
     const first = await pipelineService.getForProject(ctx.project.id, ctx.organization.id);
-    // Delete from DB — cache should still return value
+    // Delete from DB - cache should still return value
     await db.deleteFrom('log_pipelines').execute();
     const second = await pipelineService.getForProject(ctx.project.id, ctx.organization.id);
     expect(first?.name).toBe(second?.name);

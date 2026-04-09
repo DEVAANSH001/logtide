@@ -19,7 +19,7 @@ export interface Shortcut {
   label: string;
   scope: ShortcutScope;
   category: ShortcutCategory;
-  /** Handler — return true to preventDefault */
+  /** Handler - return true to preventDefault */
   action: () => void;
 }
 
@@ -176,7 +176,7 @@ function createShortcutsStore() {
         match.action();
         return;
       }
-      // No match for sequence — fall through to normal handling
+      // No match for sequence - fall through to normal handling
     }
 
     // Check for sequence starters (shortcuts with spaces like "g d")

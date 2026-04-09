@@ -221,7 +221,7 @@
   }
 
   function formatResponseTime(ms: number | null | undefined) {
-    if (ms == null) return '—';
+    if (ms == null) return '-';
     if (ms < 1000) return `${ms}ms`;
     return `${(ms / 1000).toFixed(1)}s`;
   }
@@ -798,7 +798,7 @@
               <td class="px-4 py-3 hidden lg:table-cell text-muted-foreground text-xs">
                 {monitor.status?.lastCheckedAt
                   ? new Date(monitor.status.lastCheckedAt).toLocaleString()
-                  : '—'}
+                  : '-'}
               </td>
               <td class="px-4 py-3 text-right">
                 <div class="flex items-center justify-end gap-1">
@@ -1005,7 +1005,7 @@
               <p class="text-xs text-muted-foreground mt-1">{m.description}</p>
             {/if}
             <p class="text-xs text-muted-foreground mt-1">
-              {new Date(m.scheduledStart).toLocaleString()} — {new Date(m.scheduledEnd).toLocaleString()}
+              {new Date(m.scheduledStart).toLocaleString()} - {new Date(m.scheduledEnd).toLocaleString()}
             </p>
             {#if m.autoUpdateStatus}
               <p class="text-xs text-muted-foreground mt-0.5">Monitor alerts suppressed</p>

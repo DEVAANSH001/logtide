@@ -43,7 +43,7 @@ describe('ClickHouseEngine (integration)', () => {
     try {
       await setupClient.query({ query: 'SELECT 1', format: 'JSONEachRow' });
     } catch {
-      console.warn('ClickHouse not available at localhost:18123 — skipping integration tests');
+      console.warn('ClickHouse not available at localhost:18123 - skipping integration tests');
       await setupClient.close();
       return;
     }

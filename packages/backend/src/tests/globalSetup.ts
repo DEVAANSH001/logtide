@@ -37,7 +37,7 @@ export default async function globalSetup() {
             return false;
         })(error);
         if (isConnRefused) {
-            console.warn('[Global Setup] DB not reachable — skipping migrations (unit-test mode)');
+            console.warn('[Global Setup] DB not reachable - skipping migrations (unit-test mode)');
         } else {
             console.error('[Global Setup] Failed to run migrations:', error);
             throw error;

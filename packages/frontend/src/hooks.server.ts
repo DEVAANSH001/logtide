@@ -31,7 +31,7 @@ const configHandle: Handle = async ({ event, resolve }) => {
 };
 
 /**
- * Request logging handle — captures each HTTP request as a log entry.
+ * Request logging handle - captures each HTTP request as a log entry.
  * logtideHandle() only creates spans (traces), this adds the missing log emission.
  */
 const requestLogHandle: Handle = async ({ event, resolve }) => {
