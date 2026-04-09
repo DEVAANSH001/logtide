@@ -23,6 +23,7 @@ import type {
   TraceLatencyConfig,
   DetectionEventsConfig,
   MonitorStatusConfig,
+  SystemStatusConfig,
 } from '@logtide/shared';
 import { dashboardService } from '../dashboard/service.js';
 import { alertsService } from '../alerts/service.js';
@@ -149,6 +150,14 @@ export interface MonitorStatusData {
   totalUp: number;
   totalDown: number;
   totalUnknown: number;
+}
+
+export interface SystemStatusData {
+  overallStatus: 'operational' | 'degraded' | 'outage' | 'no_monitors';
+  totalMonitors: number;
+  upCount: number;
+  downCount: number;
+  unknownCount: number;
 }
 
 // ─── Fetchers ──────────────────────────────────────────────────────────────
@@ -608,6 +617,40 @@ const monitorStatusFetcher: PanelDataSource<MonitorStatusConfig, MonitorStatusDa
   },
 };
 
+const systemStatusFetcher: PanelDataSource<SystemStatusConfig, SystemStatusData> = {
+  type: 'system_status',
+  async fetchData(config, ctx) {
+    const monitors = await monitorService.listMonitors(
+      ctx.organizationId,
+      config.projectId ?? undefined
+    );
+
+    const upCount = monitors.filter((m) => m.status?.status === 'up').length;
+    const downCount = monitors.filter((m) => m.status?.status === 'down').length;
+    const unknownCount = monitors.length - upCount - downCount;
+
+    // Mirrors the logic in monitorService.getPublicStatus (service.ts:421-427)
+    let overallStatus: SystemStatusData['overallStatus'];
+    if (monitors.length === 0) {
+      overallStatus = 'no_monitors';
+    } else if (downCount === 0) {
+      overallStatus = 'operational';
+    } else if (downCount === monitors.length) {
+      overallStatus = 'outage';
+    } else {
+      overallStatus = 'degraded';
+    }
+
+    return {
+      overallStatus,
+      totalMonitors: monitors.length,
+      upCount,
+      downCount,
+      unknownCount,
+    };
+  },
+};
+
 // ─── Helpers ───────────────────────────────────────────────────────────────
 
 function timeRangeToMs(range: string): number {
@@ -680,6 +723,7 @@ const dataFetchers: Record<PanelType, AnyFetcher> = {
   trace_latency: traceLatencyFetcher as AnyFetcher,
   detection_events: detectionEventsFetcher as AnyFetcher,
   monitor_status: monitorStatusFetcher as AnyFetcher,
+  system_status: systemStatusFetcher as AnyFetcher,
 };
 
 export async function fetchPanelData(

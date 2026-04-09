@@ -24,7 +24,8 @@ export type PanelType =
   | 'metric_stat'
   | 'trace_latency'
   | 'detection_events'
-  | 'monitor_status';
+  | 'monitor_status'
+  | 'system_status';
 
 // ─── Layout (12-column grid) ────────────────────────────────────────────────
 
@@ -161,6 +162,16 @@ export interface MonitorStatusConfig {
   limit: number; // 3–20
 }
 
+// ─── System status banner ────────────────────────────────────────────────────
+
+export interface SystemStatusConfig {
+  type: 'system_status';
+  title: string;
+  source: 'monitors';
+  projectId: string | null;
+  showCounts: boolean;
+}
+
 export type PanelConfig =
   | TimeSeriesConfig
   | SingleStatConfig
@@ -171,7 +182,8 @@ export type PanelConfig =
   | MetricStatConfig
   | TraceLatencyConfig
   | DetectionEventsConfig
-  | MonitorStatusConfig;
+  | MonitorStatusConfig
+  | SystemStatusConfig;
 
 // ─── Panel instance (layout + config) ───────────────────────────────────────
 

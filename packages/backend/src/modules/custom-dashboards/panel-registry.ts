@@ -134,6 +134,14 @@ const monitorStatusSchema = z.object({
   limit: z.number().int().min(3).max(20),
 });
 
+const systemStatusSchema = z.object({
+  type: z.literal('system_status'),
+  title: z.string().min(1).max(100),
+  source: z.literal('monitors'),
+  projectId: z.string().uuid().nullable(),
+  showCounts: z.boolean(),
+});
+
 export const panelConfigSchema = z.discriminatedUnion('type', [
   timeSeriesSchema,
   singleStatSchema,
@@ -145,6 +153,7 @@ export const panelConfigSchema = z.discriminatedUnion('type', [
   traceLatencySchema,
   detectionEventsSchema,
   monitorStatusSchema,
+  systemStatusSchema,
 ]);
 
 export interface BackendPanelDefinition {
@@ -203,6 +212,11 @@ export const panelRegistry: Record<PanelType, BackendPanelDefinition> = {
     type: 'monitor_status',
     schema: monitorStatusSchema as unknown as z.ZodType<PanelConfig>,
     defaultLayout: { w: 6, h: 3 },
+  },
+  system_status: {
+    type: 'system_status',
+    schema: systemStatusSchema as unknown as z.ZodType<PanelConfig>,
+    defaultLayout: { w: 12, h: 2 },
   },
 };
 

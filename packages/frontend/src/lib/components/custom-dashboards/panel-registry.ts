@@ -29,6 +29,7 @@ import Gauge from '@lucide/svelte/icons/gauge';
 import Network from '@lucide/svelte/icons/network';
 import Shield from '@lucide/svelte/icons/shield';
 import HeartPulse from '@lucide/svelte/icons/heart-pulse';
+import CircleCheck from '@lucide/svelte/icons/circle-check';
 import type {
   PanelType,
   PanelConfig,
@@ -44,6 +45,7 @@ import type {
   TraceLatencyConfig,
   DetectionEventsConfig,
   MonitorStatusConfig,
+  SystemStatusConfig,
 } from '@logtide/shared';
 
 import TimeSeriesPanel from './panels/TimeSeriesPanel.svelte';
@@ -56,6 +58,7 @@ import MetricStatPanel from './panels/MetricStatPanel.svelte';
 import TraceLatencyPanel from './panels/TraceLatencyPanel.svelte';
 import DetectionEventsPanel from './panels/DetectionEventsPanel.svelte';
 import MonitorStatusPanel from './panels/MonitorStatusPanel.svelte';
+import SystemStatusPanel from './panels/SystemStatusPanel.svelte';
 
 import TimeSeriesConfigForm from './config-forms/TimeSeriesConfigForm.svelte';
 import SingleStatConfigForm from './config-forms/SingleStatConfigForm.svelte';
@@ -67,6 +70,7 @@ import MetricStatConfigForm from './config-forms/MetricStatConfigForm.svelte';
 import TraceLatencyConfigForm from './config-forms/TraceLatencyConfigForm.svelte';
 import DetectionEventsConfigForm from './config-forms/DetectionEventsConfigForm.svelte';
 import MonitorStatusConfigForm from './config-forms/MonitorStatusConfigForm.svelte';
+import SystemStatusConfigForm from './config-forms/SystemStatusConfigForm.svelte';
 
 export interface PanelComponentProps<TConfig extends PanelConfig = PanelConfig> {
   config: TConfig;
@@ -295,6 +299,24 @@ const registry: Record<PanelType, FrontendPanelDefinition> = {
     component: MonitorStatusPanel as Component<PanelComponentProps>,
     configForm: MonitorStatusConfigForm as Component<ConfigFormProps>,
     minW: 3,
+    minH: 2,
+  },
+  system_status: {
+    type: 'system_status',
+    label: 'System Status',
+    description: 'Aggregated banner: All systems operational / Degraded / Outage.',
+    icon: CircleCheck,
+    defaultLayout: { x: 0, y: 0, w: 12, h: 2 },
+    defaultConfig: {
+      type: 'system_status',
+      title: 'System status',
+      source: 'monitors',
+      projectId: null,
+      showCounts: true,
+    } as SystemStatusConfig,
+    component: SystemStatusPanel as Component<PanelComponentProps>,
+    configForm: SystemStatusConfigForm as Component<ConfigFormProps>,
+    minW: 4,
     minH: 2,
   },
 };
