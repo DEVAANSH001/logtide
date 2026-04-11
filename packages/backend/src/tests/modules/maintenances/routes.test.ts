@@ -187,6 +187,75 @@ describe('GET /api/v1/maintenances/:id', () => {
   });
 });
 
+describe('PUT /api/v1/maintenances/:id - access control', () => {
+  it('returns 403 for non-admin member', async () => {
+    const createRes = await app.inject({
+      method: 'POST',
+      url: '/api/v1/maintenances',
+      headers: authHeaders(authToken),
+      payload: {
+        organizationId: ctx.organization.id,
+        projectId: ctx.project.id,
+        title: 'Admin created',
+        scheduledStart: futureStart,
+        scheduledEnd: futureEnd,
+      },
+    });
+    const { maintenance } = JSON.parse(createRes.payload);
+
+    const { createTestUser } = await import('../../helpers/factories.js');
+    const member = await createTestUser();
+    await db.insertInto('organization_members').values({
+      user_id: member.id,
+      organization_id: ctx.organization.id,
+      role: 'member',
+    }).execute();
+    const memberSession = await createTestSession(member.id);
+
+    const res = await app.inject({
+      method: 'PUT',
+      url: `/api/v1/maintenances/${maintenance.id}?organizationId=${ctx.organization.id}`,
+      headers: authHeaders(memberSession.token),
+      payload: { title: 'Should fail' },
+    });
+    expect(res.statusCode).toBe(403);
+  });
+});
+
+describe('DELETE /api/v1/maintenances/:id - access control', () => {
+  it('returns 403 for non-admin member', async () => {
+    const createRes = await app.inject({
+      method: 'POST',
+      url: '/api/v1/maintenances',
+      headers: authHeaders(authToken),
+      payload: {
+        organizationId: ctx.organization.id,
+        projectId: ctx.project.id,
+        title: 'Admin created 2',
+        scheduledStart: futureStart,
+        scheduledEnd: futureEnd,
+      },
+    });
+    const { maintenance } = JSON.parse(createRes.payload);
+
+    const { createTestUser } = await import('../../helpers/factories.js');
+    const member = await createTestUser();
+    await db.insertInto('organization_members').values({
+      user_id: member.id,
+      organization_id: ctx.organization.id,
+      role: 'member',
+    }).execute();
+    const memberSession = await createTestSession(member.id);
+
+    const res = await app.inject({
+      method: 'DELETE',
+      url: `/api/v1/maintenances/${maintenance.id}?organizationId=${ctx.organization.id}`,
+      headers: authHeaders(memberSession.token),
+    });
+    expect(res.statusCode).toBe(403);
+  });
+});
+
 describe('PUT /api/v1/maintenances/:id', () => {
   it('updates a maintenance', async () => {
     const createRes = await app.inject({

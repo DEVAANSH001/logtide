@@ -235,6 +235,30 @@ describe('GET /api/v1/pipelines/:id', () => {
   });
 });
 
+describe('PUT /api/v1/pipelines/:id - validation', () => {
+  it('returns 400 for invalid step type in update', async () => {
+    const createRes = await app.inject({
+      method: 'POST',
+      url: '/api/v1/pipelines',
+      headers: authHeaders(authToken),
+      payload: {
+        organizationId: ctx.organization.id,
+        name: 'To validate',
+        steps: [],
+      },
+    });
+    const created = JSON.parse(createRes.payload).pipeline;
+
+    const res = await app.inject({
+      method: 'PUT',
+      url: `/api/v1/pipelines/${created.id}?organizationId=${ctx.organization.id}`,
+      headers: authHeaders(authToken),
+      payload: { steps: [{ type: 'invalid_type_xyz' }] },
+    });
+    expect(res.statusCode).toBe(400);
+  });
+});
+
 describe('PUT /api/v1/pipelines/:id', () => {
   it('updates a pipeline', async () => {
     const createRes = await app.inject({

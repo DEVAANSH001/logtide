@@ -385,6 +385,78 @@ describe('MonitorService.runCheck', () => {
   });
 });
 
+describe('MonitorService.runCheck - down/recovery paths', () => {
+  it('records a down result and updates monitor status', async () => {
+    const { runHttpCheck } = await import('../../../modules/monitoring/checker.js');
+    vi.mocked(runHttpCheck).mockResolvedValueOnce({ status: 'down', responseTimeMs: null, statusCode: 503, errorCode: 'http_error' });
+
+    const created = await service.createMonitor({
+      organizationId: ctx.organization.id,
+      projectId: ctx.project.id,
+      name: 'Down check',
+      type: 'http',
+      target: 'https://example.com',
+      failureThreshold: 1,
+    });
+    // createMonitor doesn't join monitor_status; fetch full monitor with status
+    const m = (await service.getMonitor(created.id, ctx.organization.id))!;
+
+    await service.runCheck(m);
+
+    const results = await service.getRecentResults(m.id, ctx.organization.id);
+    expect(results[0].status).toBe('down');
+
+    const updated = await service.getMonitor(m.id, ctx.organization.id);
+    expect(updated!.status!.status).toBe('down');
+  });
+
+  it('records a recovery after being down', async () => {
+    const { runHttpCheck } = await import('../../../modules/monitoring/checker.js');
+
+    const created = await service.createMonitor({
+      organizationId: ctx.organization.id,
+      projectId: ctx.project.id,
+      name: 'Recovery check',
+      type: 'http',
+      target: 'https://example.com',
+      failureThreshold: 1,
+    });
+    const m = (await service.getMonitor(created.id, ctx.organization.id))!;
+
+    // First: go down
+    vi.mocked(runHttpCheck).mockResolvedValueOnce({ status: 'down', responseTimeMs: null, statusCode: 503, errorCode: 'http_error' });
+    await service.runCheck(m);
+
+    // Second: recover (read monitor again to get updated status)
+    const downMonitor = await service.getMonitor(m.id, ctx.organization.id);
+    vi.mocked(runHttpCheck).mockResolvedValueOnce({ status: 'up', responseTimeMs: 50, statusCode: 200, errorCode: null });
+    await service.runCheck(downMonitor!);
+
+    const recovered = await service.getMonitor(m.id, ctx.organization.id);
+    expect(recovered!.status!.status).toBe('up');
+  });
+
+  it('handles tcp check down result', async () => {
+    const { runTcpCheck } = await import('../../../modules/monitoring/checker.js');
+    vi.mocked(runTcpCheck).mockResolvedValueOnce({ status: 'down', responseTimeMs: null, statusCode: null, errorCode: 'connection_refused' });
+
+    const created = await service.createMonitor({
+      organizationId: ctx.organization.id,
+      projectId: ctx.project.id,
+      name: 'TCP down',
+      type: 'tcp',
+      target: 'localhost:9999',
+      failureThreshold: 1,
+    });
+    const m = (await service.getMonitor(created.id, ctx.organization.id))!;
+
+    await service.runCheck(m);
+
+    const updated = await service.getMonitor(m.id, ctx.organization.id);
+    expect(updated!.status!.status).toBe('down');
+  });
+});
+
 describe('MonitorService.runAllDueChecks', () => {
   it('runs checks for due monitors', async () => {
     await service.createMonitor({

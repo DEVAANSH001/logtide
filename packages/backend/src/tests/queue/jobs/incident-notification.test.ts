@@ -203,8 +203,8 @@ describe('Incident Notification Job', () => {
       expect(notificationsService.createNotification).toHaveBeenCalledWith(
         expect.objectContaining({
           userId: owner.id,
-          title: 'Security Incident: High',
-          message: 'Test Incident',
+          title: 'Test Incident',
+          message: 'Security Incident [High]',
           type: 'alert',
           organizationId: org.id,
           metadata: expect.objectContaining({

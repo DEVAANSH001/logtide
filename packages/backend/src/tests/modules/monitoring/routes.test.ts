@@ -480,4 +480,44 @@ describe('GET /status/project/:slug/badge.svg', () => {
     expect(res.statusCode).toBe(200);
     expect(res.payload).toContain('<svg');
   });
+
+  it('supports plastic style', async () => {
+    await db
+      .updateTable('projects')
+      .set({ status_page_visibility: 'public' })
+      .where('id', '=', ctx.project.id)
+      .execute();
+
+    const res = await app.inject({
+      method: 'GET',
+      url: `/status/project/${ctx.project.slug}/badge.svg?style=plastic`,
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.payload).toContain('<svg');
+  });
+});
+
+describe('GET /api/v1/monitors/:id/results with limit', () => {
+  it('respects the limit query parameter', async () => {
+    const createRes = await app.inject({
+      method: 'POST',
+      url: '/api/v1/monitors',
+      headers: authHeaders(authToken),
+      payload: {
+        organizationId: ctx.organization.id,
+        projectId: ctx.project.id,
+        name: 'Limited results',
+        type: 'heartbeat',
+      },
+    });
+    const { monitor } = JSON.parse(createRes.payload);
+
+    const res = await app.inject({
+      method: 'GET',
+      url: `/api/v1/monitors/${monitor.id}/results?organizationId=${ctx.organization.id}&limit=5`,
+      headers: authHeaders(authToken),
+    });
+    expect(res.statusCode).toBe(200);
+    expect(Array.isArray(JSON.parse(res.payload).results)).toBe(true);
+  });
 });

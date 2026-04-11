@@ -355,4 +355,38 @@ describe('POST /api/v1/dashboards/:id/panels/data', () => {
     });
     expect(res.statusCode).toBe(404);
   });
+
+  it('filters panels by panelIds when specified', async () => {
+    const createRes = await app.inject({
+      method: 'POST',
+      url: '/api/v1/dashboards',
+      headers: authHeaders(authToken),
+      payload: {
+        organizationId: ctx.organization.id,
+        name: 'Filter dash',
+        panels: [makePanel('panel-a'), makePanel('panel-b')],
+      },
+    });
+    const { dashboard } = JSON.parse(createRes.payload);
+
+    const res = await app.inject({
+      method: 'POST',
+      url: `/api/v1/dashboards/${dashboard.id}/panels/data`,
+      headers: authHeaders(authToken),
+      payload: { organizationId: ctx.organization.id, panelIds: ['panel-a'] },
+    });
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.payload);
+    expect(Object.keys(body.panels)).toContain('panel-a');
+  });
+
+  it('returns 400 when organizationId missing from panels/data', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: `/api/v1/dashboards/00000000-0000-0000-0000-000000000000/panels/data`,
+      headers: authHeaders(authToken),
+      payload: {},
+    });
+    expect(res.statusCode).toBe(400);
+  });
 });
