@@ -69,7 +69,6 @@ describe('Input Validation - Zod Schemas', () => {
 
         it('should reject log with missing required fields', () => {
             const testCases = [
-                { service: 'api', level: 'info', message: 'test' }, // missing time
                 { time: '2024-01-15T10:30:00.000Z', level: 'info', message: 'test' }, // missing service
                 { time: '2024-01-15T10:30:00.000Z', service: 'api', message: 'test' }, // missing level
                 { time: '2024-01-15T10:30:00.000Z', service: 'api', level: 'info' }, // missing message
@@ -78,6 +77,22 @@ describe('Input Validation - Zod Schemas', () => {
             for (const testCase of testCases) {
                 const result = logSchema.safeParse(testCase);
                 expect(result.success).toBe(false);
+            }
+        });
+
+        it('should default time to current ISO string when missing', () => {
+            const log = { service: 'api', level: 'info', message: 'test' };
+
+            const before = Date.now();
+            const result = logSchema.safeParse(log);
+            const after = Date.now();
+
+            expect(result.success).toBe(true);
+            if (result.success) {
+                expect(typeof result.data.time).toBe('string');
+                const parsed = new Date(result.data.time as string).getTime();
+                expect(parsed).toBeGreaterThanOrEqual(before);
+                expect(parsed).toBeLessThanOrEqual(after);
             }
         });
 

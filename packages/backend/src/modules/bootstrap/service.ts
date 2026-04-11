@@ -9,7 +9,6 @@
  * This runs at server startup
  */
 
-import crypto from 'node:crypto';
 import bcrypt from 'bcrypt';
 import { db } from '../../database/connection.js';
 import { config } from '../../config/index.js';
@@ -35,10 +34,19 @@ export class BootstrapService {
    * Create initial admin user from environment variables if:
    * 1. No users exist in the database
    * 2. INITIAL_ADMIN_EMAIL and INITIAL_ADMIN_PASSWORD are set
+   *
+   * If env vars are not set, no user is created here. The first user
+   * to register via the UI will be promoted to admin automatically
+   * (see UsersService.createUser and AuthenticationService.findOrCreateUser).
    */
   async ensureInitialAdmin(): Promise<void> {
     // Check if env vars are configured
     const { INITIAL_ADMIN_EMAIL, INITIAL_ADMIN_PASSWORD, INITIAL_ADMIN_NAME } = config;
+
+    if (!INITIAL_ADMIN_EMAIL || !INITIAL_ADMIN_PASSWORD) {
+      console.log('[Bootstrap] No INITIAL_ADMIN_* env vars set. The first user to register will become admin.');
+      return;
+    }
 
     // Check if any "real" users exist (with password set - excludes system@logtide.internal)
     const userCount = await db
@@ -54,19 +62,16 @@ export class BootstrapService {
       return;
     }
 
-    // Use env vars if set, otherwise generate random credentials
-    const adminEmail = INITIAL_ADMIN_EMAIL || 'system@logtide.internal';
-    const adminPassword = INITIAL_ADMIN_PASSWORD || crypto.randomBytes(16).toString('base64url');
     const adminName = INITIAL_ADMIN_NAME || 'Admin';
 
-    console.log(`[Bootstrap] No users found. Creating initial admin: ${adminEmail}`);
+    console.log(`[Bootstrap] No users found. Creating initial admin: ${INITIAL_ADMIN_EMAIL}`);
 
-    const passwordHash = await bcrypt.hash(adminPassword, SALT_ROUNDS);
+    const passwordHash = await bcrypt.hash(INITIAL_ADMIN_PASSWORD, SALT_ROUNDS);
 
     const user = await db
       .insertInto('users')
       .values({
-        email: adminEmail,
+        email: INITIAL_ADMIN_EMAIL,
         password_hash: passwordHash,
         name: adminName,
         is_admin: true,
@@ -74,16 +79,7 @@ export class BootstrapService {
       .returning(['id', 'email', 'name', 'is_admin', 'disabled', 'created_at', 'last_login'])
       .executeTakeFirstOrThrow();
 
-    console.log('');
-    console.log('╔══════════════════════════════════════════════════════════╗');
-    console.log('║              INITIAL ADMIN ACCOUNT CREATED              ║');
-    console.log('╠══════════════════════════════════════════════════════════╣');
-    console.log(`║  Email:    ${adminEmail.padEnd(44)}║`);
-    console.log(`║  Password: ${adminPassword.padEnd(44)}║`);
-    console.log('╠══════════════════════════════════════════════════════════╣');
-    console.log('║  ⚠  Change this password after first login!            ║');
-    console.log('╚══════════════════════════════════════════════════════════╝');
-    console.log('');
+    console.log(`[Bootstrap] Initial admin created successfully: ${user.email} (ID: ${user.id})`);
 
     // Set this user as default user for auth-free mode
     await settingsService.set('auth.default_user_id', user.id);
