@@ -340,6 +340,7 @@ describe('RetentionService', () => {
         .insertInto('projects')
         .values({
           name: 'Empty Project',
+          slug: `empty-project-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
           organization_id: org.id,
           user_id: org.owner_id,
         })
@@ -412,6 +413,7 @@ describe('RetentionService', () => {
         .insertInto('projects')
         .values({
           name: 'Second Project',
+          slug: `second-project-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
           organization_id: ctx.organization.id,
           user_id: ctx.user.id,
         })
@@ -573,6 +575,7 @@ describe('RetentionService', () => {
         .insertInto('projects')
         .values({
           name: 'Second Project',
+          slug: `second-project-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
           organization_id: ctx.organization.id,
           user_id: ctx.user.id,
         })

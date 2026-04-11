@@ -17,7 +17,7 @@ async function createTestSession(userId: string) {
     return { token };
 }
 
-describe('Projects Routes — Extended', () => {
+describe('Projects Routes - Extended', () => {
     let app: FastifyInstance;
     let authToken: string;
     let testUser: any;

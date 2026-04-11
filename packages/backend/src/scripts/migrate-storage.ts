@@ -393,7 +393,7 @@ async function main(): Promise<void> {
   console.log('='.repeat(50));
 
   if (opts.dryRun) {
-    console.log('(DRY RUN — no data will be written)\n');
+    console.log('(DRY RUN - no data will be written)\n');
   } else {
     console.log('');
   }

@@ -72,7 +72,7 @@ class SessionsService {
       .executeTakeFirst();
     const total = parseInt(countResult?.count ?? '0', 10);
 
-    // Aggregate sessions — need raw SQL for GROUP BY + HAVING + FILTER
+    // Aggregate sessions - need raw SQL for GROUP BY + HAVING + FILTER
     // Build WHERE fragments for the raw query
     const whereParts: ReturnType<typeof sql>[] = [
       sql`project_id = ${projectId}`,

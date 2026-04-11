@@ -611,7 +611,7 @@
                                         <span class="text-xs capitalize">{q.state}</span>
                                     </Table.Cell>
                                     <Table.Cell>
-                                        <span class="text-xs text-muted-foreground">{q.waitEvent ?? "—"}</span>
+                                        <span class="text-xs text-muted-foreground">{q.waitEvent ?? "-"}</span>
                                     </Table.Cell>
                                 </Table.Row>
                             {/each}

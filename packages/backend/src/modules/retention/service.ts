@@ -181,7 +181,7 @@ export class RetentionService {
   /**
    * Delete logs for given project IDs older than cutoffDate using daily time windows.
    * Each window deletes at most 1 day of data, keeping CPU/memory bounded.
-   * Uses reservoir.deleteByTimeRange() — works with any engine.
+   * Uses reservoir.deleteByTimeRange() - works with any engine.
    *
    * Note: On ClickHouse, mutations are async so `result.deleted` returns 0
    * immediately. The actual deletion happens in the background.
@@ -301,7 +301,7 @@ export class RetentionService {
    * Execute retention cleanup for all organizations.
    *
    * Strategy (scales with number of distinct retention values, not orgs):
-   * 1. drop_chunks for max retention — instant, drops entire files
+   * 1. drop_chunks for max retention - instant, drops entire files
    * 2. Group orgs by retention_days, collect all project_ids per group
    * 3. For each group with retention < max: batch-delete their logs
    */
@@ -344,7 +344,7 @@ export class RetentionService {
     const maxRetention = Math.max(...organizations.map(o => o.retention_days));
     const maxCutoff = new Date(Date.now() - maxRetention * 24 * 60 * 60 * 1000);
 
-    // Step 1: drop_chunks older than max retention (TimescaleDB only — instant, no decompression)
+    // Step 1: drop_chunks older than max retention (TimescaleDB only - instant, no decompression)
     // For ClickHouse, TTL policies handle this natively or deleteByTimeRange in step 3
     let chunksDropped = 0;
     if (reservoir.getEngineType() === 'timescale') {
@@ -363,7 +363,7 @@ export class RetentionService {
           });
         }
       } catch (err) {
-        // drop_chunks may fail if no chunks to drop — that's fine
+        // drop_chunks may fail if no chunks to drop - that's fine
         /* v8 ignore next 4 -- telemetry, disabled in tests */
         if (logging) {
           const msg = err instanceof Error ? err.message : String(err);
@@ -391,7 +391,7 @@ export class RetentionService {
 
     for (const [retentionDays, group] of retentionGroups) {
       if (group.projectIds.length === 0) {
-        // No projects in this group — mark all orgs as success with 0 deleted
+        // No projects in this group - mark all orgs as success with 0 deleted
         for (const org of group.orgs) {
           results.push({
             organizationId: org.id,
@@ -445,7 +445,7 @@ export class RetentionService {
           });
         }
 
-        // Report per-org (split evenly for reporting — exact per-org count isn't available in group mode)
+        // Report per-org (split evenly for reporting - exact per-org count isn't available in group mode)
         for (const org of group.orgs) {
           results.push({
             organizationId: org.id,

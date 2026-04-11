@@ -83,27 +83,19 @@ const authPlugin: FastifyPluginAsync = async (fastify) => {
       request.url.startsWith('/api/v1/projects') ||
       request.url.startsWith('/api/v1/alerts') ||
       request.url.startsWith('/api/v1/notifications') ||
-      request.url.startsWith('/api/v1/invitations')
+      request.url.startsWith('/api/v1/invitations') ||
+      request.url.startsWith('/api/v1/status') ||
+      request.url.startsWith('/api/v1/status-incidents') ||
+      request.url.startsWith('/api/v1/maintenances')
     ) {
       return;
-    }
-
-    // Check for auth-free mode first
-    const authMode = await settingsService.getAuthMode();
-    if (authMode === 'none') {
-      const defaultUser = await bootstrapService.getDefaultUser();
-      if (defaultUser) {
-        request.authenticated = true;
-        // In auth-free mode, projectId comes from query params
-        return;
-      }
     }
 
     const apiKey = request.headers['x-api-key'] as string;
     const authHeader = request.headers['authorization'] as string;
     const tokenParam = (request.query as any)?.token as string | undefined;
 
-    // Try token from query param first (for SSE - EventSource can't send headers)
+    // 1. Try token from query param first (for SSE - EventSource can't send headers)
     if (tokenParam) {
       const user = await usersService.validateSession(tokenParam);
 
@@ -121,7 +113,7 @@ const authPlugin: FastifyPluginAsync = async (fastify) => {
       return;
     }
 
-    // Try API key
+    // 2. Try API key (priority for ingestion/machine-to-machine)
     if (apiKey) {
       const result = await apiKeysService.verifyApiKey(apiKey);
 
@@ -151,7 +143,7 @@ const authPlugin: FastifyPluginAsync = async (fastify) => {
       return;
     }
 
-    // Try Bearer token (session-based auth) for UI
+    // 3. Try Bearer token (session-based auth) for UI
     if (authHeader?.startsWith('Bearer ')) {
       const token = authHeader.substring(7); // Remove 'Bearer ' prefix
 
@@ -170,6 +162,17 @@ const authPlugin: FastifyPluginAsync = async (fastify) => {
       (request as any).user = user; // Set user for session-based routes
       // Note: projectId will be extracted from query params in the route handler
       return;
+    }
+
+    // 4. Fallback to auth-free mode if enabled
+    const authMode = await settingsService.getAuthMode();
+    if (authMode === 'none') {
+      const defaultUser = await bootstrapService.getDefaultUser();
+      if (defaultUser) {
+        request.authenticated = true;
+        // In auth-free mode, projectId comes from query params
+        return;
+      }
     }
 
     // No auth provided

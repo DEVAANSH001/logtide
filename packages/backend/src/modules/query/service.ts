@@ -218,7 +218,7 @@ export class QueryService {
         sortOrder: 'desc',
         limit: before,
       }),
-      // Logs after (exclusive, ascending) — no upper bound needed
+      // Logs after (exclusive, ascending) - no upper bound needed
       reservoir.query({
         projectId,
         from: time,
@@ -451,7 +451,7 @@ export class QueryService {
    * Cached for performance - used for filter dropdowns.
    *
    * PERFORMANCE: Window is capped at 6 hours regardless of what the caller passes.
-   * JSONB extraction is expensive on large datasets — 6h ≈ 350ms, 24h+ ≈ 8s+.
+   * JSONB extraction is expensive on large datasets - 6h ≈ 350ms, 24h+ ≈ 8s+.
    * For a filter dropdown this is an acceptable trade-off: hostnames are stable.
    * With 5-minute cache, most requests are served from cache after the first hit.
    */
@@ -461,7 +461,7 @@ export class QueryService {
     to?: Date
   ): Promise<string[]> {
     // PERFORMANCE: Cap window to 6h max. If the caller requests a longer window
-    // (e.g. 24h), silently clamp it — JSONB distinct over large ranges is O(rows).
+    // (e.g. 24h), silently clamp it - JSONB distinct over large ranges is O(rows).
     const sixHoursAgo = new Date(Date.now() - 6 * 60 * 60 * 1000);
     const effectiveFrom = !from || from < sixHoursAgo ? sixHoursAgo : from;
 

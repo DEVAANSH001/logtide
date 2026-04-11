@@ -38,7 +38,7 @@ export class SourceMapsService {
   }): Promise<SourceMapRecord> {
     const { projectId, organizationId, release, fileName, content } = params;
 
-    // Sanitize file name — only basename allowed
+    // Sanitize file name - only basename allowed
     const safeName = path.basename(fileName);
     if (safeName !== fileName || fileName.includes('..')) {
       throw new Error('Invalid file name: must not contain path separators');
@@ -127,7 +127,7 @@ export class SourceMapsService {
 
     await deleteQuery.execute();
 
-    // Delete from storage (best effort — orphaned files are acceptable)
+    // Delete from storage (best effort - orphaned files are acceptable)
     if (fileName) {
       await this.storage.delete(projectId, release, fileName).catch(() => {});
     } else {

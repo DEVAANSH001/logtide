@@ -406,7 +406,7 @@ describe('Dashboard Routes', () => {
     });
 
     // =========================================================================
-    // projectId scoping — verifyProjectBelongsToOrg branch
+    // projectId scoping - verifyProjectBelongsToOrg branch
     // =========================================================================
 
     describe('projectId parameter scoping', () => {

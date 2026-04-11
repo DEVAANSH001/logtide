@@ -31,6 +31,11 @@ import { settingsRoutes, publicSettingsRoutes, settingsService } from './modules
 import { retentionRoutes } from './modules/retention/index.js';
 import { correlationRoutes, patternRoutes } from './modules/correlation/index.js';
 import { piiMaskingRoutes } from './modules/pii-masking/index.js';
+import { pipelineRoutes } from './modules/log-pipeline/index.js';
+import { customDashboardsRoutes } from './modules/custom-dashboards/index.js';
+import { monitoringRoutes, heartbeatRoutes, publicStatusRoutes } from './modules/monitoring/index.js';
+import { statusIncidentRoutes } from './modules/status-incidents/routes.js';
+import { maintenanceRoutes } from './modules/maintenances/routes.js';
 import { sessionsRoutes } from './modules/sessions/routes.js';
 import { sourcemapsRoutes } from './modules/sourcemaps/index.js';
 import { auditLogRoutes, auditLogService } from './modules/audit-log/index.js';
@@ -92,7 +97,7 @@ export async function build(opts = {}) {
       return;
     }
 
-    // Server errors (5xx) or unknown — never expose internal details to clients
+    // Server errors (5xx) or unknown - never expose internal details to clients
     request.log.error(error);
     reply.code(statusCode || 500).send({
       statusCode: statusCode || 500,
@@ -180,6 +185,8 @@ export async function build(opts = {}) {
   await fastify.register(correlationRoutes, { prefix: '/api' });
   await fastify.register(patternRoutes, { prefix: '/api' });
   await fastify.register(piiMaskingRoutes, { prefix: '/api' });
+  await fastify.register(pipelineRoutes, { prefix: '/api/v1/log-pipelines' });
+  await fastify.register(customDashboardsRoutes, { prefix: '/api/v1/custom-dashboards' });
   await fastify.register(otlpRoutes);
   await fastify.register(otlpTraceRoutes);
   await fastify.register(otlpMetricRoutes);
@@ -189,6 +196,11 @@ export async function build(opts = {}) {
   await fastify.register(sourcemapsRoutes);
   await fastify.register(websocketPlugin);
   await fastify.register(websocketRoutes);
+  await fastify.register(monitoringRoutes, { prefix: '/api/v1/monitors' });
+  await fastify.register(heartbeatRoutes, { prefix: '/api/v1/monitors' });
+  await fastify.register(publicStatusRoutes, { prefix: '/api/v1/status' });
+  await fastify.register(statusIncidentRoutes, { prefix: '/api/v1/status-incidents' });
+  await fastify.register(maintenanceRoutes, { prefix: '/api/v1/maintenances' });
 
   return fastify;
 }

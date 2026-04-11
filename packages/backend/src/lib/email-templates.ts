@@ -732,3 +732,104 @@ Sent by LogTide
 
   return { html, text };
 }
+
+// ============================================================================
+// MONITOR NOTIFICATION EMAIL
+// ============================================================================
+
+export interface MonitorEmailData {
+  monitorId: string;
+  monitorName: string;
+  status: 'down' | 'up';
+  severity: 'critical' | 'high' | 'medium' | 'low' | 'informational';
+  organizationName: string;
+  target?: string | null;
+  errorCode?: string | null;
+  responseTimeMs?: number | null;
+  consecutiveFailures?: number;
+  downtimeDuration?: string | null;
+}
+
+export function generateMonitorEmail(data: MonitorEmailData): { html: string; text: string } {
+  const frontendUrl = getFrontendUrl();
+  const monitorUrl = `${frontendUrl}/dashboard/monitoring`;
+  const isDown = data.status === 'down';
+  const severityLabel = severityLabels[data.severity] || data.severity;
+
+  const statusLabel = isDown ? 'Down' : 'Recovered';
+  const statusColor = isDown ? colors.error : colors.success;
+
+  const infoRows: Array<{ label: string; value: string; isCode?: boolean }> = [
+    { label: 'Monitor', value: data.monitorName },
+    { label: 'Status', value: statusLabel },
+    { label: 'Severity', value: severityLabel },
+    { label: 'Organization', value: data.organizationName },
+  ];
+
+  if (data.target) {
+    infoRows.push({ label: 'Target', value: data.target, isCode: true });
+  }
+  if (isDown && data.errorCode) {
+    infoRows.push({ label: 'Error', value: data.errorCode, isCode: true });
+  }
+  if (data.responseTimeMs !== undefined && data.responseTimeMs !== null) {
+    infoRows.push({ label: 'Response Time', value: `${data.responseTimeMs}ms` });
+  }
+  if (isDown && data.consecutiveFailures) {
+    infoRows.push({ label: 'Consecutive Failures', value: String(data.consecutiveFailures) });
+  }
+  if (!isDown && data.downtimeDuration) {
+    infoRows.push({ label: 'Downtime Duration', value: data.downtimeDuration });
+  }
+
+  const title = isDown
+    ? `Monitor down: ${data.monitorName}`
+    : `Monitor recovered: ${data.monitorName}`;
+
+  const html = baseTemplate(
+    card(`
+      ${header(title, { text: statusLabel, color: statusColor })}
+      ${divider()}
+      ${timestamp()}
+      ${isDown
+        ? alertBox(
+            `<strong>${escapeHtml(data.monitorName)}</strong> is not responding.${data.errorCode ? ` Error: <strong>${escapeHtml(data.errorCode)}</strong>` : ''}`,
+            data.severity === 'critical' ? 'error' : 'warning'
+          )
+        : alertBox(
+            `<strong>${escapeHtml(data.monitorName)}</strong> is back online.${data.downtimeDuration ? ` Downtime: <strong>${escapeHtml(data.downtimeDuration)}</strong>` : ''}`,
+            'success'
+          )
+      }
+      ${infoBox(infoRows)}
+      ${cta('View Monitor', monitorUrl)}
+    `),
+    { preheader: `[${statusLabel}] ${data.monitorName}` }
+  );
+
+  const text = `
+MONITOR ${statusLabel.toUpperCase()}: ${data.monitorName}
+${'='.repeat(50)}
+
+${isDown ? `${data.monitorName} is not responding.` : `${data.monitorName} is back online.`}
+
+DETAILS
+-------
+Organization: ${data.organizationName}
+${data.target ? `Target: ${data.target}` : ''}
+${isDown && data.errorCode ? `Error: ${data.errorCode}` : ''}
+${data.responseTimeMs !== undefined && data.responseTimeMs !== null ? `Response Time: ${data.responseTimeMs}ms` : ''}
+${isDown && data.consecutiveFailures ? `Consecutive Failures: ${data.consecutiveFailures}` : ''}
+${!isDown && data.downtimeDuration ? `Downtime Duration: ${data.downtimeDuration}` : ''}
+
+Detected: ${formatEmailDate()}
+
+View details: ${monitorUrl}
+
+--
+Sent by LogTide
+Manage notifications: ${frontendUrl}/dashboard/settings/channels
+`.trim();
+
+  return { html, text };
+}

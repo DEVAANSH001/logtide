@@ -5,14 +5,12 @@ import crypto from 'crypto';
  * Create a test session for a user
  */
 export async function createTestSession(userId: string) {
-    const sessionId = crypto.randomBytes(32).toString('hex');
     const token = crypto.randomBytes(32).toString('hex');
     const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
 
     const session = await db
         .insertInto('sessions')
         .values({
-            id: sessionId,
             user_id: userId,
             token,
             expires_at: expiresAt,

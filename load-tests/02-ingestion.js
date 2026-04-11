@@ -1,4 +1,4 @@
-// Ingestion load test — sustained and burst ingestion
+// Ingestion load test - sustained and burst ingestion
 import http from 'k6/http';
 import { check, sleep } from 'k6';
 import { Counter, Rate, Trend } from 'k6/metrics';
@@ -10,7 +10,7 @@ const ingestDuration = new Trend('ingest_duration', true);
 
 export const options = {
   scenarios: {
-    // Phase 1: Sustained load — 50 req/s (500 logs/s) for 3 min
+    // Phase 1: Sustained load - 50 req/s (500 logs/s) for 3 min
     sustained: {
       executor: 'constant-arrival-rate',
       rate: 50,
@@ -21,7 +21,7 @@ export const options = {
       exec: 'ingestBatch',
       startTime: '0s',
     },
-    // Phase 2: Ramp up — 10 → 200 → 10 req/s
+    // Phase 2: Ramp up - 10 → 200 → 10 req/s
     ramp: {
       executor: 'ramping-arrival-rate',
       startRate: 10,
@@ -36,7 +36,7 @@ export const options = {
       exec: 'ingestBatch',
       startTime: '3m30s',
     },
-    // Phase 3: Burst — 500 req/s (5000 logs/s) for 30s
+    // Phase 3: Burst - 500 req/s (5000 logs/s) for 30s
     burst: {
       executor: 'constant-arrival-rate',
       rate: 500,
@@ -47,7 +47,7 @@ export const options = {
       exec: 'ingestBatch',
       startTime: '6m30s',
     },
-    // Phase 4: Large batches — fewer requests with 100 logs each
+    // Phase 4: Large batches - fewer requests with 100 logs each
     largeBatch: {
       executor: 'constant-arrival-rate',
       rate: 10,
@@ -58,7 +58,7 @@ export const options = {
       exec: 'ingestLargeBatch',
       startTime: '7m30s',
     },
-    // Phase 5: Traced requests — logs with trace correlation
+    // Phase 5: Traced requests - logs with trace correlation
     traced: {
       executor: 'constant-arrival-rate',
       rate: 20,
