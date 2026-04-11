@@ -455,6 +455,62 @@ describe('MonitorService.runCheck - down/recovery paths', () => {
     const updated = await service.getMonitor(m.id, ctx.organization.id);
     expect(updated!.status!.status).toBe('down');
   });
+
+  it('records recovery with minutes-ago downtime', async () => {
+    const { runHttpCheck } = await import('../../../modules/monitoring/checker.js');
+
+    const created = await service.createMonitor({
+      organizationId: ctx.organization.id,
+      projectId: ctx.project.id,
+      name: 'Recovery minutes',
+      type: 'http',
+      target: 'https://example.com',
+      failureThreshold: 1,
+    });
+
+    // Manually set lastStatusChangeAt to 2 minutes ago to trigger minutes duration
+    const twoMinutesAgo = new Date(Date.now() - 2 * 60 * 1000);
+    await db
+      .updateTable('monitor_status')
+      .set({ status: 'down', last_status_change_at: twoMinutesAgo, consecutive_failures: 1 })
+      .where('monitor_id', '=', created.id)
+      .execute();
+
+    const m = (await service.getMonitor(created.id, ctx.organization.id))!;
+    vi.mocked(runHttpCheck).mockResolvedValueOnce({ status: 'up', responseTimeMs: 50, statusCode: 200, errorCode: null });
+    await service.runCheck(m);
+
+    const recovered = await service.getMonitor(m.id, ctx.organization.id);
+    expect(recovered!.status!.status).toBe('up');
+  });
+
+  it('records recovery with hours-ago downtime', async () => {
+    const { runHttpCheck } = await import('../../../modules/monitoring/checker.js');
+
+    const created = await service.createMonitor({
+      organizationId: ctx.organization.id,
+      projectId: ctx.project.id,
+      name: 'Recovery hours',
+      type: 'http',
+      target: 'https://example.com',
+      failureThreshold: 1,
+    });
+
+    // Set lastStatusChangeAt to 2 hours ago to trigger hours duration
+    const twoHoursAgo = new Date(Date.now() - 2 * 3600 * 1000);
+    await db
+      .updateTable('monitor_status')
+      .set({ status: 'down', last_status_change_at: twoHoursAgo, consecutive_failures: 1 })
+      .where('monitor_id', '=', created.id)
+      .execute();
+
+    const m = (await service.getMonitor(created.id, ctx.organization.id))!;
+    vi.mocked(runHttpCheck).mockResolvedValueOnce({ status: 'up', responseTimeMs: 50, statusCode: 200, errorCode: null });
+    await service.runCheck(m);
+
+    const recovered = await service.getMonitor(m.id, ctx.organization.id);
+    expect(recovered!.status!.status).toBe('up');
+  });
 });
 
 describe('MonitorService.runAllDueChecks', () => {
