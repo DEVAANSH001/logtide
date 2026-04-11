@@ -74,7 +74,16 @@ beforeEach(async () => {
         // Monitoring tables (must delete before monitors and incidents)
         await db.deleteFrom('monitor_results').execute();
         await db.deleteFrom('monitor_status').execute();
+        await db.deleteFrom('monitor_channels').execute();
         await db.deleteFrom('monitors').execute();
+        // Status page tables
+        await db.deleteFrom('status_incident_updates').execute();
+        await db.deleteFrom('status_incidents').execute();
+        await db.deleteFrom('scheduled_maintenances').execute();
+        // Pipeline tables
+        await db.deleteFrom('log_pipelines').execute();
+        // Custom dashboards
+        await db.deleteFrom('custom_dashboards').execute();
         // SIEM tables (must delete before incidents and sigma_rules)
         await db.deleteFrom('incident_alerts').execute();
         await db.deleteFrom('incident_comments').execute();
