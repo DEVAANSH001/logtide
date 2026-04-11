@@ -150,6 +150,18 @@ describe('GET /api/v1/maintenances', () => {
     });
     expect(res.statusCode).toBe(400);
   });
+
+  it('returns 403 for non-member', async () => {
+    const { createTestUser } = await import('../../helpers/factories.js');
+    const stranger = await createTestUser();
+    const strangerSession = await createTestSession(stranger.id);
+    const res = await app.inject({
+      method: 'GET',
+      url: `/api/v1/maintenances?organizationId=${ctx.organization.id}&projectId=${ctx.project.id}`,
+      headers: authHeaders(strangerSession.token),
+    });
+    expect(res.statusCode).toBe(403);
+  });
 });
 
 describe('GET /api/v1/maintenances/:id', () => {
@@ -184,6 +196,18 @@ describe('GET /api/v1/maintenances/:id', () => {
       headers: authHeaders(authToken),
     });
     expect(res.statusCode).toBe(404);
+  });
+
+  it('returns 403 for non-member', async () => {
+    const { createTestUser } = await import('../../helpers/factories.js');
+    const stranger = await createTestUser();
+    const strangerSession = await createTestSession(stranger.id);
+    const res = await app.inject({
+      method: 'GET',
+      url: `/api/v1/maintenances/some-id?organizationId=${ctx.organization.id}`,
+      headers: authHeaders(strangerSession.token),
+    });
+    expect(res.statusCode).toBe(403);
   });
 });
 

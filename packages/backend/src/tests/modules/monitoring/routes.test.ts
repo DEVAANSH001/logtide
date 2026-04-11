@@ -323,6 +323,7 @@ describe('POST /api/v1/heartbeat/:id/heartbeat', () => {
     });
     expect(res.statusCode).toBe(401);
   });
+
 });
 
 describe('GET /status/project/:slug', () => {
@@ -379,6 +380,88 @@ describe('GET /status/project/:slug', () => {
     });
     expect(res.statusCode).toBe(401);
     expect(JSON.parse(res.payload).requiresPassword).toBe(true);
+  });
+
+  it('returns 401 for wrong password on password-protected project', async () => {
+    await db
+      .updateTable('projects')
+      .set({ status_page_visibility: 'password' })
+      .where('id', '=', ctx.project.id)
+      .execute();
+
+    const res = await app.inject({
+      method: 'GET',
+      url: `/status/project/${ctx.project.slug}`,
+      headers: { 'x-status-password': 'wrongpassword' },
+    });
+    expect(res.statusCode).toBe(401);
+    expect(JSON.parse(res.payload).error).toBe('Invalid password');
+  });
+
+  it('returns 401 for members_only project without auth', async () => {
+    await db
+      .updateTable('projects')
+      .set({ status_page_visibility: 'members_only' })
+      .where('id', '=', ctx.project.id)
+      .execute();
+
+    const res = await app.inject({
+      method: 'GET',
+      url: `/status/project/${ctx.project.slug}`,
+    });
+    expect(res.statusCode).toBe(401);
+    expect(JSON.parse(res.payload).requiresAuth).toBe(true);
+  });
+
+  it('returns 401 for members_only project with invalid token', async () => {
+    await db
+      .updateTable('projects')
+      .set({ status_page_visibility: 'members_only' })
+      .where('id', '=', ctx.project.id)
+      .execute();
+
+    const res = await app.inject({
+      method: 'GET',
+      url: `/status/project/${ctx.project.slug}`,
+      headers: { Authorization: 'Bearer invalid-token-xyz' },
+    });
+    expect(res.statusCode).toBe(401);
+    expect(JSON.parse(res.payload).requiresAuth).toBe(true);
+  });
+
+  it('returns 403 for members_only project with non-member token', async () => {
+    await db
+      .updateTable('projects')
+      .set({ status_page_visibility: 'members_only' })
+      .where('id', '=', ctx.project.id)
+      .execute();
+
+    const { createTestUser } = await import('../../helpers/factories.js');
+    const stranger = await createTestUser();
+    const strangerSession = await createTestSession(stranger.id);
+
+    const res = await app.inject({
+      method: 'GET',
+      url: `/status/project/${ctx.project.slug}`,
+      headers: { Authorization: `Bearer ${strangerSession.token}` },
+    });
+    expect(res.statusCode).toBe(403);
+  });
+
+  it('returns status data for members_only project with valid member token', async () => {
+    await db
+      .updateTable('projects')
+      .set({ status_page_visibility: 'members_only' })
+      .where('id', '=', ctx.project.id)
+      .execute();
+
+    const res = await app.inject({
+      method: 'GET',
+      url: `/status/project/${ctx.project.slug}`,
+      headers: authHeaders(authToken),
+    });
+    expect(res.statusCode).toBe(200);
+    expect(JSON.parse(res.payload).projectSlug).toBe(ctx.project.slug);
   });
 });
 

@@ -63,4 +63,15 @@ describe('runGeoIpStep', () => {
     const result = await runGeoIpStep(step, log);
     expect(result).toEqual({});
   });
+
+  it('returns empty object when geolite2 throws on import', async () => {
+    vi.mock('../../../../modules/siem/geolite2-service.js', () => {
+      throw new Error('Module not found');
+    });
+
+    const step: GeoIpStep = { type: 'geoip', field: 'client_ip', target: 'geo' };
+    const log = { ...baseLog, metadata: { client_ip: '9.9.9.9' } };
+    const result = await runGeoIpStep(step, log);
+    expect(result).toEqual({});
+  });
 });

@@ -110,6 +110,78 @@ describe('POST /api/v1/dashboards', () => {
   });
 });
 
+describe('Access control - 403 for non-members', () => {
+  let strangerToken: string;
+
+  beforeEach(async () => {
+    const { createTestUser } = await import('../../helpers/factories.js');
+    const stranger = await createTestUser();
+    const session = await createTestSession(stranger.id);
+    strangerToken = session.token;
+  });
+
+  it('POST / returns 403 for non-member', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/v1/dashboards',
+      headers: authHeaders(strangerToken),
+      payload: { organizationId: ctx.organization.id, name: 'Hack' },
+    });
+    expect(res.statusCode).toBe(403);
+  });
+
+  it('GET / returns 403 for non-member', async () => {
+    const res = await app.inject({
+      method: 'GET',
+      url: `/api/v1/dashboards?organizationId=${ctx.organization.id}`,
+      headers: authHeaders(strangerToken),
+    });
+    expect(res.statusCode).toBe(403);
+  });
+
+  it('GET /default returns 403 for non-member', async () => {
+    const res = await app.inject({
+      method: 'GET',
+      url: `/api/v1/dashboards/default?organizationId=${ctx.organization.id}`,
+      headers: authHeaders(strangerToken),
+    });
+    expect(res.statusCode).toBe(403);
+  });
+
+  it('PUT /:id returns 403 for non-member', async () => {
+    const createRes = await app.inject({
+      method: 'POST',
+      url: '/api/v1/dashboards',
+      headers: authHeaders(authToken),
+      payload: { organizationId: ctx.organization.id, name: 'D' },
+    });
+    const { dashboard } = JSON.parse(createRes.payload);
+    const res = await app.inject({
+      method: 'PUT',
+      url: `/api/v1/dashboards/${dashboard.id}?organizationId=${ctx.organization.id}`,
+      headers: authHeaders(strangerToken),
+      payload: { name: 'X' },
+    });
+    expect(res.statusCode).toBe(403);
+  });
+
+  it('DELETE /:id returns 403 for non-member', async () => {
+    const createRes = await app.inject({
+      method: 'POST',
+      url: '/api/v1/dashboards',
+      headers: authHeaders(authToken),
+      payload: { organizationId: ctx.organization.id, name: 'D' },
+    });
+    const { dashboard } = JSON.parse(createRes.payload);
+    const res = await app.inject({
+      method: 'DELETE',
+      url: `/api/v1/dashboards/${dashboard.id}?organizationId=${ctx.organization.id}`,
+      headers: authHeaders(strangerToken),
+    });
+    expect(res.statusCode).toBe(403);
+  });
+});
+
 describe('GET /api/v1/dashboards', () => {
   it('lists dashboards', async () => {
     await app.inject({
