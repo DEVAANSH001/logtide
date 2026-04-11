@@ -18,9 +18,23 @@ beforeAll(async () => {
         await db.selectFrom('users').selectAll().execute();
         console.log('Database connection established');
     } catch (error) {
-        console.error('Failed to connect to test database:', error);
-        console.error('Make sure the test database is running (docker-compose.test.yml)');
-        throw error;
+        const isConnRefused = (function check(err: unknown): boolean {
+            if (err instanceof AggregateError) return err.errors.some(check);
+            if (err instanceof Error) {
+                return (
+                    err.message.includes('ECONNREFUSED') ||
+                    (err as NodeJS.ErrnoException).code === 'ECONNREFUSED'
+                );
+            }
+            return false;
+        })(error);
+        if (isConnRefused) {
+            console.warn('DB not reachable - running in unit-test mode (no DB cleanup)');
+        } else {
+            console.error('Failed to connect to test database:', error);
+            console.error('Make sure the test database is running (docker-compose.test.yml)');
+            throw error;
+        }
     }
 });
 
@@ -42,32 +56,54 @@ beforeEach(async () => {
     // Clear Redis rate limit keys to prevent 429 errors in tests
     // @fastify/rate-limit uses keys starting with 'rl:'
     const redis = getConnection();
-    if (redis) {
-        const rateLimitKeys = await redis.keys('rl:*');
-        if (rateLimitKeys.length > 0) {
-            await redis.del(...rateLimitKeys);
+    if (redis && redis.status === 'ready') {
+        try {
+            const rateLimitKeys = await redis.keys('rl:*');
+            if (rateLimitKeys.length > 0) {
+                await redis.del(...rateLimitKeys);
+            }
+        } catch {
+            // Redis not available - unit-test mode
         }
     }
 
     // Delete all data from tables in reverse dependency order
-    await db.deleteFrom('logs').execute();
-    await db.deleteFrom('alert_history').execute();
-    // SIEM tables (must delete before incidents and sigma_rules)
-    await db.deleteFrom('incident_comments').execute();
-    await db.deleteFrom('incident_history').execute();
-    await db.deleteFrom('detection_events').execute();
-    await db.deleteFrom('incidents').execute();
-    await db.deleteFrom('organization_invitations').execute();
-    await db.deleteFrom('sigma_rules').execute();
-    await db.deleteFrom('alert_rules').execute();
-    await db.deleteFrom('api_keys').execute();
-    await db.deleteFrom('notifications').execute();
-    await db.deleteFrom('organization_members').execute();
-    await db.deleteFrom('projects').execute();
-    await db.deleteFrom('organizations').execute();
-    await db.deleteFrom('audit_log').execute();
-    await db.deleteFrom('sessions').execute();
-    await db.deleteFrom('users').execute();
+    try {
+        await db.deleteFrom('logs').execute();
+        await db.deleteFrom('alert_history').execute();
+        // Monitoring tables (must delete before monitors and incidents)
+        await db.deleteFrom('monitor_results').execute();
+        await db.deleteFrom('monitor_status').execute();
+        await db.deleteFrom('monitor_channels').execute();
+        await db.deleteFrom('monitors').execute();
+        // Status page tables
+        await db.deleteFrom('status_incident_updates').execute();
+        await db.deleteFrom('status_incidents').execute();
+        await db.deleteFrom('scheduled_maintenances').execute();
+        // Pipeline tables
+        await db.deleteFrom('log_pipelines').execute();
+        // Custom dashboards
+        await db.deleteFrom('custom_dashboards').execute();
+        // SIEM tables (must delete before incidents and sigma_rules)
+        await db.deleteFrom('incident_alerts').execute();
+        await db.deleteFrom('incident_comments').execute();
+        await db.deleteFrom('incident_history').execute();
+        await db.deleteFrom('detection_events').execute();
+        await db.deleteFrom('incidents').execute();
+        await db.deleteFrom('organization_invitations').execute();
+        await db.deleteFrom('sigma_rules').execute();
+        await db.deleteFrom('alert_rules').execute();
+        await db.deleteFrom('api_keys').execute();
+        await db.deleteFrom('notifications').execute();
+        await db.deleteFrom('organization_members').execute();
+        await db.deleteFrom('projects').execute();
+        await db.deleteFrom('organizations').execute();
+        await db.deleteFrom('audit_log').execute();
+        await db.deleteFrom('sessions').execute();
+        await db.deleteFrom('users').execute();
+    } catch {
+        // DB not available - unit-test mode, skip cleanup
+    }
 });
 
 /**

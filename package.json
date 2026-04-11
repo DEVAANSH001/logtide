@@ -1,6 +1,6 @@
 {
   "name": "logtide",
-  "version": "0.8.7",
+  "version": "0.9.0",
   "private": true,
   "description": "LogTide - Self-hosted log management platform",
   "author": "LogTide Team",
@@ -31,6 +31,8 @@
     "dev:frontend": "pnpm --filter \"@logtide/frontend\" dev",
     "dev:worker": "pnpm --filter \"@logtide/backend\" dev:worker",
     "dev:all": "concurrently -n fe,be,wk -c blue,green,yellow \"pnpm dev:frontend\" \"pnpm dev:backend\" \"pnpm dev:worker\"",
+    "infra:up": "docker compose -f docker/docker-compose.dev.yml up -d",
+    "infra:down": "docker compose -f docker/docker-compose.dev.yml down",
     "build": "pnpm --recursive --filter \"./packages/**\" build",
     "build:shared": "pnpm --filter \"@logtide/shared\" build",
     "test": "pnpm --recursive --filter \"./packages/**\" test",

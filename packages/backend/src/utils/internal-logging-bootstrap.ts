@@ -127,6 +127,7 @@ export async function bootstrapInternalLogging(): Promise<string | null> {
           user_id: organization.owner_id,
           name: 'Internal Monitoring',
           description: 'Self-monitoring logs for LogTide backend and worker',
+          slug: 'internal-monitoring',
         })
         .returningAll()
         .executeTakeFirstOrThrow();

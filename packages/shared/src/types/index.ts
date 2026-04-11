@@ -13,6 +13,10 @@ export * from './detection-pack.js';
 // Re-export notification channel types
 export * from './notification-channel.js';
 
+// Re-export custom dashboard types
+export * from './dashboard.js';
+export * from './dashboard-migrations.js';
+
 // Re-export schema types
 export type { LogInput, IngestRequest, AlertRuleInput } from '../schemas/index.js';
 
@@ -89,11 +93,15 @@ export function canManageMembers(role: OrgRole): boolean {
 }
 
 // Project types
+export type StatusPageVisibility = 'disabled' | 'public' | 'password' | 'members_only';
+
 export interface Project {
   id: string;
   organizationId: string;
   name: string;
   description?: string;
+  slug: string;
+  statusPageVisibility: StatusPageVisibility;
   createdAt: Date;
   updatedAt: Date;
 }

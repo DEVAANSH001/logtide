@@ -16,14 +16,14 @@
   <a href="https://codecov.io/gh/logtide-dev/logtide"><img src="https://codecov.io/gh/logtide-dev/logtide/branch/main/graph/badge.svg" alt="Coverage"></a>
   <a href="https://hub.docker.com/r/logtide/backend"><img src="https://img.shields.io/docker/v/logtide/backend?label=docker&logo=docker" alt="Docker"></a>
   <a href="https://artifacthub.io/packages/helm/logtide/logtide"><img src="https://img.shields.io/endpoint?url=https://artifacthub.io/badge/repository/logtide" alt="Artifact Hub"></a>
-  <img src="https://img.shields.io/badge/version-0.8.7-blue.svg" alt="Version">
+  <img src="https://img.shields.io/badge/version-0.9.0-blue.svg" alt="Version">
   <img src="https://img.shields.io/badge/license-AGPLv3-blue.svg" alt="License">
   <img src="https://img.shields.io/badge/status-stable_alpha-success.svg" alt="Status">
 </div>
 
 <br />
 
-> **🚀 RELEASE 0.8.6:** LogTide now supports **Multi-Engine Storage** (ClickHouse, MongoDB) and **Advanced Browser Observability**.
+> **🚀 RELEASE 0.9.0:** LogTide now ships with **Uptime Monitoring & Status Pages**, **Log Parsing Pipelines**, and **Custom Dashboards**.
 
 ---
 
@@ -33,7 +33,7 @@ LogTide is an open-source, high-performance observability platform and SIEM. It 
 Designed for teams that need **GDPR compliance**, **full data ownership**, and **sub-100ms query performance** without the overhead of ElasticSearch.
 
 ### Why LogTide?
-* 🔌 **Multi-Engine:** Choose your storage — **TimescaleDB** (standard), **ClickHouse** (massive scale), or **MongoDB** (flexibility).
+* 🔌 **Multi-Engine:** Choose your storage - **TimescaleDB** (standard), **ClickHouse** (massive scale), or **MongoDB** (flexibility).
 * 🌐 **Full-Stack Observability:** Monitor everything from backend services to browser **Web Vitals** and user sessions.
 * 🛡️ **Security-First:** Native **Sigma Rules** engine for real-time threat detection and incident management.
 * 🇪🇺 **GDPR Ready:** Keep data on your own infrastructure. Built-in **PII Masking** and **Audit Logs**.
@@ -46,7 +46,7 @@ Designed for teams that need **GDPR compliance**, **full data ownership**, and *
 ### Logs Explorer
 ![LogTide Logs](docs/images/logs.png)
 
-### Performance & Metrics (New in 0.8.6)
+### Performance & Metrics (New in 0.9.0)
 ![LogTide Metrics](docs/images/metrics.png)
 
 ### Distributed Tracing
@@ -124,10 +124,16 @@ We host it for you. Perfect for testing. [**Sign up at logtide.dev**](https://lo
 
 ---
 
-## ✨ Core Features (v0.8.6)
+## ✨ Core Features (v0.9.0)
 
+### 🆕 New in 0.9.0
+* 🩺 **Uptime Monitoring & Status Pages:** HTTP/TCP/heartbeat monitors with configurable thresholds, auto-created SIEM incidents on failure, scheduled maintenances, and public Uptime-Kuma-style status pages per project.
+* 🔧 **Log Parsing Pipelines:** Async enrichment with 5 built-in parsers (nginx, apache, syslog, logfmt, JSON), custom **grok** patterns (`%{PATTERN:field}`), and **GeoIP** enrichment from any IP field. YAML import/export.
+* 📊 **Custom Dashboards:** Drag-and-drop panels with 9 types (time series, top-N, live stream, metric charts, trace latency, detection events, monitor status, and more). Per-user or shared, with YAML round-trip.
+
+### Platform
 * 🚀 **Multi-Engine Reservoir:** Pluggable storage layer supporting **TimescaleDB**, **ClickHouse**, and **MongoDB**.
-* 🌐 **Browser SDK Enhancements:** Automatic collection of **Web Vitals** (LCP, INP, CLS), user session tracking, and click/network breadcrumbs.
+* 🌐 **Browser SDK:** Automatic collection of **Web Vitals** (LCP, INP, CLS), user session tracking, and click/network breadcrumbs.
 * 📈 **Golden Signals:** Automated P50/P95/P99 latency, error rates, and throughput charts.
 * 🔍 **Smart Search:** Combined **Full-text** and **Substring** search modes with sub-100ms response times.
 * 🛡️ **SIEM & Incident Management:** Sigma rules engine, MITRE ATT&CK mapping, and collaborative incident workflows.
@@ -144,12 +150,13 @@ Ready-to-use SDKs with auto-instrumentation and distributed tracing.
 | Language | Status | Package / Link |
 | :--- | :--- | :--- |
 | **Browser (JS/TS)** | ✅ Ready | [`@logtide/browser`](https://github.com/logtide-dev/logtide-javascript) |
-| **Node.js** | ✅ Ready | [`@logtide/sdk-node`](https://www.npmjs.com/package/@logtide/sdk-node) |
+| **Node.js** | ✅ Ready | [`@logtide/sdk-node`](https://www.npmjs.com/package/@logtide/sdk-node) (Next.js, Nuxt, SvelteKit, Hono, Elysia, Express, Fastify) |
 | **Python** | ✅ Ready | [`logtide-sdk`](https://pypi.org/project/logtide-sdk/) |
-| **Go** | ✅ Ready | [`logtide-sdk-go`](https://github.com/logtide-dev/logtide-sdk-go) |
-| **PHP** | ✅ Ready | [`logtide/logtide`](https://packagist.org/packages/logtide/logtide) |
-| **Kotlin** | ✅ Ready | [`logtide-sdk-kotlin`](https://github.com/logtide-dev/logtide-sdk-kotlin) |
-| **C# / .NET** | ✅ Ready | [`LogTide.SDK`](https://github.com/logtide-dev/logtide-sdk-csharp) |
+| **Go** | ✅ Ready | [`logtide-go`](https://github.com/logtide-dev/logtide-go) (Gin, Echo, Chi middleware) |
+| **PHP** | ✅ Ready | [`logtide/logtide`](https://packagist.org/packages/logtide/logtide) ([Laravel](https://github.com/logtide-dev/logtide-laravel), [Symfony](https://github.com/logtide-dev/logtide-symfony), [Slim](https://github.com/logtide-dev/logtide-slim), [WordPress](https://github.com/logtide-dev/logtide-wordpress)) |
+| **Kotlin / Java** | ✅ Ready | [`logtide-sdk-kotlin`](https://central.sonatype.com/artifact/io.github.logtide-dev/logtide-sdk-kotlin) (Ktor, Spring Boot) |
+| **C# / .NET** | ✅ Ready | [`LogTide.SDK`](https://www.nuget.org/packages/LogTide.SDK) (ASP.NET Core, Serilog) |
+| **Kubernetes** | ✅ Ready | [Helm chart](https://github.com/logtide-dev/logtide-helm-chart) |
 | **Docker** | ✅ Ready | [Fluent Bit / Syslog Guide](#option-a-self-hosted-docker---recommended) |
 | **HTTP API** | ✅ Ready | [API Reference](https://logtide.dev/docs/api) |
 | **OpenTelemetry** | ✅ Ready | **Native OTLP support** (Logs, Traces, Metrics) |

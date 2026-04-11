@@ -66,7 +66,7 @@ export async function migrateToLatest() {
   if (error) {
     console.error('Migration failed');
     console.error(error);
-    process.exit(1);
+    throw error;
   }
 
   console.log('All migrations completed');

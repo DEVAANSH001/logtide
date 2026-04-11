@@ -81,6 +81,7 @@ describe('DashboardService - Fallback Paths', () => {
                 .insertInto('projects')
                 .values({
                     name: 'Project 2',
+                    slug: `project-2-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
                     organization_id: organization.id,
                     user_id: organization.owner_id,
                 })
@@ -263,6 +264,7 @@ describe('DashboardService - Fallback Paths', () => {
                 .insertInto('projects')
                 .values({
                     name: 'Project 2',
+                    slug: `project-2-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
                     organization_id: organization.id,
                     user_id: organization.owner_id,
                 })
@@ -591,6 +593,7 @@ describe('DashboardService - Fallback Paths', () => {
                 .insertInto('projects')
                 .values({
                     name: 'Project 2',
+                    slug: `project-2-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
                     organization_id: organization.id,
                     user_id: organization.owner_id,
                 })

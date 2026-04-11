@@ -1,5 +1,6 @@
 import type { Severity, IncidentStatus } from '../constants/siem-constants.js';
 import type { PackCategory } from '../constants/sigma-constants.js';
+import type { IncidentSource } from '../constants/monitoring-constants.js';
 
 export interface DetectionEvent {
   id: string;
@@ -58,6 +59,8 @@ export interface Incident {
   mitreTechniques: string[] | null;
   ipReputation: Record<string, unknown> | null;
   geoData: Record<string, unknown> | null;
+  source: IncidentSource;
+  monitorId: string | null;
   createdAt: Date | string;
   updatedAt: Date | string;
   resolvedAt: Date | string | null;
@@ -77,6 +80,8 @@ export interface CreateIncidentInput {
   affectedServices?: string[];
   mitreTactics?: string[];
   mitreTechniques?: string[];
+  source?: IncidentSource;
+  monitorId?: string | null;
 }
 
 export interface UpdateIncidentInput {

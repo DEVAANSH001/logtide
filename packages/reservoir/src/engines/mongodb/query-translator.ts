@@ -62,7 +62,7 @@ export class MongoDBQueryTranslator extends QueryTranslator {
           }
         }
       } catch {
-        // invalid cursor — skip
+        // invalid cursor - skip
       }
     }
 
@@ -168,10 +168,10 @@ export class MongoDBQueryTranslator extends QueryTranslator {
         // Always regex for explicit substring mode
         filter.message = { $regex: escapeRegex(search), $options: 'i' };
       } else if (hasSpecialChars(search)) {
-        // Special chars — regex fallback (same as ClickHouse's positionCaseInsensitive)
+        // Special chars - regex fallback (same as ClickHouse's positionCaseInsensitive)
         filter.message = { $regex: escapeRegex(search), $options: 'i' };
       } else {
-        // Clean search term — use $text index for performance
+        // Clean search term - use $text index for performance
         filter.$text = { $search: search };
       }
     }

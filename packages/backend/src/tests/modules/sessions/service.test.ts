@@ -89,7 +89,7 @@ describe('SessionsService', () => {
             expect(result.total).toBe(0);
         });
 
-        it('filters by hasErrors=true — only sessions with errors', async () => {
+        it('filters by hasErrors=true - only sessions with errors', async () => {
             await insertSessionLog({ projectId: testProject.id, sessionId: 'clean-session', level: 'info' });
             await insertSessionLog({ projectId: testProject.id, sessionId: 'error-session', level: 'error' });
 
@@ -104,7 +104,7 @@ describe('SessionsService', () => {
             expect(result.sessions[0].sessionId).toBe('error-session');
         });
 
-        it('filters by hasErrors=false — only sessions without errors', async () => {
+        it('filters by hasErrors=false - only sessions without errors', async () => {
             await insertSessionLog({ projectId: testProject.id, sessionId: 'clean-session', level: 'info' });
             await insertSessionLog({ projectId: testProject.id, sessionId: 'error-session', level: 'error' });
 

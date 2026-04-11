@@ -25,7 +25,25 @@ export async function authenticate(
   request: FastifyRequest,
   reply: FastifyReply
 ): Promise<void> {
-  // Check for auth-free mode first
+  // 1. Try session token first if provided
+  const token = request.headers.authorization?.replace('Bearer ', '');
+
+  if (token) {
+    const user = await usersService.validateSession(token);
+
+    if (user) {
+      // Attach user to request
+      request.user = user;
+      return;
+    }
+    
+    // If token provided but invalid, return error instead of falling back
+    return reply.status(401).send({
+      error: 'Invalid or expired session',
+    });
+  }
+
+  // 2. Fallback to auth-free mode if enabled
   const authMode = await settingsService.getAuthMode();
 
   if (authMode === 'none') {
@@ -45,25 +63,10 @@ export async function authenticate(
     return;
   }
 
-  // Standard mode: validate session token
-  const token = request.headers.authorization?.replace('Bearer ', '');
-
-  if (!token) {
-    return reply.status(401).send({
-      error: 'No token provided',
-    });
-  }
-
-  const user = await usersService.validateSession(token);
-
-  if (!user) {
-    return reply.status(401).send({
-      error: 'Invalid or expired session',
-    });
-  }
-
-  // Attach user to request
-  request.user = user;
+  // 3. No auth provided in standard mode
+  return reply.status(401).send({
+    error: 'No token provided',
+  });
 }
 
 /**

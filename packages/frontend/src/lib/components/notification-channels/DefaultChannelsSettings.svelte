@@ -11,6 +11,7 @@
 	import Shield from '@lucide/svelte/icons/shield';
 	import Bug from '@lucide/svelte/icons/bug';
 	import Bell from '@lucide/svelte/icons/bell';
+	import Activity from '@lucide/svelte/icons/activity';
 
 	let currentOrg = $state<{ id: string } | null>(null);
 	organizationStore.subscribe((state) => {
@@ -22,6 +23,7 @@
 		sigma: [],
 		incident: [],
 		error: [],
+		monitoring: [],
 	});
 	let defaultsLoading = $state(false);
 	let saving = $state<NotificationEventType | null>(null);
@@ -67,6 +69,12 @@
 			label: 'Error Tracking',
 			description: 'Default channels for new error group notifications',
 			icon: Bug,
+		},
+		{
+			type: 'monitoring',
+			label: 'Monitoring',
+			description: 'Default channels for monitor up/down notifications',
+			icon: Activity,
 		},
 	];
 

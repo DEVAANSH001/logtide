@@ -47,6 +47,7 @@
   import Check from "@lucide/svelte/icons/check";
   import SearchIcon from "@lucide/svelte/icons/search";
   import BarChart3 from "@lucide/svelte/icons/bar-chart-3";
+  import Activity from "@lucide/svelte/icons/activity";
   import { formatTimeAgo } from "$lib/utils/datetime";
   import Footer from "$lib/components/Footer.svelte";
   import OnboardingChecklist from "$lib/components/OnboardingChecklist.svelte";
@@ -255,6 +256,7 @@
       items: [
         { label: "Alerts", href: "/dashboard/alerts", icon: AlertTriangle },
         { label: "Security", href: "/dashboard/security", icon: Shield },
+        { label: "Monitoring", href: "/dashboard/monitoring", icon: Activity },
       ],
     },
     {

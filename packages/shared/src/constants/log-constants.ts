@@ -31,6 +31,7 @@ export const NOTIFICATION_TYPES = [
   'system',
   'organization_invite',
   'project_update',
+  'monitoring',
 ] as const;
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number];
 

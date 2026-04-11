@@ -362,6 +362,7 @@ describe('Incident Auto-Grouping Job', () => {
                 .insertInto('projects')
                 .values({
                     name: 'Project 2',
+                    slug: `project-2-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
                     organization_id: org2.id,
                     user_id: org2User.id,
                 })

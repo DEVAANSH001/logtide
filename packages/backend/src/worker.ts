@@ -9,7 +9,11 @@ import { processInvitationEmail, type InvitationEmailData } from './queue/jobs/i
 import { processIncidentNotification, type IncidentNotificationJob } from './queue/jobs/incident-notification.js';
 import { processExceptionParsing, type ExceptionParsingJobData } from './queue/jobs/exception-parsing.js';
 import { processErrorNotification, type ErrorNotificationJobData } from './queue/jobs/error-notification.js';
+import { processMonitorNotification, type MonitorNotificationJob } from './queue/jobs/monitor-notification.js';
+import { processLogPipeline, type LogPipelineJobData } from './queue/jobs/log-pipeline.js';
 import { alertsService } from './modules/alerts/index.js';
+import { monitorService } from './modules/monitoring/index.js';
+import { maintenanceService } from './modules/maintenances/service.js';
 import { enrichmentService } from './modules/siem/enrichment-service.js';
 import { retentionService } from './modules/retention/index.js';
 import { sigmaSyncService } from './modules/sigma/sync-service.js';
@@ -60,6 +64,16 @@ const exceptionWorker = createWorker<ExceptionParsingJobData>('exception-parsing
 // Create worker for error notifications
 const errorNotificationWorker = createWorker<ErrorNotificationJobData>('error-notifications', async (job) => {
   await processErrorNotification(job);
+});
+
+// Create worker for monitor notifications
+const monitorNotificationWorker = createWorker<MonitorNotificationJob>('monitor-notifications', async (job) => {
+  await processMonitorNotification(job);
+});
+
+// Create worker for log pipeline processing
+const pipelineWorker = createWorker<LogPipelineJobData>('log-pipeline', async (job) => {
+  await processLogPipeline(job);
 });
 
 // Start workers (required for graphile-worker backend, no-op for BullMQ)
@@ -220,6 +234,49 @@ errorNotificationWorker.on('failed', (job, err) => {
       error: { name: err.name, message: err.message, stack: err.stack },
       jobId: job?.id,
       exceptionId: job?.data?.exceptionId,
+    });
+  }
+});
+
+monitorNotificationWorker.on('completed', (job) => {
+  if (isInternalLoggingEnabled()) {
+    hub.captureLog('info', `Monitor notification job completed`, {
+      jobId: job.id,
+      monitorId: job.data?.monitorId,
+      status: job.data?.status,
+    });
+  }
+});
+
+monitorNotificationWorker.on('failed', (job, err) => {
+  console.error(`Monitor notification job ${job?.id} failed:`, err);
+
+  if (isInternalLoggingEnabled()) {
+    hub.captureLog('error', `Monitor notification job failed: ${err.message}`, {
+      error: { name: err.name, message: err.message, stack: err.stack },
+      jobId: job?.id,
+      monitorId: job?.data?.monitorId,
+    });
+  }
+});
+
+pipelineWorker.on('completed', (job) => {
+  if (isInternalLoggingEnabled()) {
+    hub.captureLog('info', `Log pipeline job completed`, {
+      jobId: job.id,
+      logCount: job.data?.logs?.length,
+    });
+  }
+});
+
+pipelineWorker.on('failed', (job, err) => {
+  console.error(`Log pipeline job ${job?.id} failed:`, err);
+
+  if (isInternalLoggingEnabled()) {
+    hub.captureLog('error', `Log pipeline job failed: ${err.message}`, {
+      error: { name: err.name, message: err.message, stack: err.stack },
+      jobId: job?.id,
+      logCount: job?.data?.logs?.length,
     });
   }
 });
@@ -465,7 +522,7 @@ scheduleNextRetentionCleanup();
 setTimeout(runRetentionCleanup, 2 * 60 * 1000);
 
 // ============================================================================
-// SigmaHQ Daily Sync (Daily at 2:30 AM — 30 min after retention cleanup)
+// SigmaHQ Daily Sync (Daily at 2:30 AM - 30 min after retention cleanup)
 // ============================================================================
 
 let isSyncingSigmaRules = false;
@@ -549,6 +606,55 @@ function scheduleNextSigmaSync() {
 
 scheduleNextSigmaSync();
 
+// ============================================================================
+// Service Health Monitor Checks (every 30 seconds)
+// ============================================================================
+
+let isRunningMonitorChecks = false;
+
+async function runMonitorChecks() {
+  if (isRunningMonitorChecks) return;
+  isRunningMonitorChecks = true;
+  try {
+    await monitorService.runAllDueChecks();
+  } catch (error) {
+    console.error('[Worker] Monitor check error:', error);
+    if (isInternalLoggingEnabled()) {
+      hub.captureLog('error', `Monitor check failed: ${(error as Error).message}`, {
+        error: error instanceof Error ? { name: error.name, message: error.message, stack: error.stack } : { message: String(error) },
+      });
+    }
+  } finally {
+    isRunningMonitorChecks = false;
+  }
+}
+
+// Run checks every 30 seconds
+setInterval(runMonitorChecks, 30000);
+// Run immediately on start
+runMonitorChecks();
+
+// ============================================================================
+// Scheduled Maintenance Transitions (every 60 seconds)
+// ============================================================================
+
+let isRunningMaintenanceCheck = false;
+
+async function runMaintenanceTransitions() {
+  if (isRunningMaintenanceCheck) return;
+  isRunningMaintenanceCheck = true;
+  try {
+    await maintenanceService.processMaintenanceTransitions();
+  } catch (error) {
+    console.error('[Worker] Maintenance transition error:', error);
+  } finally {
+    isRunningMaintenanceCheck = false;
+  }
+}
+
+setInterval(runMaintenanceTransitions, 60000);
+runMaintenanceTransitions();
+
 // Graceful shutdown
 async function gracefulShutdown(signal: string) {
   console.log(`Received ${signal}, shutting down gracefully...`);
@@ -562,6 +668,8 @@ async function gracefulShutdown(signal: string) {
     await incidentNotificationWorker.close();
     await exceptionWorker.close();
     await errorNotificationWorker.close();
+    await monitorNotificationWorker.close();
+    await pipelineWorker.close();
     console.log('[Worker] Workers closed');
 
     // Close queue system (Redis/PostgreSQL connections)

@@ -116,7 +116,7 @@ describe('FilesystemStorage', () => {
     // delete()
     // =========================================================================
 
-    describe('delete() — single file', () => {
+    describe('delete() - single file', () => {
         it('removes the specified file', async () => {
             const content = Buffer.from('{}');
             const storagePath = await storage.store('proj-d1', '1.0.0', 'main.js.map', content);
@@ -133,7 +133,7 @@ describe('FilesystemStorage', () => {
         });
     });
 
-    describe('delete() — entire release directory', () => {
+    describe('delete() - entire release directory', () => {
         it('removes the release directory and all its files', async () => {
             await storage.store('proj-d3', '1.0.0', 'main.js.map', Buffer.from('a'));
             await storage.store('proj-d3', '1.0.0', 'vendor.js.map', Buffer.from('b'));
@@ -168,7 +168,7 @@ describe('createStorage()', () => {
     it('uses SOURCEMAP_STORAGE_PATH env var when set', () => {
         const saved = process.env.SOURCEMAP_STORAGE_PATH;
         process.env.SOURCEMAP_STORAGE_PATH = '/custom/path';
-        // createStorage reads env at call time — just verify it doesn't throw
+        // createStorage reads env at call time - just verify it doesn't throw
         expect(() => createStorage()).not.toThrow();
         process.env.SOURCEMAP_STORAGE_PATH = saved;
     });

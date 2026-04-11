@@ -55,6 +55,7 @@ describe('Alert History', () => {
             .values({
                 organization_id: organization.id,
                 name: 'Project 2',
+                slug: `project-2-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
                 user_id: organization.owner_id, // Required field
             })
             .returningAll()

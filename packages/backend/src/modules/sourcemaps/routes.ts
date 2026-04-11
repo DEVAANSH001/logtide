@@ -1,9 +1,9 @@
 /**
  * Source Maps API Routes
  *
- * - POST /api/v1/sourcemaps — upload a source map (API key auth, full-access)
- * - GET /api/v1/sourcemaps — list source maps (session auth)
- * - DELETE /api/v1/sourcemaps/:release — delete maps for a release (session auth)
+ * - POST /api/v1/sourcemaps - upload a source map (API key auth, full-access)
+ * - GET /api/v1/sourcemaps - list source maps (session auth)
+ * - DELETE /api/v1/sourcemaps/:release - delete maps for a release (session auth)
  */
 
 import type { FastifyInstance } from 'fastify';
@@ -41,7 +41,7 @@ export async function sourcemapsRoutes(fastify: FastifyInstance) {
   });
 
   // ==========================================================================
-  // UPLOAD (API key auth — requires full-access key)
+  // UPLOAD (API key auth - requires full-access key)
   // ==========================================================================
 
   fastify.post(
@@ -53,7 +53,7 @@ export async function sourcemapsRoutes(fastify: FastifyInstance) {
     },
     async (request: any, reply) => {
       try {
-        // API key auth is handled by authPlugin — request.projectId is set
+        // API key auth is handled by authPlugin - request.projectId is set
         if (!request.projectId) {
           return reply.status(401).send({ error: 'API key required' });
         }

@@ -331,7 +331,7 @@ export default async function correlationRoutes(fastify: FastifyInstance) {
           });
         }
 
-        // Query log_identifiers directly — log_identifiers is always in PostgreSQL and
+        // Query log_identifiers directly - log_identifiers is always in PostgreSQL and
         // already contains log_id, project_id, and identifier data. No need to hit the
         // storage engine (ClickHouse/TimescaleDB/MongoDB) at all.
         // The project_id IN searchProjectIds clause enforces access control.

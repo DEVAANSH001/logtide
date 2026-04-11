@@ -134,6 +134,13 @@ export class IngestionService {
       console.error('[Ingestion] Failed to trigger Exception parsing:', err);
     });
 
+    // Trigger pipeline processing (async, non-blocking)
+    if (organizationId) {
+      this.triggerPipelineProcessing(logs, insertedLogs, projectId, organizationId).catch((err) => {
+        console.error('[Ingestion] Failed to trigger pipeline processing:', err);
+      });
+    }
+
     // Invalidate query caches for this project (async, non-blocking)
     CacheManager.invalidateProjectQueries(projectId).catch((err) => {
       console.error('[Ingestion] Failed to invalidate cache:', err);
@@ -280,6 +287,36 @@ export class IngestionService {
     } catch (error) {
       console.error('[Ingestion] Error triggering exception parsing:', error);
       // Don't throw - ingestion should succeed even if exception parsing queueing fails
+    }
+  }
+
+  /**
+   * Trigger log pipeline processing for ingested logs
+   */
+  private async triggerPipelineProcessing(
+    logs: LogInput[],
+    insertedLogs: any[],
+    projectId: string,
+    organizationId: string
+  ): Promise<void> {
+    try {
+      const payload = logs.map((log: LogInput, i: number) => ({
+        id: insertedLogs[i]?.id ?? '',
+        time:
+          insertedLogs[i]?.time instanceof Date
+            ? insertedLogs[i].time.toISOString()
+            : String(insertedLogs[i]?.time ?? new Date().toISOString()),
+        message: log.message,
+        metadata: (log.metadata as Record<string, unknown> | null | undefined) ?? null,
+      }));
+
+      const pipelineQueue = createQueue('log-pipeline');
+      await pipelineQueue.add('process-pipeline', { logs: payload, projectId, organizationId });
+
+      console.log(`[Ingestion] Queued pipeline processing for ${logs.length} logs`);
+    } catch (error) {
+      console.error('[Ingestion] Error queuing pipeline job:', error);
+      // Don't throw - ingestion should succeed even if pipeline queueing fails
     }
   }
 

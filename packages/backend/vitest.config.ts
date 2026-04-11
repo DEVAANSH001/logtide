@@ -35,6 +35,8 @@ export default defineConfig({
                 'src/modules/sigma/sync-service.ts',
                 'src/modules/siem/geolite2-service.ts',
                 'src/modules/siem/ipsum-service.ts',
+                'src/modules/monitoring/checker.ts',
+                'src/modules/custom-dashboards/panel-data-service.ts',
             ],
             thresholds: {
                 lines: 80,

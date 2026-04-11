@@ -153,8 +153,8 @@ export async function processIncidentNotification(job: IJob<IncidentNotification
   const notificationPromises = members.map((member) =>
     notificationsService.createNotification({
       userId: member.id,
-      title: `Security Incident: ${severityLabels[data.severity]}`,
-      message: data.title,
+      title: data.title,
+      message: `Security Incident [${severityLabels[data.severity]}]`,
       type: 'alert',
       organizationId: data.organizationId,
       metadata: {

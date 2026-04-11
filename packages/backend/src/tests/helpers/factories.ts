@@ -79,6 +79,7 @@ export async function createTestProject(overrides: {
     userId?: string;
 } = {}) {
     const name = overrides.name || `Test Project ${Date.now()}-${crypto.randomBytes(4).toString('hex')}`;
+    const slug = `test-project-${Date.now()}-${crypto.randomBytes(4).toString('hex')}`;
 
     // Create organization if not provided
     let organizationId = overrides.organizationId;
@@ -102,6 +103,7 @@ export async function createTestProject(overrides: {
         .insertInto('projects')
         .values({
             name,
+            slug,
             organization_id: organizationId,
             user_id: userId!,
         })
