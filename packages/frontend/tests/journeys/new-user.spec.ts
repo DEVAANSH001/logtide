@@ -349,6 +349,19 @@ test.describe('New User Journey', () => {
 
     await page.waitForURL(/dashboard|projects/, { timeout: 15000 });
 
+    // Set currentOrganizationId in localStorage so the organization store initializes correctly
+    // (without this the search page's $currentOrganization is null and logs never load)
+    if (organizationId) {
+      await page.evaluate((orgId) => {
+        localStorage.setItem('currentOrganizationId', orgId);
+      }, organizationId);
+    }
+
+    // Visit dashboard so the org store hydrates before navigating to search
+    await page.goto(`${TEST_FRONTEND_URL}/dashboard`);
+    await page.waitForLoadState('load');
+    await page.waitForSelector('nav, [class*="sidebar"], h1, h2', { timeout: 15000 });
+
     // Navigate to search/logs page
     await page.goto(`${TEST_FRONTEND_URL}/dashboard/search`);
     await page.waitForLoadState('load');
