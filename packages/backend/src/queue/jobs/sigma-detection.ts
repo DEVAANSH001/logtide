@@ -92,7 +92,7 @@ export async function processSigmaDetection(job: any) {
         const sigmaRule = await db
           .selectFrom('sigma_rules')
           .select(['id', 'title', 'description', 'level', 'mitre_tactics', 'mitre_techniques', 'category'])
-          .where('sigma_id', '=', match.sigmaRuleId)
+          .where('id', '=', match.sigmaRuleId)
           .where('organization_id', '=', data.organizationId)
           .executeTakeFirst();
 
@@ -142,7 +142,7 @@ export async function processSigmaDetection(job: any) {
         const sigmaRule = await db
           .selectFrom('sigma_rules')
           .select(['id', 'title', 'level', 'email_recipients', 'webhook_url'])
-          .where('sigma_id', '=', sigmaRuleId)
+          .where('id', '=', sigmaRuleId)
           .where('organization_id', '=', data.organizationId)
           .executeTakeFirst();
 

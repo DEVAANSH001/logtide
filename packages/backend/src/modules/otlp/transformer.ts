@@ -324,10 +324,14 @@ export function anyValueToJs(value?: OtlpAnyValue): unknown {
   if (value.stringValue !== undefined) return sanitizeForPostgres(value.stringValue);
   if (value.boolValue !== undefined) return value.boolValue;
   if (value.intValue !== undefined) {
-    // int64 may be string in JSON
-    return typeof value.intValue === 'string'
-      ? parseInt(value.intValue, 10)
-      : value.intValue;
+    // int64 may be string in JSON. Values outside the safe-integer range
+    // lose precision when converted to Number, so keep them as strings so
+    // downstream consumers (metadata) still see the exact value.
+    if (typeof value.intValue === 'string') {
+      const n = Number(value.intValue);
+      return Number.isSafeInteger(n) ? n : value.intValue;
+    }
+    return value.intValue;
   }
   if (value.doubleValue !== undefined) return value.doubleValue;
   if (value.bytesValue !== undefined) return value.bytesValue;

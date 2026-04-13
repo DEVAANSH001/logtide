@@ -76,7 +76,7 @@
   async function acceptInvitation() {
     if (!authToken) {
       // Redirect to login with return URL
-      goto(`/login?redirect=/invite/${token}`);
+      goto(`/login?redirect=${encodeURIComponent(`/invite/${token}`)}`);
       return;
     }
 
@@ -258,7 +258,7 @@
             <Button
               onclick={() => {
                 authStore.clearAuth();
-                goto(`/login?redirect=/invite/${token}`);
+                goto(`/login?redirect=${encodeURIComponent(`/invite/${token}`)}`);
               }}
               variant="outline"
               class="w-full"

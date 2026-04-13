@@ -153,7 +153,7 @@ export class IngestionService {
       console.error('[Ingestion] Failed to publish notification:', err);
     });
 
-    return logs.length;
+    return insertedLogs.length;
   }
 
   /**

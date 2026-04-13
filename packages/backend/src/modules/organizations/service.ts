@@ -237,24 +237,37 @@ export class OrganizationsService {
       throw new Error('Only the organization owner can update it');
     }
 
-    // If changing name, regenerate slug
-    let newSlug: string | undefined;
-    if (input.name) {
-      const baseSlug = this.generateSlugFromName(input.name);
-      newSlug = await this.findUniqueSlug(baseSlug);
-    }
+    // Wrap slug generation + update in a transaction to prevent duplicate slugs under concurrent requests
+    const updated = await db.transaction().execute(async (trx) => {
+      let newSlug: string | undefined;
+      if (input.name) {
+        const baseSlug = this.generateSlugFromName(input.name);
+        let slug = baseSlug;
+        let counter = 1;
+        while (true) {
+          const existing = await trx
+            .selectFrom('organizations')
+            .select('id')
+            .where('slug', '=', slug)
+            .executeTakeFirst();
+          if (!existing) break;
+          slug = `${baseSlug}-${counter++}`;
+        }
+        newSlug = slug;
+      }
 
-    const updated = await db
-      .updateTable('organizations')
-      .set({
-        ...(input.name && { name: input.name }),
-        ...(newSlug && { slug: newSlug }),
-        ...(input.description !== undefined && { description: input.description || null }),
-        updated_at: new Date(),
-      })
-      .where('id', '=', organizationId)
-      .returning(['id', 'name', 'slug', 'description', 'owner_id', 'retention_days', 'created_at', 'updated_at'])
-      .executeTakeFirstOrThrow();
+      return trx
+        .updateTable('organizations')
+        .set({
+          ...(input.name && { name: input.name }),
+          ...(newSlug && { slug: newSlug }),
+          ...(input.description !== undefined && { description: input.description || null }),
+          updated_at: new Date(),
+        })
+        .where('id', '=', organizationId)
+        .returning(['id', 'name', 'slug', 'description', 'owner_id', 'retention_days', 'created_at', 'updated_at'])
+        .executeTakeFirstOrThrow();
+    });
 
     return {
       id: updated.id,

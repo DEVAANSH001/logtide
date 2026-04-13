@@ -1,5 +1,6 @@
 import { createConnection } from 'net';
 import type { Kysely } from 'kysely';
+import isSafeRegex from 'safe-regex2';
 import type { Database } from '../../database/types.js';
 import type { Reservoir } from '@logtide/reservoir';
 import type { CheckResult, HttpConfig, ErrorCode } from './types.js';
@@ -40,10 +41,18 @@ export async function runHttpCheck(
       if (bodyAssertion.type === 'contains') {
         passes = body.includes(bodyAssertion.value);
       } else {
-        // Limit body size and pattern length to mitigate ReDoS
+        // Limit body size and pattern length to mitigate ReDoS, and reject
+        // patterns flagged as unsafe by safe-regex2 (catastrophic backtracking).
         const safeBody = body.slice(0, 10000);
         const safePattern = bodyAssertion.pattern.slice(0, 256);
-        passes = new RegExp(safePattern).test(safeBody);
+        if (!isSafeRegex(safePattern)) {
+          return { status: 'down', responseTimeMs, statusCode, errorCode: 'http_error' };
+        }
+        try {
+          passes = new RegExp(safePattern).test(safeBody); // lgtm[js/regex-injection] - validated by isSafeRegex above
+        } catch {
+          return { status: 'down', responseTimeMs, statusCode, errorCode: 'http_error' };
+        }
       }
 
       if (!passes) {

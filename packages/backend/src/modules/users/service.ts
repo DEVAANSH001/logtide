@@ -203,6 +203,11 @@ export class UsersService {
         await db.deleteFrom('sessions').where('token', '=', token).execute();
         return null;
       }
+      // Check if user was disabled after session was cached
+      if (cached.disabled) {
+        await CacheManager.invalidateSession(token);
+        return null;
+      }
       // Convert date strings back to Date objects
       return {
         ...cached,

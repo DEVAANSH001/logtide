@@ -182,7 +182,7 @@ describe('Sigma Detection Job', () => {
                     matched: true,
                     matchedRules: [
                         {
-                            sigmaRuleId: rule.sigma_id!,
+                            sigmaRuleId: rule.id,
                             ruleTitle: rule.title,
                             ruleLevel: rule.level,
                             matchedAt: new Date(),
@@ -230,7 +230,7 @@ describe('Sigma Detection Job', () => {
                     matched: true,
                     matchedRules: [
                         {
-                            sigmaRuleId: rule.sigma_id!,
+                            sigmaRuleId: rule.id,
                             ruleTitle: rule.title,
                             ruleLevel: rule.level,
                             matchedAt: new Date(),
@@ -278,7 +278,7 @@ describe('Sigma Detection Job', () => {
                     matched: true,
                     matchedRules: [
                         {
-                            sigmaRuleId: rule.sigma_id!,
+                            sigmaRuleId: rule.id,
                             ruleTitle: rule.title,
                             ruleLevel: rule.level,
                             matchedAt: new Date(),
@@ -325,7 +325,7 @@ describe('Sigma Detection Job', () => {
                     matched: true,
                     matchedRules: [
                         {
-                            sigmaRuleId: rule.sigma_id!,
+                            sigmaRuleId: rule.id,
                             ruleTitle: rule.title,
                             ruleLevel: rule.level,
                             matchedAt: new Date(),
@@ -336,7 +336,7 @@ describe('Sigma Detection Job', () => {
                     matched: true,
                     matchedRules: [
                         {
-                            sigmaRuleId: rule.sigma_id!,
+                            sigmaRuleId: rule.id,
                             ruleTitle: rule.title,
                             ruleLevel: rule.level,
                             matchedAt: new Date(),

@@ -171,6 +171,31 @@ describe('Correlation Routes', () => {
             expect(response.statusCode).toBe(403);
         });
 
+        it('should return 400 for invalid referenceTime', async () => {
+            // "not-a-date" fails the Fastify schema format:date-time check
+            const response = await app.inject({
+                method: 'GET',
+                url: `/v1/correlation/test-id?projectId=${testProject.id}&referenceTime=not-a-date`,
+                headers: {
+                    Authorization: `Bearer ${authToken}`,
+                },
+            });
+
+            expect(response.statusCode).toBe(400);
+        });
+
+        it('should accept valid referenceTime', async () => {
+            const response = await app.inject({
+                method: 'GET',
+                url: `/v1/correlation/test-id?projectId=${testProject.id}&referenceTime=2025-01-01T00:00:00.000Z`,
+                headers: {
+                    Authorization: `Bearer ${authToken}`,
+                },
+            });
+
+            expect(response.statusCode).toBe(200);
+        });
+
         it('should return empty result for unknown identifier', async () => {
             const response = await app.inject({
                 method: 'GET',

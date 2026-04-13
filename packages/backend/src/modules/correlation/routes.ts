@@ -132,7 +132,7 @@ export default async function correlationRoutes(fastify: FastifyInstance) {
           required: ['projectId'],
           properties: {
             projectId: { type: 'string' },
-            referenceTime: { type: 'string' },
+            referenceTime: { type: 'string', format: 'date-time' },
             timeWindowMinutes: { type: 'number', default: 15 },
             limit: { type: 'number', default: 100 },
           },
@@ -156,11 +156,23 @@ export default async function correlationRoutes(fastify: FastifyInstance) {
         });
       }
 
+      let parsedReferenceTime: Date | undefined;
+      if (referenceTime) {
+        const d = new Date(referenceTime);
+        if (isNaN(d.getTime())) {
+          return reply.status(400).send({
+            success: false,
+            error: 'Invalid referenceTime: must be an ISO 8601 date-time string',
+          });
+        }
+        parsedReferenceTime = d;
+      }
+
       try {
         const result = await correlationService.findCorrelatedLogs({
           projectId,
           identifierValue: decodeURIComponent(identifierValue),
-          referenceTime: referenceTime ? new Date(referenceTime) : undefined,
+          referenceTime: parsedReferenceTime,
           timeWindowMinutes: timeWindowMinutes ?? 15,
           limit: Math.min(limit ?? 100, 100), // Cap at 100
         });

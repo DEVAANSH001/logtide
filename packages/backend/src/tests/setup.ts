@@ -3,6 +3,7 @@ import dotenv from 'dotenv';
 import path from 'path';
 import { db } from '../database/index.js';
 import { getConnection } from '../queue/connection.js';
+import { CacheManager } from '../utils/cache.js';
 
 // Load test environment variables
 dotenv.config({ path: path.resolve(__dirname, '../../.env.test') });
@@ -101,6 +102,10 @@ beforeEach(async () => {
         await db.deleteFrom('audit_log').execute();
         await db.deleteFrom('sessions').execute();
         await db.deleteFrom('users').execute();
+        // Reset system_settings so cross-test pollution of `auth.mode`
+        // (standard vs none) doesn't cause 401 assertions to flip to 503.
+        await db.deleteFrom('system_settings').execute();
+        await CacheManager.invalidateSettings();
     } catch {
         // DB not available - unit-test mode, skip cleanup
     }

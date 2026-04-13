@@ -590,7 +590,7 @@ export class TimescaleEngine extends StorageEngine {
           kind, status_code, status_message, attributes, events, links, resource_attributes
         )
         SELECT * FROM UNNEST(
-          $1::timestamptz[], $2::text[], $3::text[], $4::text[], $5::uuid[], $6::uuid[],
+          $1::timestamptz[], $2::text[], $3::text[], $4::text[], $5::uuid[], $6::${this.options.projectIdType === 'uuid' ? 'uuid' : 'text'}[],
           $7::text[], $8::text[], $9::timestamptz[], $10::timestamptz[], $11::integer[],
           $12::text[], $13::text[], $14::text[], $15::jsonb[], $16::jsonb[], $17::jsonb[], $18::jsonb[]
         )`,
@@ -696,8 +696,12 @@ export class TimescaleEngine extends StorageEngine {
     }
 
     const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
-    const sortBy = params.sortBy ?? 'start_time';
-    const sortOrder = params.sortOrder ?? 'asc';
+
+    // Allowlist to prevent SQL injection via user-controlled sort parameters
+    const ALLOWED_SORT_COLUMNS = new Set(['start_time', 'end_time', 'duration_ms', 'service_name', 'operation_name']);
+    const ALLOWED_SORT_ORDERS = new Set(['asc', 'desc']);
+    const sortBy = ALLOWED_SORT_COLUMNS.has(params.sortBy ?? '') ? params.sortBy! : 'start_time';
+    const sortOrder = ALLOWED_SORT_ORDERS.has((params.sortOrder ?? '').toLowerCase()) ? params.sortOrder!.toUpperCase() : 'ASC';
 
     const countResult = await pool.query(
       `SELECT COUNT(*)::int AS count FROM ${s}.spans ${where}`,

@@ -41,17 +41,18 @@ export async function processLogPipeline(job: IJob<LogPipelineJobData>): Promise
 
   if (updates.length === 0) return;
 
-  // Batch update: extracted fields do NOT overwrite existing metadata keys.
-  // TimescaleDB hypertable requires time in the WHERE clause.
+  // Batch update: pipeline-extracted fields overwrite existing metadata keys
+  // of the same name (right-biased `||` in jsonb). We intentionally omit a
+  // `time` filter here — JS Date loses microsecond precision vs TimescaleDB's
+  // TIMESTAMPTZ, so an exact-match WHERE on time would miss rows.
   for (const update of updates) {
     try {
       await db
         .updateTable('logs')
         .set({
-          metadata: sql`${JSON.stringify(update.fields)}::jsonb || COALESCE(metadata, '{}'::jsonb)`,
+          metadata: sql`COALESCE(metadata, '{}'::jsonb) || ${JSON.stringify(update.fields)}::jsonb`,
         })
         .where('id', '=', update.id)
-        .where('time', '=', update.time)
         .execute();
     } catch (err) {
       console.error(`[Pipeline] Failed to update metadata for log ${update.id}:`, err);

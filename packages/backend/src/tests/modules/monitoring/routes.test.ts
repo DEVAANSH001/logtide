@@ -580,6 +580,121 @@ describe('GET /status/project/:slug/badge.svg', () => {
   });
 });
 
+describe('invalid UUID :id param', () => {
+  it('GET /:id returns 400 for non-uuid id', async () => {
+    const res = await app.inject({
+      method: 'GET',
+      url: `/api/v1/monitors/not-a-uuid?organizationId=${ctx.organization.id}`,
+      headers: authHeaders(authToken),
+    });
+    expect(res.statusCode).toBe(400);
+    expect(JSON.parse(res.payload).error).toBe('Invalid monitor ID');
+  });
+
+  it('PUT /:id returns 400 for non-uuid id', async () => {
+    const res = await app.inject({
+      method: 'PUT',
+      url: `/api/v1/monitors/bad-id?organizationId=${ctx.organization.id}`,
+      headers: authHeaders(authToken),
+      payload: { name: 'x' },
+    });
+    expect(res.statusCode).toBe(400);
+    expect(JSON.parse(res.payload).error).toBe('Invalid monitor ID');
+  });
+
+  it('DELETE /:id returns 400 for non-uuid id', async () => {
+    const res = await app.inject({
+      method: 'DELETE',
+      url: `/api/v1/monitors/bad-id?organizationId=${ctx.organization.id}`,
+      headers: authHeaders(authToken),
+    });
+    expect(res.statusCode).toBe(400);
+  });
+
+  it('GET /:id/results returns 400 for non-uuid id', async () => {
+    const res = await app.inject({
+      method: 'GET',
+      url: `/api/v1/monitors/bad-id/results?organizationId=${ctx.organization.id}`,
+      headers: authHeaders(authToken),
+    });
+    expect(res.statusCode).toBe(400);
+  });
+
+  it('GET /:id/uptime returns 400 for non-uuid id', async () => {
+    const res = await app.inject({
+      method: 'GET',
+      url: `/api/v1/monitors/bad-id/uptime?organizationId=${ctx.organization.id}`,
+      headers: authHeaders(authToken),
+    });
+    expect(res.statusCode).toBe(400);
+  });
+
+  it('GET /:id/channels returns 400 for non-uuid id', async () => {
+    const res = await app.inject({
+      method: 'GET',
+      url: `/api/v1/monitors/bad-id/channels?organizationId=${ctx.organization.id}`,
+      headers: authHeaders(authToken),
+    });
+    expect(res.statusCode).toBe(400);
+  });
+
+  it('PUT /:id/channels returns 400 for non-uuid id', async () => {
+    const res = await app.inject({
+      method: 'PUT',
+      url: `/api/v1/monitors/bad-id/channels?organizationId=${ctx.organization.id}`,
+      headers: authHeaders(authToken),
+      payload: { channelIds: [] },
+    });
+    expect(res.statusCode).toBe(400);
+  });
+
+  it('returns 400 for invalid organizationId', async () => {
+    const res = await app.inject({
+      method: 'GET',
+      url: `/api/v1/monitors/00000000-0000-0000-0000-000000000000?organizationId=not-a-uuid`,
+      headers: authHeaders(authToken),
+    });
+    expect(res.statusCode).toBe(400);
+    expect(JSON.parse(res.payload).error).toBe('organizationId required');
+  });
+});
+
+describe('parsePositiveInt edge cases', () => {
+  it('GET /:id/results clamps negative limit to default', async () => {
+    const createRes = await app.inject({
+      method: 'POST',
+      url: '/api/v1/monitors',
+      headers: authHeaders(authToken),
+      payload: { organizationId: ctx.organization.id, projectId: ctx.project.id, name: 'Lim', type: 'heartbeat' },
+    });
+    const { monitor } = JSON.parse(createRes.payload);
+
+    const res = await app.inject({
+      method: 'GET',
+      url: `/api/v1/monitors/${monitor.id}/results?organizationId=${ctx.organization.id}&limit=-5`,
+      headers: authHeaders(authToken),
+    });
+    expect(res.statusCode).toBe(200);
+  });
+
+  it('GET /:id/uptime clamps NaN days to default', async () => {
+    const createRes = await app.inject({
+      method: 'POST',
+      url: '/api/v1/monitors',
+      headers: authHeaders(authToken),
+      payload: { organizationId: ctx.organization.id, projectId: ctx.project.id, name: 'Up', type: 'heartbeat' },
+    });
+    const { monitor } = JSON.parse(createRes.payload);
+
+    const res = await app.inject({
+      method: 'GET',
+      url: `/api/v1/monitors/${monitor.id}/uptime?organizationId=${ctx.organization.id}&days=abc`,
+      headers: authHeaders(authToken),
+    });
+    expect(res.statusCode).toBe(200);
+  });
+});
+
 describe('GET /api/v1/monitors/:id/results with limit', () => {
   it('respects the limit query parameter', async () => {
     const createRes = await app.inject({

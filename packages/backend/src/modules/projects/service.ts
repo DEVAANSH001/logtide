@@ -17,7 +17,7 @@ export interface CreateProjectInput {
 
 export interface UpdateProjectInput {
   name?: string;
-  description?: string;
+  description?: string | null;
   statusPageVisibility?: StatusPageVisibility;
   statusPagePassword?: string;
 }
