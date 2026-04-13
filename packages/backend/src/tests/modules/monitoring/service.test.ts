@@ -527,6 +527,47 @@ describe('MonitorService.runAllDueChecks', () => {
     await expect(service.runAllDueChecks()).resolves.not.toThrow();
   });
 
+  it('recovers when monitor has no status object', async () => {
+    const monitor = await service.createMonitor({
+      organizationId: ctx.organization.id,
+      projectId: ctx.project.id,
+      name: 'No Status',
+      type: 'http',
+      target: 'https://example.com',
+      intervalSeconds: 60,
+    });
+
+    // Delete the status row so that processCheckResult must re-read or re-create it
+    await db.deleteFrom('monitor_status').where('monitor_id', '=', monitor.id).execute();
+
+    // Call runCheck with a monitor that has status: undefined to trigger the recovery path
+    const monitorWithoutStatus = { ...monitor, status: undefined };
+    await expect(service.runCheck(monitorWithoutStatus)).resolves.not.toThrow();
+
+    // Verify status row was recreated
+    const statusRow = await db
+      .selectFrom('monitor_status')
+      .selectAll()
+      .where('monitor_id', '=', monitor.id)
+      .executeTakeFirst();
+    expect(statusRow).toBeDefined();
+  });
+
+  it('recovers when monitor_status row exists in DB but not preloaded', async () => {
+    const monitor = await service.createMonitor({
+      organizationId: ctx.organization.id,
+      projectId: ctx.project.id,
+      name: 'Status Exists',
+      type: 'http',
+      target: 'https://example.com',
+      intervalSeconds: 60,
+    });
+
+    // Status row exists in DB but we pass a monitor without preloaded status
+    const monitorWithoutStatus = { ...monitor, status: undefined };
+    await expect(service.runCheck(monitorWithoutStatus)).resolves.not.toThrow();
+  });
+
   it('skips monitors whose projects are under maintenance', async () => {
     const { maintenanceService } = await import('../../../modules/maintenances/service.js');
     vi.mocked(maintenanceService.getProjectsUnderMaintenance).mockResolvedValueOnce(
