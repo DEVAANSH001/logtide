@@ -434,7 +434,7 @@ export class TimescaleQueryTranslator extends QueryTranslator {
       idx = this.pushFilter(conditions, values, idx, 'service', params.service);
     }
     if (params.level !== undefined) {
-      this.pushFilter(conditions, values, idx, 'level', params.level);
+      idx = this.pushFilter(conditions, values, idx, 'level', params.level);
     }
 
     const where = ` WHERE ${conditions.join(' AND ')}`;

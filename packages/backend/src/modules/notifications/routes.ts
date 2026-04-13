@@ -7,6 +7,13 @@ const notificationIdSchema = z.object({
   id: z.string().uuid('Invalid notification ID format'),
 });
 
+const parsePositiveInt = (val: string | undefined, fallback: number, max: number): number => {
+  if (!val) return fallback;
+  const n = parseInt(val, 10);
+  if (isNaN(n) || n < 0) return fallback;
+  return Math.min(n, max);
+};
+
 const getNotificationsQuerySchema = z.object({
   unreadOnly: z
     .string()
@@ -15,11 +22,11 @@ const getNotificationsQuerySchema = z.object({
   limit: z
     .string()
     .optional()
-    .transform((val) => (val ? parseInt(val, 10) : 50)),
+    .transform((val) => parsePositiveInt(val, 50, 200)),
   offset: z
     .string()
     .optional()
-    .transform((val) => (val ? parseInt(val, 10) : 0)),
+    .transform((val) => parsePositiveInt(val, 0, 100000)),
 });
 
 export async function notificationsRoutes(fastify: FastifyInstance) {

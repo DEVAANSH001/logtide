@@ -258,7 +258,10 @@ export class SigmaSyncService {
                 last_synced_at: new Date(),
                 conversion_status: conversionStatus,
                 conversion_notes: conversionNotes || null,
-                alert_rule_id: alertRuleId || existing.id,
+                // Only set alert_rule_id when we just created one; otherwise
+                // leave the existing value alone (don't clobber with the
+                // sigma_rule's own id — that column is a FK to alert_rules).
+                ...(alertRuleId ? { alert_rule_id: alertRuleId } : {}),
                 updated_at: new Date(),
               })
               .where('id', '=', existing.id)

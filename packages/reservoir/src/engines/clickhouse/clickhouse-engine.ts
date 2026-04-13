@@ -872,8 +872,12 @@ export class ClickHouseEngine extends StorageEngine {
     }
 
     const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
-    const sortBy = params.sortBy ?? 'start_time';
-    const sortOrder = params.sortOrder ?? 'ASC';
+
+    // Allowlist to prevent SQL injection via user-controlled sort parameters
+    const ALLOWED_SORT_COLUMNS = new Set(['start_time', 'end_time', 'duration_ms', 'service_name', 'operation_name']);
+    const ALLOWED_SORT_ORDERS = new Set(['asc', 'desc']);
+    const sortBy = ALLOWED_SORT_COLUMNS.has(params.sortBy ?? '') ? params.sortBy! : 'start_time';
+    const sortOrder = ALLOWED_SORT_ORDERS.has((params.sortOrder ?? '').toLowerCase()) ? params.sortOrder!.toUpperCase() : 'ASC';
 
     const countResult = await client.query({
       query: `SELECT count() AS count FROM spans ${where}`,

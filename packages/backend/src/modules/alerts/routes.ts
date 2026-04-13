@@ -82,16 +82,23 @@ const getAlertsQuerySchema = z.object({
     .transform((val) => val === 'true'),
 });
 
+const parsePositiveInt = (val: string | undefined, fallback: number, max: number): number => {
+  if (!val) return fallback;
+  const n = parseInt(val, 10);
+  if (isNaN(n) || n < 0) return fallback;
+  return Math.min(n, max);
+};
+
 const getHistoryQuerySchema = z.object({
   projectId: z.string().uuid().optional(),
   limit: z
     .string()
     .optional()
-    .transform((val) => (val ? parseInt(val, 10) : 100)),
+    .transform((val) => parsePositiveInt(val, 100, 500)),
   offset: z
     .string()
     .optional()
-    .transform((val) => (val ? parseInt(val, 10) : 0)),
+    .transform((val) => parsePositiveInt(val, 0, 100000)),
 });
 
 const previewAlertRuleSchema = z.object({

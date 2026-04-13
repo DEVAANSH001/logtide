@@ -554,17 +554,24 @@ export class PiiMaskingService {
         .insertInto('organization_pii_salts')
         .values({ organization_id: organizationId, salt })
         .execute();
-    } catch {
-      // race condition - another worker inserted first
+      return salt;
+    } catch (err: any) {
+      if (err?.code !== '23505') throw err;
+      // Unique-constraint collision: another worker inserted first. Re-read
+      // and return the winning salt. Never fall back to the local (unpersisted)
+      // salt — that would silently diverge from what's stored in the DB.
       const retry = await db
         .selectFrom('organization_pii_salts')
         .select(['salt'])
         .where('organization_id', '=', organizationId)
         .executeTakeFirst();
-      if (retry) return retry.salt;
+      if (!retry) {
+        throw new Error(
+          `Failed to obtain PII salt for organization ${organizationId}: insert conflicted but re-read found no row`
+        );
+      }
+      return retry.salt;
     }
-
-    return salt;
   }
 
   // -------------------------------------------------------------------------

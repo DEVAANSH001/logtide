@@ -110,6 +110,9 @@ const extractJournaldTimestamp = (data: any): string | null => {
 
 // Normalize log level from various formats
 const normalizeLevel = (level: any): string => {
+  if (level === null || level === undefined || level === '' || typeof level === 'boolean') {
+    return 'info';
+  }
   if (typeof level === 'number' || !isNaN(Number(level))) {
     const numLevel = Number(level);
     if (numLevel >= 60) return 'critical';

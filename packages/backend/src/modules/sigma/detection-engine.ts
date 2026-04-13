@@ -124,7 +124,7 @@ export class SigmaDetectionEngine {
     const rules = await query.execute();
 
     return rules.map((rule) => ({
-      id: rule.sigma_id || rule.id,
+      id: rule.id,
       title: rule.title,
       description: rule.description || undefined,
       level: (rule.level || 'medium') as 'informational' | 'low' | 'medium' | 'high' | 'critical',
@@ -156,7 +156,8 @@ export class SigmaDetectionEngine {
       if (logService !== 'unknown') {
         // Exact match or wildcard match
         if (servicePattern.includes('*')) {
-          const regex = new RegExp(`^${servicePattern.replace(/\*/g, '.*')}$`);
+          const escaped = servicePattern.replace(/[.+^${}()|[\]\\]/g, '\\$&');
+          const regex = new RegExp(`^${escaped.replace(/\*/g, '.*')}$`);
           if (!regex.test(logService)) {
             return false;
           }
@@ -179,7 +180,8 @@ export class SigmaDetectionEngine {
         // If log product is "unknown", skip validation (check all rules)
         if (logProduct !== 'unknown') {
           if (productPattern.includes('*')) {
-            const regex = new RegExp(`^${productPattern.replace(/\*/g, '.*')}$`);
+            const escaped = productPattern.replace(/[.+^${}()|[\]\\]/g, '\\$&');
+            const regex = new RegExp(`^${escaped.replace(/\*/g, '.*')}$`);
             if (!regex.test(logProduct)) {
               return false;
             }
@@ -200,7 +202,8 @@ export class SigmaDetectionEngine {
       // If log category is "unknown", skip validation (check all rules)
       if (logCategory !== 'unknown') {
         if (categoryPattern.includes('*')) {
-          const regex = new RegExp(`^${categoryPattern.replace(/\*/g, '.*')}$`);
+          const escaped = categoryPattern.replace(/[.+^${}()|[\]\\]/g, '\\$&');
+          const regex = new RegExp(`^${escaped.replace(/\*/g, '.*')}$`);
           if (!regex.test(logCategory)) {
             return false;
           }
