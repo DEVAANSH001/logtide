@@ -73,7 +73,8 @@ export async function pipelineRoutes(fastify: FastifyInstance) {
   // Preview (before /:id routes to avoid conflict)
   fastify.post('/preview', async (request: any, reply) => {
     try {
-      const body = previewSchema.parse(request.body);
+      const orgIdFromQuery = (request.query as any).organizationId;
+      const body = previewSchema.parse({ organizationId: orgIdFromQuery, ...request.body });
       if (!await checkMembership(request.user.id, body.organizationId)) return reply.status(403).send({ error: 'Forbidden' });
       const logEntry = { id: '', time: new Date(), message: body.message, metadata: body.metadata ?? null };
       const result = await PipelineExecutor.execute(logEntry, body.steps as any);
@@ -87,7 +88,8 @@ export async function pipelineRoutes(fastify: FastifyInstance) {
   // YAML import
   fastify.post('/import-yaml', async (request: any, reply) => {
     try {
-      const body = importYamlSchema.parse(request.body);
+      const orgIdFromQuery = (request.query as any).organizationId;
+      const body = importYamlSchema.parse({ organizationId: orgIdFromQuery, ...request.body });
       if (!await checkMembership(request.user.id, body.organizationId)) return reply.status(403).send({ error: 'Forbidden' });
       const pipeline = await pipelineService.importFromYaml(body.yaml, body.organizationId, body.projectId ?? null);
       return reply.status(201).send({ pipeline });
@@ -101,7 +103,8 @@ export async function pipelineRoutes(fastify: FastifyInstance) {
   // Create pipeline
   fastify.post('/', async (request: any, reply) => {
     try {
-      const body = createSchema.parse(request.body);
+      const orgIdFromQuery = (request.query as any).organizationId;
+      const body = createSchema.parse({ organizationId: orgIdFromQuery, ...request.body });
       if (!await checkMembership(request.user.id, body.organizationId)) return reply.status(403).send({ error: 'Forbidden' });
       const pipeline = await pipelineService.create(body as any);
       return reply.status(201).send({ pipeline });

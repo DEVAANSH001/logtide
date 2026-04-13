@@ -6,9 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
-## [0.9.1] - 2026-04-12
+## [0.9.1] - 2026-04-14
 
 ### Fixed
+- **Identifier pattern update/delete failed with "Organization ID is required"** (issue #193): PUT and DELETE routes required `organizationId` as an explicit query param or API key context, but session-based auth never sets that field. Now falls back to the user's first organization, consistent with GET and POST
 - **Invitation accept race condition**: wrapping the membership check + insert in a transaction caused the `accepted_at` update to roll back when throwing "already a member". Split the early-exit path out of the transaction and added `23505` unique-constraint handling for true concurrent accepts
 - **SSE live tail duplicate sends**: `latestLog` picked the oldest entry from a DESC-sorted array instead of the newest, causing every poll to re-fetch and re-send all logs since the oldest timestamp. Replaced with a defensive max-time computation
 - **Sigma sync corrupted `alert_rule_id` FK**: fallback `alertRuleId || existing.id` wrote the sigma rule's own PK into the alert_rules FK column when no alert was auto-created. Now omits the column entirely unless a new alert rule was just created

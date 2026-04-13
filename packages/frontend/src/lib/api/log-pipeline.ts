@@ -42,6 +42,15 @@ export interface UpdatePipelineInput {
   enabled?: boolean;
 }
 
+function extractErrorMessage(error: any, fallback: string): string {
+  if (error.details?.length > 0) {
+    const d = error.details[0];
+    const field = d.path?.length ? `${d.path.join('.')}: ` : '';
+    return `${field}${d.message}`;
+  }
+  return error.error || fallback;
+}
+
 async function fetchWithAuth(url: string, options: RequestInit = {}): Promise<Response> {
   const token = getAuthToken();
   const headers: HeadersInit = {
@@ -104,7 +113,7 @@ export const logPipelineAPI = {
 
     if (!response.ok) {
       const error = await response.json().catch(() => ({ error: 'Failed to create pipeline' }));
-      throw new Error(error.error || 'Failed to create pipeline');
+      throw new Error(extractErrorMessage(error, 'Failed to create pipeline'));
     }
 
     const data = await response.json();
@@ -166,7 +175,7 @@ export const logPipelineAPI = {
 
     if (!response.ok) {
       const error = await response.json().catch(() => ({ error: 'Failed to preview pipeline' }));
-      throw new Error(error.error || 'Failed to preview pipeline');
+      throw new Error(extractErrorMessage(error, 'Failed to preview pipeline'));
     }
 
     const data = await response.json();
@@ -187,7 +196,7 @@ export const logPipelineAPI = {
 
     if (!response.ok) {
       const error = await response.json().catch(() => ({ error: 'Failed to import pipeline' }));
-      throw new Error(error.error || 'Failed to import pipeline');
+      throw new Error(extractErrorMessage(error, 'Failed to import pipeline'));
     }
 
     const data = await response.json();
