@@ -383,10 +383,12 @@ describe('Pattern Routes', () => {
             expect(response.statusCode).toBe(400);
         });
 
-        it('should return 400 when organizationId is missing', async () => {
+        it('should use first organization when organizationId is not specified', async () => {
+            // No organizationId query param: should fall back to user's first org
+            // Pattern does not exist → 404
             const response = await app.inject({
                 method: 'PUT',
-                url: '/v1/patterns/some-id',
+                url: '/v1/patterns/00000000-0000-0000-0000-000000000000',
                 headers: {
                     Authorization: `Bearer ${authToken}`,
                 },
@@ -395,7 +397,7 @@ describe('Pattern Routes', () => {
                 },
             });
 
-            expect(response.statusCode).toBe(400);
+            expect(response.statusCode).toBe(404);
         });
 
         it('should return 403 when user has no access to the specified organization', async () => {
@@ -512,16 +514,18 @@ describe('Pattern Routes', () => {
             expect(response.statusCode).toBe(404);
         });
 
-        it('should return 400 when organizationId is missing', async () => {
+        it('should use first organization when organizationId is not specified', async () => {
+            // No organizationId query param: should fall back to user's first org
+            // Pattern does not exist → 404
             const response = await app.inject({
                 method: 'DELETE',
-                url: '/v1/patterns/some-id',
+                url: '/v1/patterns/00000000-0000-0000-0000-000000000000',
                 headers: {
                     Authorization: `Bearer ${authToken}`,
                 },
             });
 
-            expect(response.statusCode).toBe(400);
+            expect(response.statusCode).toBe(404);
         });
 
         it('should return 403 when user has no access to the specified organization', async () => {
