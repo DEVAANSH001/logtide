@@ -506,10 +506,10 @@ export class ExceptionService {
     const limit = params.limit || 10;
     const offset = params.offset || 0;
 
-    // Step 1: Get log_ids from exceptions table (always in PG)
+    // Step 1: Get log_ids (with their project_id) from exceptions table (always in PG)
     let query = this.db
       .selectFrom('exceptions')
-      .select('log_id')
+      .select(['log_id', 'project_id'])
       .where('fingerprint', '=', params.fingerprint)
       .where('organization_id', '=', params.organizationId)
       .orderBy('created_at', 'desc')
@@ -527,9 +527,26 @@ export class ExceptionService {
       return { logs: [], total: params.occurrenceCount };
     }
 
-    // Step 2: Fetch logs via reservoir (works with any engine)
-    const projectId = params.projectId || '';
-    const storedLogs = await reservoir.getByIds({ ids: logIds, projectId });
+    // Step 2: Fetch logs via reservoir. getByIds is project-scoped, so we
+    // group the requested ids by project and issue one call per project to
+    // handle error groups that span projects (project_id is nullable per
+    // exception row).
+    const idsByProject = new Map<string, string[]>();
+    for (const e of exceptions) {
+      const pid = e.project_id ?? '';
+      if (!pid) continue; // skip rows with no project — nothing to fetch
+      const list = idsByProject.get(pid);
+      if (list) list.push(e.log_id);
+      else idsByProject.set(pid, [e.log_id]);
+    }
+
+    const storedLogs = (
+      await Promise.all(
+        Array.from(idsByProject.entries()).map(([pid, ids]) =>
+          reservoir.getByIds({ ids, projectId: pid })
+        )
+      )
+    ).flat();
 
     // Build lookup map and return in the same order
     const logMap = new Map(storedLogs.map((l: { id: string; time: Date; service: string; message: string; metadata?: any }) => [l.id, l]));

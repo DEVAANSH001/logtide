@@ -136,7 +136,7 @@ export class MonitorService {
       // Initialize status row in the same transaction
       await trx
         .insertInto('monitor_status')
-        .values({ monitor_id: row.id })
+        .values({ monitor_id: row.id, status: 'unknown', consecutive_failures: 0, consecutive_successes: 0 })
         .execute();
 
       return this.mapMonitor(row as unknown as MonitorWithStatusRow);
@@ -550,7 +550,54 @@ export class MonitorService {
     result: CheckResult,
     currentStatusData: MonitorCurrentStatus | null
   ): Promise<void> {
-    if (!currentStatusData) return;
+    // Older monitors (or ones whose status row was manually removed) may
+    // arrive here without a preloaded status. Re-read from DB and, if still
+    // missing, insert a default row so the state machine can proceed instead
+    // of silently dropping the check.
+    if (!currentStatusData) {
+      const row = await this.db
+        .selectFrom('monitor_status')
+        .selectAll()
+        .where('monitor_id', '=', monitor.id)
+        .executeTakeFirst();
+
+      if (row) {
+        currentStatusData = {
+          monitorId: row.monitor_id,
+          status: (row.status ?? 'unknown') as MonitorCurrentStatus['status'],
+          consecutiveFailures: row.consecutive_failures ?? 0,
+          consecutiveSuccesses: row.consecutive_successes ?? 0,
+          lastCheckedAt: row.last_checked_at ?? null,
+          lastStatusChangeAt: row.last_status_change_at ?? null,
+          responseTimeMs: row.response_time_ms ?? null,
+          lastErrorCode: row.last_error_code ?? null,
+          incidentId: row.incident_id ?? null,
+          updatedAt: row.updated_at,
+        };
+      } else {
+        await this.db
+          .insertInto('monitor_status')
+          .values({
+            monitor_id: monitor.id,
+            status: 'unknown',
+            consecutive_failures: 0,
+            consecutive_successes: 0,
+          })
+          .execute();
+        currentStatusData = {
+          monitorId: monitor.id,
+          status: 'unknown',
+          consecutiveFailures: 0,
+          consecutiveSuccesses: 0,
+          lastCheckedAt: null,
+          lastStatusChangeAt: null,
+          responseTimeMs: null,
+          lastErrorCode: null,
+          incidentId: null,
+          updatedAt: new Date(),
+        };
+      }
+    }
 
     const prevConsecutiveFailures = currentStatusData.consecutiveFailures;
     const prevStatus = currentStatusData.status as 'up' | 'down' | 'unknown';

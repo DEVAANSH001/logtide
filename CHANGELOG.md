@@ -6,6 +6,33 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.9.1] - 2026-04-12
+
+### Fixed
+- **Invitation accept race condition**: wrapping the membership check + insert in a transaction caused the `accepted_at` update to roll back when throwing "already a member". Split the early-exit path out of the transaction and added `23505` unique-constraint handling for true concurrent accepts
+- **SSE live tail duplicate sends**: `latestLog` picked the oldest entry from a DESC-sorted array instead of the newest, causing every poll to re-fetch and re-send all logs since the oldest timestamp. Replaced with a defensive max-time computation
+- **Sigma sync corrupted `alert_rule_id` FK**: fallback `alertRuleId || existing.id` wrote the sigma rule's own PK into the alert_rules FK column when no alert was auto-created. Now omits the column entirely unless a new alert rule was just created
+- **Exception log viewer returned empty results for org-wide error groups**: `getLogsForErrorGroup` passed an empty string as `projectId` to reservoir when no project filter was set. Now groups log IDs by their exception's `project_id` and issues one `getByIds` call per project
+- **ReDoS in HTTP monitor body assertion**: user-supplied regex pattern was compiled with only a 256-char length limit, no catastrophic-backtracking check. Added `safe-regex2` validation and a compile-error catch
+- **OTLP int64 precision loss**: `parseInt()` silently truncated int64 attribute values exceeding `Number.MAX_SAFE_INTEGER`. Unsafe values are now kept as strings in metadata
+- **PII salt race condition fallthrough**: if two workers raced on the first hash for an org, the loser could return an unpersisted local salt when the retry read failed, permanently desynchronizing PII hashes. Now scopes the catch to `23505` and throws on unexpected errors
+- **Monitor status fallthrough on missing row**: `processCheckResult` silently skipped the entire state machine (no status update, no notifications) when `monitor_status` was undefined. Now re-reads from DB or creates a default row before proceeding
+- **Test isolation: auth mode pollution across test files**: `system_settings` was never reset between tests, so any test setting `auth.mode='none'` caused 12 unrelated "401 without auth" assertions to return 503. Added cleanup + cache invalidation to global `beforeEach`
+- **Sigma detection tests used `sigma_id` after code migrated to `id`**: fixture data still passed `rule.sigma_id` as `sigmaRuleId`, which would not match the new `.where('id', '=', ...)` queries
+- **`translateDelete` dropped level filter in reservoir**: `pushFilter` return value was discarded for the `level` condition, corrupting `$N` parameter slots when both `service` and `level` filters were present
+- **SQL injection in `querySpans` via `sortBy`/`sortOrder`**: user-controlled strings were interpolated directly into raw SQL in both TimescaleDB and ClickHouse engines. Added explicit column/direction allowlists
+- **`ingestSpans` hardcoded `::uuid[]` for `project_id`**: ignored the `projectIdType` engine option, breaking text-based project IDs with a Postgres cast error
+- **`localStorage` SSR crash in organization store**: 7 direct `localStorage` calls without a `browser` guard would throw `ReferenceError` during server-side rendering. Added `browser` check on all accesses
+- **Invite token not URL-encoded in redirect**: `goto(/login?redirect=/invite/${token})` corrupted the redirect path for tokens containing `+`, `=`, or `/`. Now wraps in `encodeURIComponent`
+- **`ruleId` not URL-encoded in security dashboard navigation**: inconsistent with `serviceName` and `technique` which already used `encodeURIComponent`
+- **Missing UUID validation on monitoring route params**: all `/:id` handlers passed `request.params.id` directly to DB queries without format validation. Added Zod `.uuid()` parsing on every route
+- **Negative `limit`/`days` in monitoring routes**: `Number("-1") || 50` evaluates to `-1` (truthy), passing a negative value to `LIMIT`. Replaced with a `parsePositiveInt` guard that clamps to `[1, max]`
+- **Missing UUID validation on status-incident route params**: same issue as monitoring - `:id` params were used unvalidated in DB queries
+- **SIEM comment body has no max length**: `z.string().min(1)` with no upper bound allowed arbitrarily large comment payloads. Added `.max(10000)`
+- **Notifications and alerts `limit`/`offset` NaN passthrough**: `parseInt("abc")` returned `NaN`, which was passed to Kysely `.limit(NaN)`. Added safe integer parsing with fallback and max cap
+- **Correlation `referenceTime` accepted invalid date strings**: schema validated only `{type: 'string'}`, so `new Date("garbage")` flowed into Kysely WHERE clauses as Invalid Date. Added `format: 'date-time'` and a defensive 400 response
+- **Log pipeline comment contradicted jsonb merge direction**: code comment said "do NOT overwrite existing" but the in-progress fix had flipped the jsonb `||` operand order so pipeline fields now win. Updated comment to match actual behavior
+
 ## [0.9.0] - 2026-04-11
 
 ### Added

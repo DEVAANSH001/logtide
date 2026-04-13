@@ -352,22 +352,38 @@ export class InvitationsService {
       throw new Error('You are already a member of this organization');
     }
 
-    // Add to organization
-    await db
-      .insertInto('organization_members')
-      .values({
-        organization_id: invitation.organization_id,
-        user_id: userId,
-        role: invitation.role as OrgRole,
-      })
-      .execute();
+    // Insert membership + mark invitation accepted atomically. If a concurrent
+    // request inserted the membership first, the UNIQUE constraint on
+    // (organization_id, user_id) will raise 23505 — handle that gracefully.
+    try {
+      await db.transaction().execute(async (trx) => {
+        await trx
+          .insertInto('organization_members')
+          .values({
+            organization_id: invitation.organization_id,
+            user_id: userId,
+            role: invitation.role as OrgRole,
+          })
+          .execute();
 
-    // Mark invitation as accepted
-    await db
-      .updateTable('organization_invitations')
-      .set({ accepted_at: new Date() })
-      .where('id', '=', invitation.id)
-      .execute();
+        await trx
+          .updateTable('organization_invitations')
+          .set({ accepted_at: new Date() })
+          .where('id', '=', invitation.id)
+          .execute();
+      });
+    } catch (err: any) {
+      if (err?.code === '23505') {
+        // Concurrent request already added user. Mark invitation accepted anyway.
+        await db
+          .updateTable('organization_invitations')
+          .set({ accepted_at: new Date() })
+          .where('id', '=', invitation.id)
+          .execute();
+        throw new Error('You are already a member of this organization');
+      }
+      throw err;
+    }
 
     // Create welcome notification
     const org = await db

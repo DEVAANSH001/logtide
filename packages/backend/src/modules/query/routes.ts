@@ -773,14 +773,20 @@ const queryRoutes: FastifyPluginAsync = async (fastify) => {
             const unseenLogs = newLogs.logs.filter((log: any) => !sentIds.has(log.id));
 
             if (unseenLogs.length > 0) {
-              // Update last timestamp
-              const latestLog = unseenLogs[unseenLogs.length - 1];
-              lastTimestamp = new Date(latestLog.time);
+              // Update last timestamp from the max time across all fetched logs.
+              // queryLogs returns DESC-sorted by default, but compute max
+              // defensively so this doesn't silently break if the sort changes.
+              let maxTimeMs = lastTimestamp.getTime();
+              for (const log of newLogs.logs) {
+                const t = new Date(log.time).getTime();
+                if (t > maxTimeMs) maxTimeMs = t;
+              }
+              lastTimestamp = new Date(maxTimeMs);
 
               // Rebuild sentIds with only logs at the latest timestamp to bound memory
               sentIds = new Set<string>();
               for (const log of newLogs.logs) {
-                if (new Date(log.time).getTime() === lastTimestamp.getTime()) {
+                if (new Date(log.time).getTime() === maxTimeMs) {
                   sentIds.add(log.id);
                 }
               }

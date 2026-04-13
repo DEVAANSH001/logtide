@@ -10,6 +10,24 @@ import { notificationChannelsService } from '../notification-channels/index.js';
 
 export const monitorService = new MonitorService(db);
 
+const uuidSchema = z.string().uuid();
+
+function parseId(params: any): string | null {
+  const result = uuidSchema.safeParse(params?.id);
+  return result.success ? result.data : null;
+}
+
+function parseOrgId(raw: unknown): string | null {
+  const result = uuidSchema.safeParse(raw);
+  return result.success ? result.data : null;
+}
+
+function parsePositiveInt(raw: unknown, fallback: number, max: number): number {
+  const n = Number(raw);
+  if (isNaN(n) || n < 1) return fallback;
+  return Math.min(n, max);
+}
+
 async function checkOrgMembership(userId: string, organizationId: string): Promise<boolean> {
   const member = await db
     .selectFrom('organization_members')
@@ -84,11 +102,13 @@ export async function monitoringRoutes(fastify: FastifyInstance) {
   });
 
   fastify.get('/:id', async (request: any, reply) => {
-    const { organizationId } = request.query as any;
+    const id = parseId(request.params);
+    if (!id) return reply.status(400).send({ error: 'Invalid monitor ID' });
+    const organizationId = parseOrgId((request.query as any).organizationId);
     if (!organizationId) return reply.status(400).send({ error: 'organizationId required' });
     if (!(await checkOrgMembership(request.user.id, organizationId))) return reply.status(403).send({ error: 'Forbidden' });
 
-    const monitor = await monitorService.getMonitor(request.params.id, organizationId);
+    const monitor = await monitorService.getMonitor(id, organizationId);
     if (!monitor) return reply.status(404).send({ error: 'Not found' });
     return reply.send({ monitor });
   });
@@ -104,7 +124,9 @@ export async function monitoringRoutes(fastify: FastifyInstance) {
   });
 
   fastify.put('/:id', async (request: any, reply) => {
-    const { organizationId } = request.query as any;
+    const id = parseId(request.params);
+    if (!id) return reply.status(400).send({ error: 'Invalid monitor ID' });
+    const organizationId = parseOrgId((request.query as any).organizationId);
     if (!organizationId) return reply.status(400).send({ error: 'organizationId required' });
     if (!(await checkOrgMembership(request.user.id, organizationId))) return reply.status(403).send({ error: 'Forbidden' });
 
@@ -113,7 +135,7 @@ export async function monitoringRoutes(fastify: FastifyInstance) {
 
     // Validate target format against monitor type if target is being changed
     if (parse.data.target) {
-      const existing = await monitorService.getMonitor(request.params.id, organizationId);
+      const existing = await monitorService.getMonitor(id, organizationId);
       if (!existing) return reply.status(404).send({ error: 'Not found' });
       if (existing.type === 'http' && !(parse.data.target.startsWith('http://') || parse.data.target.startsWith('https://'))) {
         return reply.status(400).send({ error: 'HTTP target must start with http:// or https://' });
@@ -126,38 +148,46 @@ export async function monitoringRoutes(fastify: FastifyInstance) {
       }
     }
 
-    const monitor = await monitorService.updateMonitor(request.params.id, organizationId, parse.data);
+    const monitor = await monitorService.updateMonitor(id, organizationId, parse.data);
     if (!monitor) return reply.status(404).send({ error: 'Not found' });
     return reply.send({ monitor });
   });
 
   fastify.delete('/:id', async (request: any, reply) => {
-    const { organizationId } = request.query as any;
+    const id = parseId(request.params);
+    if (!id) return reply.status(400).send({ error: 'Invalid monitor ID' });
+    const organizationId = parseOrgId((request.query as any).organizationId);
     if (!organizationId) return reply.status(400).send({ error: 'organizationId required' });
     if (!(await checkOrgMembership(request.user.id, organizationId))) return reply.status(403).send({ error: 'Forbidden' });
 
-    await monitorService.deleteMonitor(request.params.id, organizationId);
+    await monitorService.deleteMonitor(id, organizationId);
     return reply.status(204).send();
   });
 
   fastify.get('/:id/results', async (request: any, reply) => {
-    const { organizationId, limit } = request.query as any;
+    const id = parseId(request.params);
+    if (!id) return reply.status(400).send({ error: 'Invalid monitor ID' });
+    const { organizationId: rawOrgId, limit } = request.query as any;
+    const organizationId = parseOrgId(rawOrgId);
     if (!organizationId) return reply.status(400).send({ error: 'organizationId required' });
     if (!(await checkOrgMembership(request.user.id, organizationId))) return reply.status(403).send({ error: 'Forbidden' });
 
     const results = await monitorService.getRecentResults(
-      request.params.id, organizationId, Math.min(Number(limit) || 50, 200)
+      id, organizationId, parsePositiveInt(limit, 50, 200)
     );
     return reply.send({ results });
   });
 
   fastify.get('/:id/uptime', async (request: any, reply) => {
-    const { organizationId, days } = request.query as any;
+    const id = parseId(request.params);
+    if (!id) return reply.status(400).send({ error: 'Invalid monitor ID' });
+    const { organizationId: rawOrgId, days } = request.query as any;
+    const organizationId = parseOrgId(rawOrgId);
     if (!organizationId) return reply.status(400).send({ error: 'organizationId required' });
     if (!(await checkOrgMembership(request.user.id, organizationId))) return reply.status(403).send({ error: 'Forbidden' });
 
     const history = await monitorService.getUptimeHistory(
-      request.params.id, organizationId, Math.min(Number(days) || 90, 365)
+      id, organizationId, parsePositiveInt(days, 90, 365)
     );
     return reply.send({ history });
   });
@@ -165,29 +195,33 @@ export async function monitoringRoutes(fastify: FastifyInstance) {
   // ---- Notification channels for monitors ----
 
   fastify.get('/:id/channels', async (request: any, reply) => {
-    const { organizationId } = request.query as any;
+    const id = parseId(request.params);
+    if (!id) return reply.status(400).send({ error: 'Invalid monitor ID' });
+    const organizationId = parseOrgId((request.query as any).organizationId);
     if (!organizationId) return reply.status(400).send({ error: 'organizationId required' });
     if (!(await checkOrgMembership(request.user.id, organizationId))) return reply.status(403).send({ error: 'Forbidden' });
 
-    const monitor = await monitorService.getMonitor(request.params.id, organizationId);
+    const monitor = await monitorService.getMonitor(id, organizationId);
     if (!monitor) return reply.status(404).send({ error: 'Not found' });
 
-    const channels = await notificationChannelsService.getMonitorChannels(request.params.id);
+    const channels = await notificationChannelsService.getMonitorChannels(id);
     return reply.send({ channels });
   });
 
   fastify.put('/:id/channels', async (request: any, reply) => {
-    const { organizationId } = request.query as any;
+    const id = parseId(request.params);
+    if (!id) return reply.status(400).send({ error: 'Invalid monitor ID' });
+    const organizationId = parseOrgId((request.query as any).organizationId);
     if (!organizationId) return reply.status(400).send({ error: 'organizationId required' });
     if (!(await checkOrgMembership(request.user.id, organizationId))) return reply.status(403).send({ error: 'Forbidden' });
 
     const parse = z.object({ channelIds: z.array(z.string().uuid()) }).safeParse(request.body);
     if (!parse.success) return reply.status(400).send({ error: parse.error.errors[0].message });
 
-    const monitor = await monitorService.getMonitor(request.params.id, organizationId);
+    const monitor = await monitorService.getMonitor(id, organizationId);
     if (!monitor) return reply.status(404).send({ error: 'Not found' });
 
-    await notificationChannelsService.setMonitorChannels(request.params.id, parse.data.channelIds);
+    await notificationChannelsService.setMonitorChannels(id, parse.data.channelIds);
     return reply.status(204).send();
   });
 }

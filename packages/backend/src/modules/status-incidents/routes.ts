@@ -47,14 +47,17 @@ const addUpdateSchema = z.object({
   message: z.string().min(1).max(5000),
 });
 
+const idSchema = z.object({ id: z.string().uuid() });
+const orgIdSchema = z.string().uuid();
+
 export async function statusIncidentRoutes(fastify: FastifyInstance) {
   fastify.addHook('onRequest', authenticate);
 
   // List incidents for a project
   fastify.get('/', async (request: any, reply) => {
     const { organizationId, projectId } = request.query;
-    if (!organizationId || !projectId) {
-      return reply.status(400).send({ error: 'organizationId and projectId required' });
+    if (!orgIdSchema.safeParse(organizationId).success || !orgIdSchema.safeParse(projectId).success) {
+      return reply.status(400).send({ error: 'valid organizationId and projectId required' });
     }
     if (!(await checkOrgMember(request.user.id, organizationId))) {
       return reply.status(403).send({ error: 'Forbidden' });
@@ -66,13 +69,15 @@ export async function statusIncidentRoutes(fastify: FastifyInstance) {
 
   // Get single incident with updates
   fastify.get('/:id', async (request: any, reply) => {
+    const paramsParse = idSchema.safeParse(request.params);
+    if (!paramsParse.success) return reply.status(400).send({ error: 'Invalid incident ID' });
     const { organizationId } = request.query;
-    if (!organizationId) return reply.status(400).send({ error: 'organizationId required' });
+    if (!orgIdSchema.safeParse(organizationId).success) return reply.status(400).send({ error: 'organizationId required' });
     if (!(await checkOrgMember(request.user.id, organizationId))) {
       return reply.status(403).send({ error: 'Forbidden' });
     }
 
-    const incident = await statusIncidentService.getById(request.params.id, organizationId);
+    const incident = await statusIncidentService.getById(paramsParse.data.id, organizationId);
     if (!incident) return reply.status(404).send({ error: 'Not found' });
 
     const updates = await statusIncidentService.getUpdates(incident.id);
@@ -97,8 +102,10 @@ export async function statusIncidentRoutes(fastify: FastifyInstance) {
 
   // Update incident (admin/owner only)
   fastify.put('/:id', async (request: any, reply) => {
+    const paramsParse = idSchema.safeParse(request.params);
+    if (!paramsParse.success) return reply.status(400).send({ error: 'Invalid incident ID' });
     const { organizationId } = request.query;
-    if (!organizationId) return reply.status(400).send({ error: 'organizationId required' });
+    if (!orgIdSchema.safeParse(organizationId).success) return reply.status(400).send({ error: 'organizationId required' });
     if (!(await checkOrgAdmin(request.user.id, organizationId))) {
       return reply.status(403).send({ error: 'Admin or owner role required' });
     }
@@ -106,28 +113,32 @@ export async function statusIncidentRoutes(fastify: FastifyInstance) {
     const parse = updateSchema.safeParse(request.body);
     if (!parse.success) return reply.status(400).send({ error: parse.error.errors[0].message });
 
-    const incident = await statusIncidentService.update(request.params.id, organizationId, parse.data);
+    const incident = await statusIncidentService.update(paramsParse.data.id, organizationId, parse.data);
     if (!incident) return reply.status(404).send({ error: 'Not found' });
     return reply.send({ incident });
   });
 
   // Delete incident (admin/owner only)
   fastify.delete('/:id', async (request: any, reply) => {
+    const paramsParse = idSchema.safeParse(request.params);
+    if (!paramsParse.success) return reply.status(400).send({ error: 'Invalid incident ID' });
     const { organizationId } = request.query;
-    if (!organizationId) return reply.status(400).send({ error: 'organizationId required' });
+    if (!orgIdSchema.safeParse(organizationId).success) return reply.status(400).send({ error: 'organizationId required' });
     if (!(await checkOrgAdmin(request.user.id, organizationId))) {
       return reply.status(403).send({ error: 'Admin or owner role required' });
     }
 
-    const deleted = await statusIncidentService.delete(request.params.id, organizationId);
+    const deleted = await statusIncidentService.delete(paramsParse.data.id, organizationId);
     if (!deleted) return reply.status(404).send({ error: 'Not found' });
     return reply.status(204).send();
   });
 
   // Add update to incident (admin/owner only)
   fastify.post('/:id/updates', async (request: any, reply) => {
+    const paramsParse = idSchema.safeParse(request.params);
+    if (!paramsParse.success) return reply.status(400).send({ error: 'Invalid incident ID' });
     const { organizationId } = request.query;
-    if (!organizationId) return reply.status(400).send({ error: 'organizationId required' });
+    if (!orgIdSchema.safeParse(organizationId).success) return reply.status(400).send({ error: 'organizationId required' });
     if (!(await checkOrgAdmin(request.user.id, organizationId))) {
       return reply.status(403).send({ error: 'Admin or owner role required' });
     }
@@ -137,7 +148,7 @@ export async function statusIncidentRoutes(fastify: FastifyInstance) {
 
     try {
       const update = await statusIncidentService.addUpdate(
-        request.params.id,
+        paramsParse.data.id,
         organizationId,
         { ...parse.data, createdBy: request.user.id },
       );

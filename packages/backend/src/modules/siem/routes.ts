@@ -753,7 +753,7 @@ export async function siemRoutes(fastify: FastifyInstance) {
 
         const bodySchema = z.object({
           organizationId: z.string().uuid(),
-          comment: z.string().min(1),
+          comment: z.string().min(1).max(10000),
         });
 
         const params = paramsSchema.parse(request.params);

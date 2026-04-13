@@ -85,7 +85,7 @@
 	}
 
 	function handleThreatClick(threat: TopThreat) {
-		goto(`/dashboard/security/incidents?ruleId=${threat.ruleId}`);
+		goto(`/dashboard/security/incidents?ruleId=${encodeURIComponent(threat.ruleId)}`);
 	}
 
 	function handleServiceClick(service: AffectedService) {

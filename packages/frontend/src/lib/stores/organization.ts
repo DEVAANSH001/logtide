@@ -1,4 +1,5 @@
 import { writable, derived, get } from 'svelte/store';
+import { browser } from '$app/environment';
 import type { OrganizationWithRole } from '@logtide/shared';
 
 interface OrganizationState {
@@ -24,7 +25,7 @@ function createOrganizationStore() {
       update((state) => {
         const currentOrganization = state.currentOrganization || organizations[0] || null;
 
-        const savedOrgId = localStorage.getItem('currentOrganizationId');
+        const savedOrgId = browser ? localStorage.getItem('currentOrganizationId') : null;
         const restoredOrg = savedOrgId
           ? organizations.find((org) => org.id === savedOrgId)
           : null;
@@ -48,10 +49,12 @@ function createOrganizationStore() {
           organization = organizationOrId;
         }
 
-        if (organization) {
-          localStorage.setItem('currentOrganizationId', organization.id);
-        } else {
-          localStorage.removeItem('currentOrganizationId');
+        if (browser) {
+          if (organization) {
+            localStorage.setItem('currentOrganizationId', organization.id);
+          } else {
+            localStorage.removeItem('currentOrganizationId');
+          }
         }
 
         return {
@@ -119,7 +122,7 @@ function createOrganizationStore() {
         const newOrg = await apiCall();
 
         update((state) => {
-          localStorage.setItem('currentOrganizationId', newOrg.id);
+          if (browser) localStorage.setItem('currentOrganizationId', newOrg.id);
 
           return {
             ...state,
@@ -144,14 +147,14 @@ function createOrganizationStore() {
         const orgs = await apiCall();
 
         update((state) => {
-          const savedOrgId = localStorage.getItem('currentOrganizationId');
+          const savedOrgId = browser ? localStorage.getItem('currentOrganizationId') : null;
           const restoredOrg = savedOrgId
             ? orgs.find((org) => org.id === savedOrgId)
             : null;
 
           const currentOrganization = restoredOrg || orgs[0] || null;
 
-          if (currentOrganization && !savedOrgId) {
+          if (browser && currentOrganization && !savedOrgId) {
             localStorage.setItem('currentOrganizationId', currentOrganization.id);
           }
 
@@ -178,7 +181,7 @@ function createOrganizationStore() {
 
 
     clear: () => {
-      localStorage.removeItem('currentOrganizationId');
+      if (browser) localStorage.removeItem('currentOrganizationId');
       set(initialState);
     },
   };
