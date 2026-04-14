@@ -270,6 +270,23 @@ export class MonitorService {
       .executeTakeFirst() ?? null;
   }
 
+  async getProjectByOrgAndSlug(orgSlug: string, projectSlug: string) {
+    return this.db
+      .selectFrom('projects')
+      .innerJoin('organizations', 'organizations.id', 'projects.organization_id')
+      .select([
+        'projects.id',
+        'projects.name',
+        'projects.slug',
+        'projects.organization_id',
+        'projects.status_page_visibility',
+        'projects.status_page_password_hash',
+      ])
+      .where('organizations.slug', '=', orgSlug)
+      .where('projects.slug', '=', projectSlug)
+      .executeTakeFirst() ?? null;
+  }
+
   async getPublicStatus(projectSlug: string, verifiedProjectId?: string): Promise<PublicStatusPage | null> {
     // If the route already verified the project, use that ID directly to avoid TOCTOU
     let project: { id: string; name: string; slug: string } | null = null;
