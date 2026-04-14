@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.9.2] - 2026-04-14
+
+### Added
+- **Create user from admin panel** (issue #198): admins can now provision new accounts directly from `Admin → User Management` via a "Create User" button, without having to temporarily re-enable public signup. Opens a dialog to set email, name, password and optional admin role. Backed by a new `POST /api/v1/admin/users` endpoint that bypasses the `auth.signup_enabled` gate and logs a `create_user` entry to the audit log
+
 ## [0.9.1] - 2026-04-14
 
 ### Fixed
