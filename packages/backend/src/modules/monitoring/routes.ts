@@ -262,11 +262,11 @@ export async function heartbeatRoutes(fastify: FastifyInstance) {
 // ============================================================================
 
 export async function publicStatusRoutes(fastify: FastifyInstance) {
-  fastify.get('/project/:slug', {
+  fastify.get('/:orgSlug/:projectSlug', {
     config: { rateLimit: { max: 60, timeWindow: '1 minute' } },
   }, async (request: any, reply) => {
-    const slug = request.params.slug;
-    const project = await monitorService.getProjectBySlug(slug);
+    const { orgSlug, projectSlug } = request.params as { orgSlug: string; projectSlug: string };
+    const project = await monitorService.getProjectByOrgAndSlug(orgSlug, projectSlug);
     if (!project || project.status_page_visibility === 'disabled') {
       return reply.status(404).send({ error: 'Not found' });
     }
@@ -306,7 +306,7 @@ export async function publicStatusRoutes(fastify: FastifyInstance) {
       }
     }
 
-    const status = await monitorService.getPublicStatus(slug, project.id);
+    const status = await monitorService.getPublicStatus(project.slug, project.id);
     if (!status) return reply.status(404).send({ error: 'Not found' });
     return reply.send(status);
   });
@@ -465,12 +465,12 @@ export async function publicStatusRoutes(fastify: FastifyInstance) {
     }
   }
 
-  async function loadPublicProjectStatus(slug: string): Promise<{ status: 'operational' | 'degraded' | 'outage' | 'unknown'; updatedAt: string } | null> {
-    const project = await monitorService.getProjectBySlug(slug);
+  async function loadPublicProjectStatus(orgSlug: string, projectSlug: string): Promise<{ status: 'operational' | 'degraded' | 'outage' | 'unknown'; updatedAt: string } | null> {
+    const project = await monitorService.getProjectByOrgAndSlug(orgSlug, projectSlug);
     // Badges are anonymous - only allow strictly public projects
     if (!project || project.status_page_visibility !== 'public') return null;
 
-    const status = await monitorService.getPublicStatus(slug, project.id);
+    const status = await monitorService.getPublicStatus(project.slug, project.id);
     if (!status) return null;
 
     return {
@@ -491,10 +491,11 @@ export async function publicStatusRoutes(fastify: FastifyInstance) {
   }
 
   // JSON badge: minimal payload for sites that want to render their own UI
-  fastify.get('/project/:slug/badge.json', {
+  fastify.get('/:orgSlug/:projectSlug/badge.json', {
     config: { rateLimit: { max: 120, timeWindow: '1 minute' } },
   }, async (request: any, reply) => {
-    const result = await loadPublicProjectStatus(request.params.slug);
+    const { orgSlug, projectSlug } = request.params as { orgSlug: string; projectSlug: string };
+    const result = await loadPublicProjectStatus(orgSlug, projectSlug);
     if (!result) return reply.status(404).send({ error: 'Not found' });
 
     const meta = badgeMeta(result.status);
@@ -507,11 +508,12 @@ export async function publicStatusRoutes(fastify: FastifyInstance) {
   });
 
   // SVG badge: drop-in <img src="..."> for README / blogs / dashboards
-  fastify.get('/project/:slug/badge.svg', {
+  fastify.get('/:orgSlug/:projectSlug/badge.svg', {
     config: { rateLimit: { max: 120, timeWindow: '1 minute' } },
   }, async (request: any, reply) => {
+    const { orgSlug, projectSlug } = request.params as { orgSlug: string; projectSlug: string };
     const style = parseBadgeStyle((request.query as { style?: string }).style);
-    const result = await loadPublicProjectStatus(request.params.slug);
+    const result = await loadPublicProjectStatus(orgSlug, projectSlug);
 
     if (!result) {
       // Return an "unknown" badge for missing/private projects so the embed
