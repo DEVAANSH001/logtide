@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - **Create user from admin panel** (issue #198): admins can now provision new accounts directly from `Admin → User Management` via a "Create User" button, without having to temporarily re-enable public signup. Opens a dialog to set email, name, password and optional admin role. Backed by a new `POST /api/v1/admin/users` endpoint that bypasses the `auth.signup_enabled` gate and logs a `create_user` entry to the audit log
+- **Set a custom dashboard as default from the UI**: the dashboard switcher now shows a clickable star next to each org-wide, non-personal dashboard; clicking it promotes that dashboard to be the org's default. Backed by a new `POST /api/v1/custom-dashboards/:id/set-default` endpoint that atomically unsets the previous default and sets the new one in a single transaction, respecting the existing partial unique index. Personal and project-scoped dashboards are rejected with a 400
 
 ## [0.9.1] - 2026-04-14
 

@@ -25,6 +25,7 @@
     onImport: () => void;
     onExport: () => void;
     onDelete: () => void;
+    onSetDefault: (dashboard: CustomDashboard) => void;
   }
 
   let {
@@ -36,7 +37,12 @@
     onImport,
     onExport,
     onDelete,
+    onSetDefault,
   }: Props = $props();
+
+  function canBeDefault(d: CustomDashboard): boolean {
+    return !d.isDefault && !d.isPersonal && d.projectId === null;
+  }
 </script>
 
 <DropdownMenu.Root>
@@ -61,15 +67,38 @@
       {#each dashboards as dashboard (dashboard.id)}
         <DropdownMenu.Item onSelect={() => onSelect(dashboard)} class="gap-2">
           {#if dashboard.isDefault}
-            <Star class="w-4 h-4 text-amber-500 flex-shrink-0" />
+            <Star class="w-4 h-4 text-amber-500 fill-amber-500 flex-shrink-0" />
           {:else if dashboard.isPersonal}
             <User class="w-4 h-4 text-muted-foreground flex-shrink-0" />
           {:else}
             <span class="w-4 h-4 flex-shrink-0"></span>
           {/if}
-          <span class="truncate">{dashboard.name}</span>
+          <span class="truncate flex-1">{dashboard.name}</span>
           {#if active?.id === dashboard.id}
-            <span class="ml-auto text-xs text-primary">Active</span>
+            <span class="text-xs text-primary">Active</span>
+          {/if}
+          {#if canBeDefault(dashboard)}
+            <button
+              type="button"
+              class="p-0.5 -m-0.5 rounded text-muted-foreground hover:text-amber-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              title="Set as default"
+              aria-label="Set as default dashboard"
+              onpointerdown={(e) => {
+                e.stopPropagation();
+                e.preventDefault();
+                onSetDefault(dashboard);
+              }}
+              onpointerup={(e) => {
+                e.stopPropagation();
+                e.preventDefault();
+              }}
+              onclick={(e) => {
+                e.stopPropagation();
+                e.preventDefault();
+              }}
+            >
+              <Star class="w-4 h-4" />
+            </button>
           {/if}
         </DropdownMenu.Item>
       {/each}
