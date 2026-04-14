@@ -1,4 +1,4 @@
-export const RESERVED_SLUGS = new Set<string>([
+export const RESERVED_SLUGS: ReadonlySet<string> = new Set<string>([
   'api',
   'admin',
   'dashboard',
