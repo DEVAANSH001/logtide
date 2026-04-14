@@ -262,14 +262,6 @@ export class MonitorService {
   // PUBLIC STATUS PAGE (no auth - scrubbed data)
   // ============================================================================
 
-  async getProjectBySlug(slug: string) {
-    return this.db
-      .selectFrom('projects')
-      .select(['id', 'name', 'slug', 'organization_id', 'status_page_visibility', 'status_page_password_hash'])
-      .where('slug', '=', slug)
-      .executeTakeFirst() ?? null;
-  }
-
   async getProjectByOrgAndSlug(orgSlug: string, projectSlug: string) {
     return this.db
       .selectFrom('projects')
