@@ -11,6 +11,7 @@ export interface CreateOrganizationInput {
 
 export interface UpdateOrganizationInput {
   name?: string;
+  slug?: string;
   description?: string;
 }
 
