@@ -1,5 +1,5 @@
 -- ============================================================================
--- Migration 037: Status Page URL scoping
+-- Migration 040: Status Page URL scoping
 -- Project slug uniqueness moves from global back to per-organization so that
 -- URLs can include the org slug (/status/:orgSlug/:projectSlug) without
 -- cross-org collisions forcing auto-suffixes.
