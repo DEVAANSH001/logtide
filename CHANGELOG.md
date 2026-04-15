@@ -6,7 +6,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
-## [0.9.2] - 2026-04-14
+## [0.9.2] - 2026-04-16
 
 ### Added
 - **Create user from admin panel** (issue #198): admins can now provision new accounts directly from `Admin → User Management` via a "Create User" button, without having to temporarily re-enable public signup. Opens a dialog to set email, name, password and optional admin role. Backed by a new `POST /api/v1/admin/users` endpoint that bypasses the `auth.signup_enabled` gate and logs a `create_user` entry to the audit log
@@ -16,6 +16,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - **Public status page URL is now scoped under the organization** (BREAKING): page and badge URLs changed from `/status/:projectSlug` to `/status/:orgSlug/:projectSlug`. Affects the public web page, `/api/v1/status/:orgSlug/:projectSlug/badge.svg`, and `/api/v1/status/:orgSlug/:projectSlug/badge.json`. No redirect from the old URLs. Anyone embedding the badge SVG/JSON or sharing a status-page link must update the URL to include the org slug. Migration `040` simultaneously moves project-slug uniqueness from global back to per-org, so two different organizations can now both have a project named `frontend` without auto-suffixing
+
+### Fixed
+- **Security dashboard crashed with "Cannot read properties of null (reading 'toLowerCase')"**: a detection event with a null `tactic` or `technique` made its way into the MITRE heatmap, where `tactic.toLowerCase()` in the abbreviation helper threw and took down the whole page. `MitreHeatmap` now filters out cells with null tactic/technique before building the matrix, and `DetectionEventsList.getLogLevelClass` defensively handles a null `level`. Root cause of the null values is still under investigation
 
 ## [0.9.1] - 2026-04-14
 
