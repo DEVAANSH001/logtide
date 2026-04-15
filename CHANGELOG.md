@@ -20,6 +20,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - **Security dashboard crashed with "Cannot read properties of null (reading 'toLowerCase')"**: a detection event with a null `tactic` or `technique` made its way into the MITRE heatmap, where `tactic.toLowerCase()` in the abbreviation helper threw and took down the whole page. `MitreHeatmap` now filters out cells with null tactic/technique before building the matrix, and `DetectionEventsList.getLogLevelClass` defensively handles a null `level`. Root cause of the null values is still under investigation
 
+### Security
+- **Bump `fastify` to 5.8.5** (GHSA-247c-9743-5963, CVE-2026-33806, HIGH): body schema validation could be bypassed by prepending a single space to the `Content-Type` header. Parser and validator disagreed on how to trim the header, so the body was still parsed but the schema lookup returned no validator and validation was skipped entirely. Upgraded from `^5.8.3` to `^5.8.5`
+- **Bump `@sveltejs/kit` to 2.57.1** (GHSA-2crg-3p73-43xp, CVE-2026-40073, HIGH): `BODY_SIZE_LIMIT` could be bypassed under certain conditions in `adapter-node`. Tightened the pnpm override from `>=2.53.3` to `>=2.57.1`
+- **Bump `@sveltejs/kit` to 2.57.1** (GHSA-3f6h-2hrp-w5wx, CVE-2026-40074, MEDIUM): calling `redirect` inside the `handle` hook with a location containing characters invalid for an HTTP header threw an unhandled `TypeError`, enabling DoS if the location included unsanitized user input
+
 ## [0.9.1] - 2026-04-14
 
 ### Fixed
