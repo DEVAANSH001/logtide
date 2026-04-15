@@ -1,6 +1,6 @@
 import { getApiBaseUrl, getApiUrl } from '$lib/config';
 import { getAuthToken } from '$lib/utils/auth';
-import type { LogLevel } from '@logtide/shared';
+import type { LogLevel, MetadataFilterInput } from '@logtide/shared';
 
 interface LogEntry {
   time: string;
@@ -38,6 +38,7 @@ interface LogFilters {
   limit?: number;
   offset?: number;
   cursor?: string;
+  metadataFilters?: MetadataFilterInput[];
 }
 
 interface StatsResponse {
@@ -124,6 +125,9 @@ export class LogsAPI {
     if (filters.limit) params.append('limit', filters.limit.toString());
     if (filters.offset != null) params.append('offset', filters.offset.toString());
     if (filters.cursor) params.append('cursor', filters.cursor);
+    if (filters.metadataFilters && filters.metadataFilters.length > 0) {
+      params.set('metadata_filters', JSON.stringify(filters.metadataFilters));
+    }
 
     const url = `${getApiBaseUrl()}/logs?${params.toString()}`;
 

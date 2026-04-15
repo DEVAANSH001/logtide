@@ -10,7 +10,8 @@
   import { ProjectsAPI } from "$lib/api/projects";
   import { logsAPI, type SearchMode } from "$lib/api/logs";
   import { toastStore } from "$lib/stores/toast";
-  import type { Project } from "@logtide/shared";
+  import type { Project, MetadataFilterInput } from "@logtide/shared";
+  import MetadataFilterBuilder from "$lib/components/alerts/MetadataFilterBuilder.svelte";
   import Button from "$lib/components/ui/button/button.svelte";
   import Input from "$lib/components/ui/input/input.svelte";
   import Label from "$lib/components/ui/label/label.svelte";
@@ -85,6 +86,7 @@
   let selectedServices = $state<string[]>([]);
   let selectedHostnames = $state<string[]>([]);
   let selectedLevels = $state<string[]>([]);
+  let metadataFilters = $state<MetadataFilterInput[]>([]);
   let liveTail = $state(false);
   let liveTailConnectionKey = $state<string | null>(null);
   let liveTailLimit = $state(100);
@@ -173,6 +175,18 @@
   let selectedLogForCorrelation = $state<LogEntry | null>(null);
   let logIdentifiers = $state<Map<string, IdentifierMatch[]>>(new Map());
   let loadingIdentifiers = $state(false);
+
+  let metadataFiltersDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+
+  $effect(() => {
+    // Re-run when metadataFilters changes; skip if no projects loaded yet
+    const filters = metadataFilters;
+    if (selectedProjects.length === 0) return;
+    if (metadataFiltersDebounceTimer) clearTimeout(metadataFiltersDebounceTimer);
+    metadataFiltersDebounceTimer = setTimeout(() => {
+      applyFilters();
+    }, 300);
+  });
 
   let searchDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -479,6 +493,7 @@
         to: timeRange.to.toISOString(),
         limit: pageSize,
         offset: offset,
+        metadataFilters: metadataFilters.length > 0 ? metadataFilters : undefined,
       });
 
       logs = response.logs;
@@ -518,6 +533,7 @@
   onDestroy(() => {
     unsubAuthStore();
     if (searchDebounceTimer) clearTimeout(searchDebounceTimer);
+    if (metadataFiltersDebounceTimer) clearTimeout(metadataFiltersDebounceTimer);
     stopLiveTail();
     shortcutsStore.unregisterScope('search');
   });
@@ -1402,6 +1418,26 @@
               initialCustomTo={customToTime}
               onchange={handleTimeRangeChange}
             />
+          </div>
+
+          <div class="mt-4 space-y-2">
+            <Label>Metadata filters</Label>
+            <MetadataFilterBuilder
+              bind:filters={metadataFilters}
+            />
+            {#if metadataFilters.length > 0}
+              <Button
+                variant="ghost"
+                size="sm"
+                onclick={() => {
+                  metadataFilters = [];
+                  applyFilters();
+                }}
+                class="text-muted-foreground"
+              >
+                Clear metadata filters
+              </Button>
+            {/if}
           </div>
 
           <div class="flex gap-2 mt-4">
