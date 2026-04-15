@@ -175,6 +175,11 @@ export interface AlertRulesTable {
     Record<string, unknown> | null,
     Record<string, unknown> | null
   >;
+  metadata_filters: ColumnType<
+    unknown[],
+    unknown[] | null,
+    unknown[] | null
+  >; // MetadataFilter[] (JSONB array); parsed from JSON by the driver
   created_at: Generated<Timestamp>;
   updated_at: Generated<Timestamp>;
 }
