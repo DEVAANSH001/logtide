@@ -2,7 +2,7 @@ import { db } from '../../database/index.js';
 import { reservoir } from '../../database/reservoir.js';
 import type { TimeBucket, StoredLogRecord } from '@logtide/reservoir';
 import { CacheManager, CACHE_TTL } from '../../utils/cache.js';
-import type { LogLevel } from '@logtide/shared';
+import type { LogLevel, MetadataFilter } from '@logtide/shared';
 
 /** Supported search modes */
 export type SearchMode = 'fulltext' | 'substring';
@@ -18,6 +18,7 @@ export interface LogQueryParams {
   to?: Date;
   q?: string; // Search query
   searchMode?: SearchMode; // Search mode: 'fulltext' (default) or 'substring'
+  metadata_filters?: MetadataFilter[]; // Filter by metadata key/value
   limit?: number;
   offset?: number;
   cursor?: string;
@@ -43,6 +44,7 @@ export class QueryService {
       to,
       q,
       searchMode = 'fulltext',
+      metadata_filters,
       limit = 100,
       offset = 0,
       cursor,
@@ -62,6 +64,7 @@ export class QueryService {
       to: to?.toISOString() || null,
       q: q || null,
       searchMode: searchMode || 'fulltext',
+      metadata_filters: metadata_filters ? JSON.stringify(metadata_filters) : null,
       limit,
       offset,
       cursor: cursor || null,
@@ -92,6 +95,7 @@ export class QueryService {
       to: effectiveTo,
       search: q,
       searchMode,
+      metadataFilters: metadata_filters,
     };
 
     // Run data query and count query in parallel
