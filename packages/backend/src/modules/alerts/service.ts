@@ -1,5 +1,6 @@
+import { sql } from 'kysely';
 import { db } from '../../database/connection.js';
-import type { LogLevel } from '@logtide/shared';
+import type { LogLevel, MetadataFilter } from '@logtide/shared';
 import type { AlertType, BaselineType, BaselineMetadata } from '../../database/types.js';
 import { baselineCalculator } from './baseline-calculator.js';
 import { reservoir } from '../../database/reservoir.js';
@@ -94,6 +95,7 @@ export interface AlertRule {
   sustainedMinutes: number | null;
   emailRecipients: string[];
   webhookUrl: string | null;
+  metadataFilters: MetadataFilter[];
   createdAt: Date;
   updatedAt: Date;
 }
@@ -115,6 +117,7 @@ export interface CreateAlertRuleInput {
   sustainedMinutes?: number | null;
   emailRecipients: string[];
   webhookUrl?: string | null;
+  metadataFilters?: MetadataFilter[] | null;
 }
 
 export interface UpdateAlertRuleInput {
@@ -132,6 +135,7 @@ export interface UpdateAlertRuleInput {
   sustainedMinutes?: number | null;
   emailRecipients?: string[];
   webhookUrl?: string | null;
+  metadataFilters?: MetadataFilter[] | null;
 }
 
 export class AlertsService {
@@ -161,6 +165,7 @@ export class AlertsService {
         sustained_minutes: input.sustainedMinutes || null,
         email_recipients: input.emailRecipients,
         webhook_url: input.webhookUrl || null,
+        metadata_filters: sql`${JSON.stringify(input.metadataFilters ?? [])}::jsonb`,
       })
       .returningAll()
       .executeTakeFirstOrThrow();
@@ -244,6 +249,7 @@ export class AlertsService {
     if (input.sustainedMinutes !== undefined) updateData.sustained_minutes = input.sustainedMinutes;
     if (input.emailRecipients !== undefined) updateData.email_recipients = input.emailRecipients;
     if (input.webhookUrl !== undefined) updateData.webhook_url = input.webhookUrl;
+    if (input.metadataFilters !== undefined) updateData.metadata_filters = sql`${JSON.stringify(input.metadataFilters ?? [])}::jsonb`;
 
     const rule = await db
       .updateTable('alert_rules')
@@ -1084,6 +1090,7 @@ export class AlertsService {
       sustainedMinutes: row.sustained_minutes != null ? Number(row.sustained_minutes) : null,
       emailRecipients: row.email_recipients,
       webhookUrl: row.webhook_url,
+      metadataFilters: row.metadata_filters ?? [],
       createdAt: new Date(row.created_at),
       updatedAt: new Date(row.updated_at),
     };

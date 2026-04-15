@@ -10,6 +10,7 @@ import {
   EXCEPTION_LANGUAGES,
   API_KEY_TYPES,
 } from '../constants/index.js';
+import { metadataFiltersSchema } from './metadata-filter.js';
 
 // Schema using constant arrays
 export const logLevelSchema = z.enum(LOG_LEVELS);
@@ -53,6 +54,7 @@ export const alertRuleSchema = z.object({
   time_window: z.number().int().positive(),
   email_recipients: z.array(z.string().email()),
   webhook_url: z.string().url().optional(),
+  metadata_filters: metadataFiltersSchema,
 });
 
 // Re-export types from constants (for backward compatibility)
