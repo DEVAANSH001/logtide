@@ -44,6 +44,8 @@
   import TerminalLogView from "$lib/components/TerminalLogView.svelte";
   import TimeRangePicker, { type TimeRangeType } from "$lib/components/TimeRangePicker.svelte";
   import { layoutStore } from "$lib/stores/layout";
+  import { createColumnConfigStore } from "$lib/stores/column-config.js";
+  import ColumnConfigMenu from "$lib/components/search/ColumnConfigMenu.svelte";
   import AlertTriangle from "@lucide/svelte/icons/alert-triangle";
   import Download from "@lucide/svelte/icons/download";
   import ChevronLeft from "@lucide/svelte/icons/chevron-left";
@@ -94,6 +96,23 @@
   let terminalWrapEnabled = $state(true);
   let maxWidthClass = $state("max-w-7xl");
   let containerPadding = $state("px-6 py-8");
+
+  // Custom metadata columns (persisted per project in localStorage)
+  let customColumns = $state<string[]>([]);
+  let columnStore = $derived(
+    selectedProjects.length > 0
+      ? createColumnConfigStore(selectedProjects[0])
+      : null
+  );
+  $effect(() => {
+    const store = columnStore;
+    if (!store) {
+      customColumns = [];
+      return;
+    }
+    const unsub = store.subscribe((v) => { customColumns = v; });
+    return unsub;
+  });
 
   $effect(() => {
     const unsubscribe = layoutStore.subscribe((state) => {
@@ -1517,6 +1536,12 @@
                   <span class="hidden sm:inline">{terminalWrapEnabled ? "Wrap" : "No wrap"}</span>
                 </Button>
               {/if}
+              {#if viewMode === "table"}
+                <ColumnConfigMenu
+                  bind:columns={customColumns}
+                  onchange={(cols) => { columnStore?.set(cols); }}
+                />
+              {/if}
               {#if liveTail}
                 <Badge variant="default" class="gap-1.5 animate-pulse">
                   <Radio class="w-3 h-3" />
@@ -1550,6 +1575,9 @@
                     <TableHead class="w-[150px]">Service</TableHead>
                     <TableHead class="w-[100px]">Level</TableHead>
                     <TableHead>Message</TableHead>
+                    {#each customColumns as col (col)}
+                      <TableHead class="w-[120px]">{col}</TableHead>
+                    {/each}
                     <TableHead class="w-[80px]">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -1622,6 +1650,15 @@
                       <TableCell class="max-w-md truncate"
                         >{log.message}</TableCell
                       >
+                      {#each customColumns as col (col)}
+                        <TableCell class="font-mono text-xs max-w-[120px] truncate">
+                          {#if log.metadata && log.metadata[col] !== undefined && log.metadata[col] !== null}
+                            {String(log.metadata[col])}
+                          {:else}
+                            <span class="text-muted-foreground">-</span>
+                          {/if}
+                        </TableCell>
+                      {/each}
                       <TableCell>
                         <div class="flex gap-2">
                           <Button
@@ -1644,7 +1681,7 @@
                     </TableRow>
                     {#if expandedRows.has(globalIndex)}
                       <TableRow>
-                        <TableCell colspan={6} class="bg-muted/50 !p-0">
+                        <TableCell colspan={6 + customColumns.length} class="bg-muted/50 !p-0">
                           <div class="p-4 space-y-3 w-0 min-w-full">
                             <div>
                               <span class="font-semibold">Full Message:</span>
