@@ -363,6 +363,9 @@ export class AlertsService {
     // Use fromTime + 1ms to simulate exclusive bound (time > fromTime)
     const serviceFilter = rule.service ? [rule.service, 'unknown'] : undefined;
     const exclusiveFrom = new Date(fromTime.getTime() + 1);
+    const metadataFilters: MetadataFilter[] = Array.isArray(rule.metadata_filters)
+      ? rule.metadata_filters
+      : [];
 
     const countResult = await reservoir.count({
       projectId,
@@ -370,6 +373,7 @@ export class AlertsService {
       to: new Date(),
       level: rule.level,
       service: serviceFilter,
+      ...(metadataFilters.length > 0 ? { metadataFilters } : {}),
     });
     const count = countResult.count;
 
@@ -420,6 +424,10 @@ export class AlertsService {
 
     if (projectIds.length === 0) return null;
 
+    const ruleMetadataFilters: MetadataFilter[] = Array.isArray(rule.metadata_filters)
+      ? rule.metadata_filters
+      : [];
+
     // Check cooldown: skip if last trigger was within cooldown period
     const lastTrigger = await db
       .selectFrom('alert_history')
@@ -454,6 +462,7 @@ export class AlertsService {
       projectIds,
       rule.level,
       rule.service || null,
+      ruleMetadataFilters.length > 0 ? ruleMetadataFilters : undefined,
     );
 
     const deviationRatio = baseline.value > 0 ? currentValue / baseline.value : 0;
