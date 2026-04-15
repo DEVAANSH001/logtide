@@ -14,5 +14,8 @@ ALTER TABLE alert_rules
 
 -- Safety check: reject non-array values at the DB layer
 ALTER TABLE alert_rules
+  DROP CONSTRAINT IF EXISTS alert_rules_metadata_filters_is_array;
+
+ALTER TABLE alert_rules
   ADD CONSTRAINT alert_rules_metadata_filters_is_array
   CHECK (jsonb_typeof(metadata_filters) = 'array');
