@@ -66,3 +66,5 @@ export type { ApiKeyType } from '../constants/log-constants.js';
 export type LogInput = z.infer<typeof logSchema>;
 export type IngestRequest = z.infer<typeof ingestRequestSchema>;
 export type AlertRuleInput = z.infer<typeof alertRuleSchema>;
+
+export * from './metadata-filter.js';
