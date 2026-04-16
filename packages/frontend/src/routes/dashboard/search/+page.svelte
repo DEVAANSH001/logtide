@@ -198,8 +198,8 @@
   let metadataFiltersDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 
   $effect(() => {
-    // Re-run when metadataFilters changes; skip if no projects loaded yet
-    const filters = metadataFilters;
+    // Track deep changes on every field of every filter (Svelte 5 needs explicit access)
+    JSON.stringify(metadataFilters);
     if (selectedProjects.length === 0) return;
     if (metadataFiltersDebounceTimer) clearTimeout(metadataFiltersDebounceTimer);
     metadataFiltersDebounceTimer = setTimeout(() => {
