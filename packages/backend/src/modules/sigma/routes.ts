@@ -850,7 +850,7 @@ export async function sigmaRoutes(fastify: FastifyInstance) {
 
       const rules = await sigmaSyncService.searchByMITRETactic(
         query.organizationId,
-        params.tactic?.toLowerCase()
+        params.tactic.toLowerCase()
       );
 
       // Transform to camelCase
