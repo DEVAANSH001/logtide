@@ -462,3 +462,77 @@ describe('POST /api/v1/dashboards/:id/panels/data', () => {
     expect(res.statusCode).toBe(400);
   });
 });
+
+describe('POST /api/v1/dashboards/:id/set-default', () => {
+  async function makeDashboard(payload: Record<string, unknown> = {}) {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/v1/dashboards',
+      headers: authHeaders(authToken),
+      payload: { organizationId: ctx.organization.id, name: 'D', ...payload },
+    });
+    return JSON.parse(res.body).dashboard;
+  }
+
+  it('promotes a dashboard to default', async () => {
+    const d = await makeDashboard();
+    const res = await app.inject({
+      method: 'POST',
+      url: `/api/v1/dashboards/${d.id}/set-default?organizationId=${ctx.organization.id}`,
+      headers: authHeaders(authToken),
+    });
+    expect(res.statusCode).toBe(200);
+    expect(JSON.parse(res.body).dashboard.isDefault).toBe(true);
+  });
+
+  it('returns 400 without organizationId', async () => {
+    const d = await makeDashboard();
+    const res = await app.inject({
+      method: 'POST',
+      url: `/api/v1/dashboards/${d.id}/set-default`,
+      headers: authHeaders(authToken),
+    });
+    expect(res.statusCode).toBe(400);
+  });
+
+  it('returns 403 for non-member', async () => {
+    const d = await makeDashboard();
+    const otherCtx = await createTestContext();
+    const otherSession = await createTestSession(otherCtx.user.id);
+    const res = await app.inject({
+      method: 'POST',
+      url: `/api/v1/dashboards/${d.id}/set-default?organizationId=${ctx.organization.id}`,
+      headers: authHeaders(otherSession.token),
+    });
+    expect(res.statusCode).toBe(403);
+  });
+
+  it('returns 404 for unknown dashboard', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: `/api/v1/dashboards/00000000-0000-0000-0000-000000000000/set-default?organizationId=${ctx.organization.id}`,
+      headers: authHeaders(authToken),
+    });
+    expect(res.statusCode).toBe(404);
+  });
+
+  it('returns 400 when promoting a personal dashboard', async () => {
+    const d = await makeDashboard({ isPersonal: true });
+    const res = await app.inject({
+      method: 'POST',
+      url: `/api/v1/dashboards/${d.id}/set-default?organizationId=${ctx.organization.id}`,
+      headers: authHeaders(authToken),
+    });
+    expect(res.statusCode).toBe(400);
+  });
+
+  it('returns 400 when promoting a project-scoped dashboard', async () => {
+    const d = await makeDashboard({ projectId: ctx.project.id });
+    const res = await app.inject({
+      method: 'POST',
+      url: `/api/v1/dashboards/${d.id}/set-default?organizationId=${ctx.organization.id}`,
+      headers: authHeaders(authToken),
+    });
+    expect(res.statusCode).toBe(400);
+  });
+});

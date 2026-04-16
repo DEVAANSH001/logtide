@@ -14,6 +14,7 @@ const createOrganizationSchema = z.object({
 
 const updateOrganizationSchema = z.object({
   name: z.string().min(1).max(255).optional(),
+  slug: z.string().min(2).max(50).optional(),
   description: z.string().optional(),
 });
 

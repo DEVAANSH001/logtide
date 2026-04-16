@@ -304,6 +304,77 @@ describe('CustomDashboardsService.getDefaultLayoutFor', () => {
   });
 });
 
+describe('CustomDashboardsService.setAsDefault', () => {
+  it('promotes an org-wide dashboard to default', async () => {
+    const d = await service.create(
+      { organizationId: ctx.organization.id, name: 'D' },
+      ctx.user.id
+    );
+    const result = await service.setAsDefault(d.id, ctx.organization.id);
+    expect(result.id).toBe(d.id);
+    expect(result.isDefault).toBe(true);
+  });
+
+  it('unsets previous default when promoting another', async () => {
+    const a = await service.create(
+      { organizationId: ctx.organization.id, name: 'A' },
+      ctx.user.id
+    );
+    const b = await service.create(
+      { organizationId: ctx.organization.id, name: 'B' },
+      ctx.user.id
+    );
+    await service.setAsDefault(a.id, ctx.organization.id);
+    await service.setAsDefault(b.id, ctx.organization.id);
+
+    const list = await service.list(ctx.organization.id, ctx.user.id);
+    const defaults = list.filter((x) => x.isDefault && x.projectId === null);
+    expect(defaults).toHaveLength(1);
+    expect(defaults[0].id).toBe(b.id);
+  });
+
+  it('is idempotent when already default', async () => {
+    const d = await service.create(
+      { organizationId: ctx.organization.id, name: 'D' },
+      ctx.user.id
+    );
+    await service.setAsDefault(d.id, ctx.organization.id);
+    const again = await service.setAsDefault(d.id, ctx.organization.id);
+    expect(again.id).toBe(d.id);
+    expect(again.isDefault).toBe(true);
+  });
+
+  it('throws Dashboard not found for unknown id', async () => {
+    await expect(
+      service.setAsDefault('00000000-0000-0000-0000-000000000000', ctx.organization.id)
+    ).rejects.toThrow('Dashboard not found');
+  });
+
+  it('refuses to promote a personal dashboard', async () => {
+    const personal = await service.create(
+      { organizationId: ctx.organization.id, name: 'Mine', isPersonal: true },
+      ctx.user.id
+    );
+    await expect(service.setAsDefault(personal.id, ctx.organization.id)).rejects.toThrow(
+      'Personal dashboards cannot be set as default'
+    );
+  });
+
+  it('refuses to promote a project-scoped dashboard', async () => {
+    const proj = await service.create(
+      {
+        organizationId: ctx.organization.id,
+        projectId: ctx.project.id,
+        name: 'Project D',
+      },
+      ctx.user.id
+    );
+    await expect(service.setAsDefault(proj.id, ctx.organization.id)).rejects.toThrow(
+      'Project-scoped dashboards cannot be set as default'
+    );
+  });
+});
+
 describe('CustomDashboardsService.generatePanelId', () => {
   it('generates unique IDs', () => {
     const id1 = service.generatePanelId();
