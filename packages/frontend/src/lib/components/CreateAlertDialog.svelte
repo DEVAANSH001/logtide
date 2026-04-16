@@ -195,7 +195,7 @@
 				timeWindow: alertType === "rate_of_change" ? 60 : timeWindow,
 				alertType,
 				channelIds: selectedChannelIds,
-				metadataFilters,
+				metadataFilters: metadataFilters.filter((f) => f.key.trim().length > 0),
 			};
 
 			if (alertType === "rate_of_change") {

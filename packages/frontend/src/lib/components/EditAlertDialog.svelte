@@ -144,7 +144,7 @@
 				level: Array.from(selectedLevels),
 				channelIds: selectedChannelIds,
 				alertType,
-				metadataFilters,
+				metadataFilters: metadataFilters.filter((f) => f.key.trim().length > 0),
 			};
 
 			if (alertType === "threshold") {

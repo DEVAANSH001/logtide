@@ -481,6 +481,8 @@
 
       const offset = (currentPage - 1) * pageSize;
 
+      const validMetadataFilters = metadataFilters.filter((f) => f.key.trim().length > 0);
+
       const response = await logsAPI.getLogs({
         projectId:
           selectedProjects.length === 1
@@ -512,7 +514,7 @@
         to: timeRange.to.toISOString(),
         limit: pageSize,
         offset: offset,
-        metadataFilters: metadataFilters.length > 0 ? metadataFilters : undefined,
+        metadataFilters: validMetadataFilters.length > 0 ? validMetadataFilters : undefined,
       });
 
       logs = response.logs;
