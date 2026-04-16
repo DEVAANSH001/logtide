@@ -19,6 +19,7 @@ export * from './dashboard-migrations.js';
 
 // Re-export schema types
 export type { LogInput, IngestRequest, AlertRuleInput } from '../schemas/index.js';
+export type { MetadataFilter, MetadataFilterInput, MetadataFilterOp } from '../schemas/metadata-filter.js';
 
 // User types
 export interface User {

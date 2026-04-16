@@ -1,6 +1,6 @@
 import { getApiUrl } from '$lib/config';
 import { getAuthToken } from '$lib/utils/auth';
-import type { LogLevel } from '@logtide/shared';
+import type { LogLevel, MetadataFilter, MetadataFilterInput } from '@logtide/shared';
 
 export type AlertType = 'threshold' | 'rate_of_change';
 export type BaselineType = 'same_time_yesterday' | 'same_day_last_week' | 'rolling_7d_avg' | 'percentile_p95';
@@ -24,6 +24,7 @@ export interface AlertRule {
   emailRecipients: string[];
   webhookUrl: string | null;
   channelIds?: string[];
+  metadataFilters: MetadataFilter[];
   createdAt: string;
   updatedAt: string;
 }
@@ -46,6 +47,7 @@ export interface CreateAlertRuleInput {
   emailRecipients?: string[];
   webhookUrl?: string | null;
   channelIds?: string[];
+  metadataFilters?: MetadataFilterInput[];
 }
 
 export interface UpdateAlertRuleInput {
@@ -64,6 +66,7 @@ export interface UpdateAlertRuleInput {
   emailRecipients?: string[];
   webhookUrl?: string | null;
   channelIds?: string[];
+  metadataFilters?: MetadataFilterInput[];
 }
 
 export interface GetAlertsOptions {

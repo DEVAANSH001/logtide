@@ -36,6 +36,7 @@
   let orgName = $state('');
   let orgSlug = $state('');
   let orgDescription = $state('');
+  let slugError = $state<string | null>(null);
 
   const unsubAuthStore = authStore.subscribe((state) => {
     user = state.user;
@@ -75,10 +76,12 @@
     }
 
     saving = true;
+    slugError = null;
     try {
       const api = new OrganizationsAPI(() => token);
       const response = await api.updateOrganization(currentOrg.id, {
         name: orgName,
+        slug: orgSlug,
         description: orgDescription || undefined,
       });
 
@@ -88,7 +91,11 @@
       toastStore.success('Organization settings updated successfully');
     } catch (e) {
       const errorMsg = e instanceof Error ? e.message : 'Failed to update organization settings';
-      toastStore.error(errorMsg);
+      if (errorMsg.toLowerCase().includes('slug')) {
+        slugError = errorMsg;
+      } else {
+        toastStore.error(errorMsg);
+      }
     } finally {
       saving = false;
     }
@@ -154,13 +161,15 @@
           <Input
             id="org-slug"
             type="text"
-            value={orgSlug}
-            disabled
-            class="bg-muted"
+            bind:value={orgSlug}
+            disabled={saving || !isOwner}
           />
           <p class="text-sm text-muted-foreground">
-            Auto-generated from organization name. This cannot be edited manually.
+            Used in URLs like <code>/status/{orgSlug || 'your-slug'}/...</code>. Changing this breaks any existing status-page links and embed badges.
           </p>
+          {#if slugError}
+            <p class="text-sm text-destructive">{slugError}</p>
+          {/if}
         </div>
 
         <div class="space-y-2">
