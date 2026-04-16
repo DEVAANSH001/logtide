@@ -68,18 +68,20 @@
 	{#if filters.length > 0}
 		<div class="space-y-2">
 			{#each filters as f, i (i)}
-				<div class="space-y-1">
+				<div class="space-y-1" data-testid="metadata-filter-row">
 					<div class="flex gap-2 items-center">
 						<Input
 							type="text"
 							class="w-36 shrink-0"
 							placeholder="metadata key"
+							data-testid="metadata-filter-key"
 							bind:value={filters[i].key}
 							{disabled}
 						/>
 
 						<select
 							class="{selectClass} w-36 shrink-0"
+							data-testid="metadata-filter-op"
 							value={f.op}
 							onchange={(e) =>
 								updateOp(i, (e.currentTarget as HTMLSelectElement).value as MetadataFilterOp)}
@@ -95,6 +97,7 @@
 								type="text"
 								class="flex-1 min-w-0"
 								placeholder="value"
+								data-testid="metadata-filter-value"
 								bind:value={filters[i].value}
 								{disabled}
 							/>
@@ -103,6 +106,7 @@
 								type="text"
 								class="flex-1 min-w-0"
 								placeholder="val1, val2, ..."
+								data-testid="metadata-filter-values"
 								value={(f.values ?? []).join(', ')}
 								oninput={(e) =>
 									updateValuesCsv(i, (e.currentTarget as HTMLInputElement).value)}
@@ -117,6 +121,7 @@
 							variant="ghost"
 							size="icon"
 							aria-label="Remove filter"
+							data-testid="metadata-filter-remove"
 							onclick={() => removeFilter(i)}
 							{disabled}
 						>
@@ -146,6 +151,7 @@
 		type="button"
 		variant="outline"
 		size="sm"
+		data-testid="metadata-filter-add"
 		onclick={addFilter}
 		disabled={disabled || filters.length >= 10}
 		class="gap-1"

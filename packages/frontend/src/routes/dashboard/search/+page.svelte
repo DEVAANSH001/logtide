@@ -1438,6 +1438,7 @@
                 <Button
                   variant="default"
                   size="sm"
+                  data-testid="metadata-filter-apply"
                   onclick={() => applyFilters()}
                 >
                   Apply metadata filters
@@ -1445,6 +1446,7 @@
                 <Button
                   variant="ghost"
                   size="sm"
+                  data-testid="metadata-filter-clear-all"
                   onclick={() => {
                     metadataFilters = [];
                     applyFilters();

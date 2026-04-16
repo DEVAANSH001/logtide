@@ -221,7 +221,12 @@ export async function adminRoutes(fastify: FastifyInstance) {
                     is_admin?: boolean;
                 };
 
-                if (!email || typeof email !== 'string' || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+                if (
+                    !email ||
+                    typeof email !== 'string' ||
+                    email.length > 254 ||
+                    !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
+                ) {
                     return reply.status(400).send({ error: 'A valid email is required' });
                 }
 
