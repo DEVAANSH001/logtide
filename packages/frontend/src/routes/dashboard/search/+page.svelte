@@ -195,18 +195,6 @@
   let logIdentifiers = $state<Map<string, IdentifierMatch[]>>(new Map());
   let loadingIdentifiers = $state(false);
 
-  let metadataFiltersDebounceTimer: ReturnType<typeof setTimeout> | null = null;
-
-  $effect(() => {
-    // Track deep changes on every field of every filter (Svelte 5 needs explicit access)
-    JSON.stringify(metadataFilters);
-    if (selectedProjects.length === 0) return;
-    if (metadataFiltersDebounceTimer) clearTimeout(metadataFiltersDebounceTimer);
-    metadataFiltersDebounceTimer = setTimeout(() => {
-      applyFilters();
-    }, 300);
-  });
-
   let searchDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 
   function debouncedSearch() {
@@ -554,7 +542,6 @@
   onDestroy(() => {
     unsubAuthStore();
     if (searchDebounceTimer) clearTimeout(searchDebounceTimer);
-    if (metadataFiltersDebounceTimer) clearTimeout(metadataFiltersDebounceTimer);
     stopLiveTail();
     shortcutsStore.unregisterScope('search');
   });
@@ -1447,17 +1434,26 @@
               bind:filters={metadataFilters}
             />
             {#if metadataFilters.length > 0}
-              <Button
-                variant="ghost"
-                size="sm"
-                onclick={() => {
-                  metadataFilters = [];
-                  applyFilters();
-                }}
-                class="text-muted-foreground"
-              >
-                Clear metadata filters
-              </Button>
+              <div class="flex gap-2">
+                <Button
+                  variant="default"
+                  size="sm"
+                  onclick={() => applyFilters()}
+                >
+                  Apply metadata filters
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onclick={() => {
+                    metadataFilters = [];
+                    applyFilters();
+                  }}
+                  class="text-muted-foreground"
+                >
+                  Clear
+                </Button>
+              </div>
             {/if}
           </div>
 
