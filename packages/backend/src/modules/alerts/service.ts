@@ -363,9 +363,7 @@ export class AlertsService {
     // Use fromTime + 1ms to simulate exclusive bound (time > fromTime)
     const serviceFilter = rule.service ? [rule.service, 'unknown'] : undefined;
     const exclusiveFrom = new Date(fromTime.getTime() + 1);
-    const metadataFilters: MetadataFilter[] = Array.isArray(rule.metadata_filters)
-      ? rule.metadata_filters
-      : [];
+    const metadataFilters = (rule.metadata_filters ?? []) as MetadataFilter[];
 
     const countResult = await reservoir.count({
       projectId,
@@ -424,9 +422,7 @@ export class AlertsService {
 
     if (projectIds.length === 0) return null;
 
-    const ruleMetadataFilters: MetadataFilter[] = Array.isArray(rule.metadata_filters)
-      ? rule.metadata_filters
-      : [];
+    const ruleMetadataFilters = (rule.metadata_filters ?? []) as MetadataFilter[];
 
     // Check cooldown: skip if last trigger was within cooldown period
     const lastTrigger = await db

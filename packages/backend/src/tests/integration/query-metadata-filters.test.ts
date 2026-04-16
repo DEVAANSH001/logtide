@@ -100,4 +100,15 @@ describe('GET /api/v1/logs with metadata_filters', () => {
 
     expect(res.status).toBe(400);
   });
+
+  it('rejects metadata_filters that fail Zod validation', async () => {
+    const res = await request(app.server)
+      .get('/api/v1/logs')
+      .set('x-api-key', apiKey)
+      .query({ projectId, metadata_filters: JSON.stringify([{ key: '', op: 'exists' }]) });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe('invalid metadata_filters');
+    expect(res.body.details).toBeDefined();
+  });
 });
