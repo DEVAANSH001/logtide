@@ -1,5 +1,6 @@
 import type { Reservoir } from '../client.js';
 import type { StorageEngine } from '../core/storage-engine.js';
+import type { IReservoir } from '../core/reservoir-interface.js';
 import type {
   LogRecord,
   SpanRecord,
@@ -15,7 +16,7 @@ import { BufferMetrics } from './metrics.js';
 import { FlushConsumerPool } from './flush-consumer-pool.js';
 import { shardOf } from './sharding.js';
 
-export class ReservoirBuffered {
+export class ReservoirBuffered implements IReservoir {
   readonly metrics = new BufferMetrics();
   private readonly breaker: CircuitBreaker;
   private readonly pool: FlushConsumerPool;
@@ -26,10 +27,9 @@ export class ReservoirBuffered {
     private readonly config: BufferedConfig,
   ) {
     this.breaker = new CircuitBreaker(config.circuitBreaker, config.transport);
-    const engine = (inner as unknown as { engine: StorageEngine }).engine;
     this.pool = new FlushConsumerPool(
       config.transport,
-      engine,
+      this.inner.getEngine(),
       config.flush,
       config.retry,
       this.metrics,
@@ -52,7 +52,7 @@ export class ReservoirBuffered {
   }
 
   async ingest(logs: LogRecord[]): Promise<IngestResult> {
-    if (logs.length === 0) return { inserted: 0 } as unknown as IngestResult;
+    if (logs.length === 0) return { ingested: 0, failed: 0, durationMs: 0 };
     if (await this.breaker.shouldBypass()) {
       this.metrics.recordBypass('log', 'breaker_open', logs.length);
       return this.inner.ingest(logs);
@@ -60,13 +60,15 @@ export class ReservoirBuffered {
     const records: BufferRecord[] = logs.map((payload) =>
       this.toBufferRecord('log', payload as unknown as { projectId: string }, payload),
     );
+    const start = Date.now();
     await this.config.transport.enqueueMany(records);
+    const durationMs = Date.now() - start;
     this.countEnqueued('log', records);
-    return { inserted: logs.length } as unknown as IngestResult;
+    return { ingested: logs.length, failed: 0, durationMs };
   }
 
   async ingestSpans(spans: SpanRecord[]): Promise<IngestSpansResult> {
-    if (spans.length === 0) return { inserted: 0 } as unknown as IngestSpansResult;
+    if (spans.length === 0) return { ingested: 0, failed: 0, durationMs: 0 };
     if (await this.breaker.shouldBypass()) {
       this.metrics.recordBypass('span', 'breaker_open', spans.length);
       return this.inner.ingestSpans(spans);
@@ -74,13 +76,15 @@ export class ReservoirBuffered {
     const records: BufferRecord[] = spans.map((payload) =>
       this.toBufferRecord('span', payload as unknown as { projectId: string }, payload),
     );
+    const start = Date.now();
     await this.config.transport.enqueueMany(records);
+    const durationMs = Date.now() - start;
     this.countEnqueued('span', records);
-    return { inserted: spans.length } as unknown as IngestSpansResult;
+    return { ingested: spans.length, failed: 0, durationMs };
   }
 
   async ingestMetrics(metrics: MetricRecord[]): Promise<IngestMetricsResult> {
-    if (metrics.length === 0) return { inserted: 0 } as unknown as IngestMetricsResult;
+    if (metrics.length === 0) return { ingested: 0, failed: 0, durationMs: 0 };
     if (await this.breaker.shouldBypass()) {
       this.metrics.recordBypass('metric', 'breaker_open', metrics.length);
       return this.inner.ingestMetrics(metrics);
@@ -88,9 +92,11 @@ export class ReservoirBuffered {
     const records: BufferRecord[] = metrics.map((payload) =>
       this.toBufferRecord('metric', payload as unknown as { projectId: string }, payload),
     );
+    const start = Date.now();
     await this.config.transport.enqueueMany(records);
+    const durationMs = Date.now() - start;
     this.countEnqueued('metric', records);
-    return { inserted: metrics.length } as unknown as IngestMetricsResult;
+    return { ingested: metrics.length, failed: 0, durationMs };
   }
 
   async ingestReturning(logs: LogRecord[]): Promise<IngestReturningResult> {
@@ -123,6 +129,7 @@ export class ReservoirBuffered {
   deleteMetricsByTimeRange(...args: Parameters<Reservoir['deleteMetricsByTimeRange']>): ReturnType<Reservoir['deleteMetricsByTimeRange']> { return this.inner.deleteMetricsByTimeRange(...args); }
   getMetricsOverview(...args: Parameters<Reservoir['getMetricsOverview']>): ReturnType<Reservoir['getMetricsOverview']> { return this.inner.getMetricsOverview(...args); }
   getEngineType(): ReturnType<Reservoir['getEngineType']> { return this.inner.getEngineType(); }
+  getEngine(): StorageEngine { return this.inner.getEngine(); }
   async close(): Promise<void> { await this.stop(); await this.inner.close(); }
   async initialize(): Promise<void> { await this.inner.initialize(); }
 

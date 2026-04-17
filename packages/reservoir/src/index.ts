@@ -73,6 +73,7 @@ export type { NativeQuery } from './core/query-translator.js';
 export { StorageEngineFactory } from './factory.js';
 export type { EngineOptions } from './factory.js';
 export { Reservoir } from './client.js';
+export type { IReservoir } from './core/reservoir-interface.js';
 
 // Engines - TimescaleDB
 export { TimescaleEngine, TimescaleQueryTranslator } from './engines/timescale/index.js';

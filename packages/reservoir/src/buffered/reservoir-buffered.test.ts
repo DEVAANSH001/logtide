@@ -5,20 +5,21 @@ import { DEFAULT_BREAKER, DEFAULT_FLUSH, DEFAULT_RETRY } from './types.js';
 import type { Reservoir } from '../client.js';
 
 function mockReservoir(): Reservoir {
+  const engine = {
+    ingest: vi.fn().mockResolvedValue({ ingested: 0, failed: 0, durationMs: 0 }),
+    ingestSpans: vi.fn().mockResolvedValue({ ingested: 0, failed: 0, durationMs: 0 }),
+    ingestMetrics: vi.fn().mockResolvedValue({ ingested: 0, failed: 0, durationMs: 0 }),
+  };
   const r = {
-    ingest: vi.fn().mockResolvedValue({ inserted: 0 }),
-    ingestReturning: vi.fn().mockResolvedValue({ inserted: 0, records: [] }),
-    ingestSpans: vi.fn().mockResolvedValue({ inserted: 0 }),
-    ingestMetrics: vi.fn().mockResolvedValue({ inserted: 0 }),
+    ingest: vi.fn().mockResolvedValue({ ingested: 0, failed: 0, durationMs: 0 }),
+    ingestReturning: vi.fn().mockResolvedValue({ ingested: 0, failed: 0, durationMs: 0, records: [] }),
+    ingestSpans: vi.fn().mockResolvedValue({ ingested: 0, failed: 0, durationMs: 0 }),
+    ingestMetrics: vi.fn().mockResolvedValue({ ingested: 0, failed: 0, durationMs: 0 }),
     query: vi.fn().mockResolvedValue({ records: [], total: 0 }),
     count: vi.fn().mockResolvedValue({ count: 0 }),
     aggregate: vi.fn().mockResolvedValue({ buckets: [] }),
     healthCheck: vi.fn().mockResolvedValue({ status: 'healthy' }),
-    ['engine' as unknown as string]: {
-      ingest: vi.fn().mockResolvedValue({ inserted: 0 }),
-      ingestSpans: vi.fn().mockResolvedValue({ inserted: 0 }),
-      ingestMetrics: vi.fn().mockResolvedValue({ inserted: 0 }),
-    },
+    getEngine: vi.fn().mockReturnValue(engine),
   };
   return r as unknown as Reservoir;
 }
@@ -39,7 +40,11 @@ describe('ReservoirBuffered', () => {
     const res = await buffered.ingest([{ message: 'x', level: 'info', projectId: 'p1' } as never]);
     const elapsed = Date.now() - started;
 
-    expect(res.inserted).toBe(1);
+    expect(res).toEqual({
+      ingested: 1,
+      failed: 0,
+      durationMs: expect.any(Number),
+    });
     expect(elapsed).toBeLessThan(50);
     await buffered.stop();
   });

@@ -45,6 +45,7 @@ import type {
   MetricsOverviewResult,
 } from './core/types.js';
 import type { StorageEngine } from './core/storage-engine.js';
+import type { IReservoir } from './core/reservoir-interface.js';
 import { StorageEngineFactory } from './factory.js';
 import type { EngineOptions } from './factory.js';
 
@@ -72,7 +73,7 @@ import type { EngineOptions } from './factory.js';
  * await reservoir.initialize(); // no-op when skipInitialize is true
  * ```
  */
-export class Reservoir {
+export class Reservoir implements IReservoir {
   private engine: StorageEngine;
   private initialized = false;
   private initPromise?: Promise<void>;
@@ -256,6 +257,16 @@ export class Reservoir {
 
   getEngineType(): EngineType {
     return this.engine.getCapabilities().engine;
+  }
+
+  /**
+   * Return the underlying storage engine.
+   *
+   * Exposed so decorators (e.g. the async buffer) can obtain a direct handle
+   * to the engine and avoid recursing back through the public client surface.
+   */
+  getEngine(): StorageEngine {
+    return this.engine;
   }
 
   async close(): Promise<void> {
