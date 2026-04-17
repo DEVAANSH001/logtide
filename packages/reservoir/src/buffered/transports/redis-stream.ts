@@ -1,3 +1,5 @@
+import { hostname } from 'node:os';
+import { randomBytes } from 'node:crypto';
 import type Redis from 'ioredis';
 import type {
   BufferRecord,
@@ -34,7 +36,9 @@ export class RedisStreamTransport implements BufferTransport {
     this.streamPrefix = opts.streamPrefix;
     this.shardCount = opts.shards ?? 8;
     this.consumerGroup = opts.consumerGroup ?? 'flush';
-    this.consumerName = opts.consumerName ?? `consumer-${process.pid}`;
+    this.consumerName =
+      opts.consumerName ??
+      `${hostname()}-${process.pid}-${randomBytes(3).toString('hex')}`;
     this.maxStreamLength = opts.maxStreamLength ?? 1_000_000;
     this.inflightTimeoutMs = opts.inflightTimeoutMs ?? 30_000;
     this.dlqSuffix = opts.dlqStreamSuffix ?? 'dlq';
@@ -56,7 +60,7 @@ export class RedisStreamTransport implements BufferTransport {
 
   async stop(): Promise<void> {
     this.started = false;
-    // Do NOT quit redis here — the client is owned by the caller.
+    // Do NOT quit redis here - the client is owned by the caller.
   }
 
   async enqueue(record: BufferRecord): Promise<void> {
@@ -98,7 +102,11 @@ export class RedisStreamTransport implements BufferTransport {
         );
       }
     }
-    await pipeline.exec();
+    const results = await pipeline.exec();
+    if (results) {
+      const firstErr = results.find(([err]) => err !== null)?.[0];
+      if (firstErr) throw firstErr;
+    }
   }
 
   async dequeue(
@@ -138,6 +146,8 @@ export class RedisStreamTransport implements BufferTransport {
       records.push(JSON.parse(fields[idx + 1]) as BufferRecord);
       ids.push(id);
     }
+    // attempt=1 is correct for fresh reads: redeliveries come through claimStale,
+    // which reads the real delivery count via XPENDING.
     return { shardId, ackToken: ids.join(','), attempt: 1, records };
   }
 
@@ -151,9 +161,9 @@ export class RedisStreamTransport implements BufferTransport {
   async nack(batch: BufferBatch, reason: string, attempts: number): Promise<void> {
     const key = this.streamKey(batch.shardId);
     const dlqKey = `${key}:${this.dlqSuffix}`;
-    const pipeline = this.redis.pipeline();
+    const multi = this.redis.multi();
     for (const r of batch.records) {
-      pipeline.xadd(
+      multi.xadd(
         dlqKey,
         '*',
         'payload',
@@ -167,8 +177,13 @@ export class RedisStreamTransport implements BufferTransport {
       );
     }
     const ids = batch.ackToken.split(',');
-    if (ids.length > 0) pipeline.xack(key, this.consumerGroup, ...ids);
-    await pipeline.exec();
+    if (ids.length > 0) multi.xack(key, this.consumerGroup, ...ids);
+    const results = await multi.exec();
+    if (results === null) {
+      throw new Error('nack transaction aborted');
+    }
+    const firstErr = results.find(([err]) => err !== null)?.[0];
+    if (firstErr) throw firstErr;
   }
 
   async getStats(): Promise<BufferTransportStats> {
@@ -182,6 +197,10 @@ export class RedisStreamTransport implements BufferTransport {
       const key = this.streamKey(shard);
       const dlqKey = `${key}:${this.dlqSuffix}`;
 
+      let pelLast: string | null = null;
+      let pelCount = 0;
+      let streamExists = false;
+
       try {
         const len = (await this.redis.xlen(key)) as number;
         const pend = (await this.redis.xpending(key, this.consumerGroup)) as [
@@ -190,23 +209,40 @@ export class RedisStreamTransport implements BufferTransport {
           string | null,
           unknown,
         ];
-        const inflightCount = pend[0] as number;
-        pending += Math.max(0, len - inflightCount);
-        inflight += inflightCount;
+        pelCount = pend[0] as number;
+        pelLast = pend[2];
+        pending += Math.max(0, len - pelCount);
+        inflight += pelCount;
+        streamExists = true;
       } catch {
         /* stream may not exist yet */
       }
 
-      try {
-        const first = (await this.redis.xrange(key, '-', '+', 'COUNT', 1)) as Array<
-          [string, string[]]
-        >;
-        if (first.length > 0) {
-          const idMs = Number(first[0][0].split('-')[0]);
-          if (!Number.isNaN(idMs)) oldest = Math.max(oldest, now - idMs);
+      if (streamExists) {
+        try {
+          // Oldest pending = oldest not-yet-delivered entry (ID > last PEL entry).
+          // When PEL is empty, all entries are not-yet-delivered, so probe from '-'.
+          let first: Array<[string, string[]]>;
+          if (pelCount === 0 || !pelLast) {
+            first = (await this.redis.xrange(key, '-', '+', 'COUNT', 1)) as Array<
+              [string, string[]]
+            >;
+          } else {
+            first = (await this.redis.xrange(
+              key,
+              `(${pelLast}`,
+              '+',
+              'COUNT',
+              1,
+            )) as Array<[string, string[]]>;
+          }
+          if (first.length > 0) {
+            const idMs = Number(first[0][0].split('-')[0]);
+            if (!Number.isNaN(idMs)) oldest = Math.max(oldest, now - idMs);
+          }
+        } catch {
+          /* no entries past the PEL tail */
         }
-      } catch {
-        /* no entries */
       }
 
       try {
@@ -259,13 +295,17 @@ export class RedisStreamTransport implements BufferTransport {
     const ids: string[] = [];
     let maxAttempt = 1;
 
-    // Get delivery count from XPENDING for each entry
+    // Get delivery count from XPENDING for each entry. After XAUTOCLAIM, the
+    // claimed entries are under OUR consumer, so filtering by consumer name
+    // returns exactly those entries' delivery counts (not unrelated pending
+    // entries owned by other consumers on a busy stream).
     const pending = (await this.redis.xpending(
       key,
       this.consumerGroup,
       '-',
       '+',
       entries.length,
+      this.consumerName,
     )) as Array<[string, string, number, number]>;
     const deliveryByEntryId = new Map(pending.map((p) => [p[0], p[3]]));
 
