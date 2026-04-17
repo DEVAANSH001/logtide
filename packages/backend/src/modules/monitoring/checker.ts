@@ -2,7 +2,7 @@ import { createConnection } from 'net';
 import type { Kysely } from 'kysely';
 import isSafeRegex from 'safe-regex2';
 import type { Database } from '../../database/types.js';
-import type { Reservoir } from '@logtide/reservoir';
+import type { Reservoir, ReservoirBuffered } from '@logtide/reservoir';
 import type { CheckResult, HttpConfig, ErrorCode } from './types.js';
 
 /**
@@ -158,7 +158,7 @@ export async function runLogHeartbeatCheck(
   serviceName: string,
   projectId: string,
   graceSeconds: number,
-  reservoir: Reservoir
+  reservoir: Reservoir | ReservoirBuffered
 ): Promise<CheckResult> {
   const graceMs = graceSeconds * 1000;
   const since = new Date(Date.now() - graceMs);
