@@ -37,6 +37,8 @@ function createBaseReservoir(): Reservoir {
   );
 }
 
+let redisClient: Redis | null = null;
+
 function createBufferTransport(baseReservoir: Reservoir): BufferTransport {
   const kind = selectTransportKind(process.env);
   const shards = loadShardCount(process.env);
@@ -46,9 +48,9 @@ function createBufferTransport(baseReservoir: Reservoir): BufferTransport {
       console.warn('[Reservoir] RESERVOIR_BUFFER_TRANSPORT=redis but REDIS_URL missing, falling back to memory');
       return new InMemoryTransport({ shards });
     }
-    const redis = new Redis(process.env.REDIS_URL);
+    redisClient = new Redis(process.env.REDIS_URL);
     return new RedisStreamTransport({
-      redis,
+      redis: redisClient,
       streamPrefix: loadStreamPrefix(process.env),
       shards,
       consumerGroup: 'logtide-flush',
@@ -84,19 +86,32 @@ export const reservoir: IReservoir = bufferEnabled
     })
   : baseReservoir;
 
+const buffered: ReservoirBuffered | null = bufferEnabled ? (reservoir as ReservoirBuffered) : null;
+
 // Initialize (and start buffered consumer pool if applicable)
 export const reservoirReady = (async () => {
   try {
     await reservoir.initialize();
-    if (bufferEnabled) await (reservoir as ReservoirBuffered).start();
+    if (buffered) await buffered.start();
     console.log(`[Reservoir] Ready (buffer=${bufferEnabled ? 'enabled' : 'disabled'})`);
   } catch (err) {
+    if (bufferEnabled) {
+      console.error('[Reservoir] CRITICAL: buffer start failed, ingestions will be lost until restart:', err);
+      process.exit(1);
+    }
     console.error('[Reservoir] Failed to initialize:', err);
+    throw err;
   }
 })();
 
 export async function shutdownReservoir(): Promise<void> {
-  if (bufferEnabled) {
-    await (reservoir as ReservoirBuffered).stop();
+  if (buffered) {
+    await buffered.stop();
+  }
+  if (redisClient) {
+    await redisClient.quit().catch((err) => {
+      console.error('[Reservoir] Error quitting Redis client during shutdown:', err);
+    });
+    redisClient = null;
   }
 }
