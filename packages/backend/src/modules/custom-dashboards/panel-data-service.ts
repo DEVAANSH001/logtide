@@ -21,9 +21,12 @@ import type {
   MetricChartConfig,
   MetricStatConfig,
   TraceLatencyConfig,
+  TraceVolumeConfig,
   DetectionEventsConfig,
   MonitorStatusConfig,
   SystemStatusConfig,
+  ActivityOverviewConfig,
+  ActivityOverviewSeries,
 } from '@logtide/shared';
 import { dashboardService } from '../dashboard/service.js';
 import { alertsService } from '../alerts/service.js';
@@ -125,6 +128,32 @@ export interface TraceLatencyData {
     errorRate: number;
   }>;
   serviceName: string | null;
+}
+
+export interface TraceVolumePanelData {
+  series: Array<{
+    time: string;
+    total: number;
+    errors: number;
+  }>;
+  serviceName: string | null;
+  timeRange: string;
+  bucket: 'hour' | 'day';
+}
+
+export interface ActivityOverviewPanelData {
+  series: Array<{
+    time: string;
+    logs: number;
+    log_errors: number;
+    spans: number;
+    span_errors: number;
+    detections: number;
+    alerts: number;
+  }>;
+  timeRange: string;
+  bucket: 'hour' | 'day';
+  enabled: ActivityOverviewSeries[];
 }
 
 export interface DetectionEventsData {
@@ -543,6 +572,358 @@ const traceLatencyFetcher: PanelDataSource<TraceLatencyConfig, TraceLatencyData>
   },
 };
 
+const traceVolumeFetcher: PanelDataSource<TraceVolumeConfig, TraceVolumePanelData> = {
+  type: 'trace_volume',
+  async fetchData(config, ctx) {
+    const projectIds = config.projectId
+      ? [config.projectId]
+      : await resolveProjectIdsForOrg(ctx.organizationId);
+
+    const bucket: 'hour' | 'day' =
+      timeRangeToMs(config.timeRange) <= 48 * 60 * 60 * 1000 ? 'hour' : 'day';
+
+    if (projectIds.length === 0 || reservoir.getEngineType() !== 'timescale') {
+      return {
+        series: [],
+        serviceName: config.serviceName,
+        timeRange: config.timeRange,
+        bucket,
+      };
+    }
+
+    const now = new Date();
+    const from = new Date(now.getTime() - timeRangeToMs(config.timeRange));
+    const caggTable = bucket === 'hour' ? 'spans_hourly_stats' : 'spans_daily_stats';
+
+    // Try continuous aggregate first - cheap. Fall back to raw `spans` only if
+    // the cagg returns nothing, because its refresh policy lags by `end_offset`
+    // and can leave freshly-ingested windows empty.
+    let caggQuery = db
+      .selectFrom(caggTable)
+      .select([
+        'bucket',
+        sql<string>`SUM(span_count)`.as('span_count'),
+        sql<string>`SUM(COALESCE(error_count, 0))`.as('error_count'),
+      ])
+      .where('project_id', 'in', projectIds)
+      .where('bucket', '>=', from)
+      .where('bucket', '<=', now);
+    if (config.serviceName) {
+      caggQuery = caggQuery.where('service_name', '=', config.serviceName);
+    }
+    const caggRows = await caggQuery
+      .groupBy('bucket')
+      .orderBy('bucket', 'asc')
+      .execute()
+      .catch(
+        () =>
+          [] as Array<{
+            bucket: unknown;
+            span_count: string;
+            error_count: string;
+          }>,
+      );
+
+    let rows: Array<{ bucket: unknown; span_count: string; error_count: string }> =
+      caggRows;
+    if (rows.length === 0) {
+      const rawTrunc =
+        bucket === 'hour'
+          ? sql<Date>`date_trunc('hour', start_time)`
+          : sql<Date>`date_trunc('day', start_time)`;
+
+      let rawQuery = db
+        .selectFrom('spans')
+        .select([
+          rawTrunc.as('bucket'),
+          sql<string>`COUNT(*)`.as('span_count'),
+          sql<string>`SUM(CASE WHEN status_code = 'ERROR' THEN 1 ELSE 0 END)`.as(
+            'error_count',
+          ),
+        ])
+        .where('project_id', 'in', projectIds)
+        .where('start_time', '>=', from)
+        .where('start_time', '<=', now);
+      if (config.serviceName) {
+        rawQuery = rawQuery.where('service_name', '=', config.serviceName);
+      }
+      rows = await rawQuery
+        .groupBy(rawTrunc)
+        .orderBy(rawTrunc, 'asc')
+        .execute()
+        .catch(
+          () =>
+            [] as Array<{
+              bucket: unknown;
+              span_count: string;
+              error_count: string;
+            }>,
+        );
+    }
+
+    return {
+      series: rows.map((r) => ({
+        time: new Date(r.bucket as unknown as string).toISOString(),
+        total: Number(r.span_count ?? 0),
+        errors: Number(r.error_count ?? 0),
+      })),
+      serviceName: config.serviceName,
+      timeRange: config.timeRange,
+      bucket,
+    };
+  },
+};
+
+const activityOverviewFetcher: PanelDataSource<
+  ActivityOverviewConfig,
+  ActivityOverviewPanelData
+> = {
+  type: 'activity_overview',
+  async fetchData(config, ctx) {
+    const bucket: 'hour' | 'day' =
+      timeRangeToMs(config.timeRange) <= 48 * 60 * 60 * 1000 ? 'hour' : 'day';
+    const enabled = new Set(config.series);
+
+    const projectIds = config.projectId
+      ? [config.projectId]
+      : await resolveProjectIdsForOrg(ctx.organizationId);
+
+    const now = new Date();
+    const from = new Date(now.getTime() - timeRangeToMs(config.timeRange));
+
+    // Build the ordered list of bucket timestamps we expect in the window,
+    // truncated to bucket boundary (same rule Postgres date_trunc would use).
+    const bucketTimes = buildBucketTimes(from, now, bucket);
+    const index = new Map<string, number>();
+    bucketTimes.forEach((t, i) => index.set(t, i));
+
+    const series = bucketTimes.map((time) => ({
+      time,
+      logs: 0,
+      log_errors: 0,
+      spans: 0,
+      span_errors: 0,
+      detections: 0,
+      alerts: 0,
+    }));
+
+    const isTimescale = reservoir.getEngineType() === 'timescale';
+    const needsLogs = enabled.has('logs') || enabled.has('log_errors');
+    const needsSpans = enabled.has('spans') || enabled.has('span_errors');
+
+    // Strategy: read from continuous aggregates first (cheap). If an aggregate
+    // returns zero rows for the window we fall back to the raw hypertable so
+    // freshly-ingested data isn't hidden by the `end_offset=1 hour` lag on the
+    // caggs' refresh policy. Alerts have no cagg so they always hit raw.
+    const logsRawTrunc =
+      bucket === 'hour'
+        ? sql<Date>`date_trunc('hour', time)`
+        : sql<Date>`date_trunc('day', time)`;
+    const spansRawTrunc =
+      bucket === 'hour'
+        ? sql<Date>`date_trunc('hour', start_time)`
+        : sql<Date>`date_trunc('day', start_time)`;
+    const detectionsRawTrunc =
+      bucket === 'hour'
+        ? sql<Date>`date_trunc('hour', time)`
+        : sql<Date>`date_trunc('day', time)`;
+    const alertsTrunc =
+      bucket === 'hour'
+        ? sql<Date>`date_trunc('hour', ah.triggered_at)`
+        : sql<Date>`date_trunc('day', ah.triggered_at)`;
+
+    const tasks: Array<Promise<void>> = [];
+
+    if (needsLogs && isTimescale && projectIds.length > 0) {
+      const logsTable = bucket === 'hour' ? 'logs_hourly_stats' : 'logs_daily_stats';
+      tasks.push(
+        (async () => {
+          const caggRows = await db
+            .selectFrom(logsTable)
+            .select([
+              'bucket',
+              'level',
+              sql<string>`SUM(log_count)`.as('count'),
+            ])
+            .where('project_id', 'in', projectIds)
+            .where('bucket', '>=', from)
+            .where('bucket', '<=', now)
+            .groupBy(['bucket', 'level'])
+            .execute()
+            .catch(() => [] as Array<{ bucket: unknown; level: string; count: string }>);
+
+          const rows = caggRows.length > 0
+            ? caggRows
+            : await db
+                .selectFrom('logs')
+                .select([
+                  logsRawTrunc.as('bucket'),
+                  'level',
+                  sql<string>`COUNT(*)`.as('count'),
+                ])
+                .where('project_id', 'in', projectIds)
+                .where('time', '>=', from)
+                .where('time', '<=', now)
+                .groupBy([logsRawTrunc, 'level'])
+                .execute()
+                .catch(() => [] as Array<{ bucket: unknown; level: string; count: string }>);
+
+          for (const r of rows) {
+            const key = new Date(r.bucket as unknown as string).toISOString();
+            const i = index.get(key);
+            if (i === undefined) continue;
+            const n = Number(r.count ?? 0);
+            series[i].logs += n;
+            if (r.level === 'error' || r.level === 'critical') {
+              series[i].log_errors += n;
+            }
+          }
+        })(),
+      );
+    }
+
+    if (needsSpans && isTimescale && projectIds.length > 0) {
+      const spansTable = bucket === 'hour' ? 'spans_hourly_stats' : 'spans_daily_stats';
+      tasks.push(
+        (async () => {
+          const caggRows = await db
+            .selectFrom(spansTable)
+            .select([
+              'bucket',
+              sql<string>`SUM(span_count)`.as('total'),
+              sql<string>`SUM(COALESCE(error_count, 0))`.as('errors'),
+            ])
+            .where('project_id', 'in', projectIds)
+            .where('bucket', '>=', from)
+            .where('bucket', '<=', now)
+            .groupBy('bucket')
+            .execute()
+            .catch(() => [] as Array<{ bucket: unknown; total: string; errors: string }>);
+
+          const rows = caggRows.length > 0
+            ? caggRows
+            : await db
+                .selectFrom('spans')
+                .select([
+                  spansRawTrunc.as('bucket'),
+                  sql<string>`COUNT(*)`.as('total'),
+                  sql<string>`SUM(CASE WHEN status_code = 'ERROR' THEN 1 ELSE 0 END)`.as(
+                    'errors',
+                  ),
+                ])
+                .where('project_id', 'in', projectIds)
+                .where('start_time', '>=', from)
+                .where('start_time', '<=', now)
+                .groupBy(spansRawTrunc)
+                .execute()
+                .catch(() => [] as Array<{ bucket: unknown; total: string; errors: string }>);
+
+          for (const r of rows) {
+            const key = new Date(r.bucket as unknown as string).toISOString();
+            const i = index.get(key);
+            if (i === undefined) continue;
+            series[i].spans += Number(r.total ?? 0);
+            series[i].span_errors += Number(r.errors ?? 0);
+          }
+        })(),
+      );
+    }
+
+    if (enabled.has('detections')) {
+      const detTable =
+        bucket === 'hour'
+          ? 'detection_events_hourly_stats'
+          : 'detection_events_daily_stats';
+      tasks.push(
+        (async () => {
+          let caggQuery = db
+            .selectFrom(detTable)
+            .select([
+              'bucket',
+              sql<string>`SUM(detection_count)`.as('count'),
+            ])
+            .where('organization_id', '=', ctx.organizationId)
+            .where('bucket', '>=', from)
+            .where('bucket', '<=', now);
+          if (config.projectId) {
+            caggQuery = caggQuery.where('project_id', '=', config.projectId);
+          }
+          const caggRows = await caggQuery
+            .groupBy('bucket')
+            .execute()
+            .catch(() => [] as Array<{ bucket: unknown; count: string }>);
+
+          let rows: Array<{ bucket: unknown; count: string }> = caggRows;
+          if (rows.length === 0) {
+            let rawQuery = db
+              .selectFrom('detection_events')
+              .select([
+                detectionsRawTrunc.as('bucket'),
+                sql<string>`COUNT(*)`.as('count'),
+              ])
+              .where('organization_id', '=', ctx.organizationId)
+              .where('time', '>=', from)
+              .where('time', '<=', now);
+            if (config.projectId) {
+              rawQuery = rawQuery.where('project_id', '=', config.projectId);
+            }
+            rows = await rawQuery
+              .groupBy(detectionsRawTrunc)
+              .execute()
+              .catch(() => [] as Array<{ bucket: unknown; count: string }>);
+          }
+
+          for (const r of rows) {
+            const key = new Date(r.bucket as unknown as string).toISOString();
+            const i = index.get(key);
+            if (i === undefined) continue;
+            series[i].detections += Number(r.count ?? 0);
+          }
+        })(),
+      );
+    }
+
+    if (enabled.has('alerts')) {
+      let alertQuery = db
+        .selectFrom('alert_history as ah')
+        .innerJoin('alert_rules as ar', 'ar.id', 'ah.rule_id')
+        .select([
+          alertsTrunc.as('bucket'),
+          sql<string>`COUNT(*)`.as('count'),
+        ])
+        .where('ar.organization_id', '=', ctx.organizationId)
+        .where('ah.triggered_at', '>=', from)
+        .where('ah.triggered_at', '<=', now);
+      if (config.projectId) {
+        alertQuery = alertQuery.where('ar.project_id', '=', config.projectId);
+      }
+      tasks.push(
+        alertQuery
+          .groupBy(alertsTrunc)
+          .execute()
+          .then((rows) => {
+            for (const r of rows) {
+              const key = new Date(r.bucket as unknown as string).toISOString();
+              const i = index.get(key);
+              if (i === undefined) continue;
+              series[i].alerts += Number(r.count ?? 0);
+            }
+          })
+          .catch(() => void 0),
+      );
+    }
+
+    await Promise.all(tasks);
+
+    return {
+      series,
+      timeRange: config.timeRange,
+      bucket,
+      enabled: config.series,
+    };
+  },
+};
+
 const detectionEventsFetcher: PanelDataSource<
   DetectionEventsConfig,
   DetectionEventsData
@@ -697,6 +1078,27 @@ async function ensureProjectInOrg(
   }
 }
 
+function buildBucketTimes(
+  from: Date,
+  to: Date,
+  bucket: 'hour' | 'day',
+): string[] {
+  const stepMs = bucket === 'hour' ? 60 * 60 * 1000 : 24 * 60 * 60 * 1000;
+  // Align `from` to bucket boundary to match Postgres date_trunc output so the
+  // keys produced here collide with the keys built from SQL rows.
+  const start = new Date(from);
+  if (bucket === 'hour') {
+    start.setUTCMinutes(0, 0, 0);
+  } else {
+    start.setUTCHours(0, 0, 0, 0);
+  }
+  const out: string[] = [];
+  for (let t = start.getTime(); t <= to.getTime(); t += stepMs) {
+    out.push(new Date(t).toISOString());
+  }
+  return out;
+}
+
 function intervalToMs(interval: '1h' | '24h' | '7d'): number {
   switch (interval) {
     case '1h':
@@ -721,9 +1123,11 @@ const dataFetchers: Record<PanelType, AnyFetcher> = {
   metric_chart: metricChartFetcher as AnyFetcher,
   metric_stat: metricStatFetcher as AnyFetcher,
   trace_latency: traceLatencyFetcher as AnyFetcher,
+  trace_volume: traceVolumeFetcher as AnyFetcher,
   detection_events: detectionEventsFetcher as AnyFetcher,
   monitor_status: monitorStatusFetcher as AnyFetcher,
   system_status: systemStatusFetcher as AnyFetcher,
+  activity_overview: activityOverviewFetcher as AnyFetcher,
 };
 
 export async function fetchPanelData(

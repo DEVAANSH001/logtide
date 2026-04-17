@@ -27,9 +27,11 @@ import Bell from '@lucide/svelte/icons/bell';
 import Activity from '@lucide/svelte/icons/activity';
 import Gauge from '@lucide/svelte/icons/gauge';
 import Network from '@lucide/svelte/icons/network';
+import Waves from '@lucide/svelte/icons/waves';
 import Shield from '@lucide/svelte/icons/shield';
 import HeartPulse from '@lucide/svelte/icons/heart-pulse';
 import CircleCheck from '@lucide/svelte/icons/circle-check';
+import Layers from '@lucide/svelte/icons/layers';
 import type {
   PanelType,
   PanelConfig,
@@ -43,9 +45,11 @@ import type {
   MetricChartConfig,
   MetricStatConfig,
   TraceLatencyConfig,
+  TraceVolumeConfig,
   DetectionEventsConfig,
   MonitorStatusConfig,
   SystemStatusConfig,
+  ActivityOverviewConfig,
 } from '@logtide/shared';
 
 import TimeSeriesPanel from './panels/TimeSeriesPanel.svelte';
@@ -56,9 +60,11 @@ import AlertStatusPanel from './panels/AlertStatusPanel.svelte';
 import MetricChartPanel from './panels/MetricChartPanel.svelte';
 import MetricStatPanel from './panels/MetricStatPanel.svelte';
 import TraceLatencyPanel from './panels/TraceLatencyPanel.svelte';
+import TraceVolumePanel from './panels/TraceVolumePanel.svelte';
 import DetectionEventsPanel from './panels/DetectionEventsPanel.svelte';
 import MonitorStatusPanel from './panels/MonitorStatusPanel.svelte';
 import SystemStatusPanel from './panels/SystemStatusPanel.svelte';
+import ActivityOverviewPanel from './panels/ActivityOverviewPanel.svelte';
 
 import TimeSeriesConfigForm from './config-forms/TimeSeriesConfigForm.svelte';
 import SingleStatConfigForm from './config-forms/SingleStatConfigForm.svelte';
@@ -68,9 +74,11 @@ import AlertStatusConfigForm from './config-forms/AlertStatusConfigForm.svelte';
 import MetricChartConfigForm from './config-forms/MetricChartConfigForm.svelte';
 import MetricStatConfigForm from './config-forms/MetricStatConfigForm.svelte';
 import TraceLatencyConfigForm from './config-forms/TraceLatencyConfigForm.svelte';
+import TraceVolumeConfigForm from './config-forms/TraceVolumeConfigForm.svelte';
 import DetectionEventsConfigForm from './config-forms/DetectionEventsConfigForm.svelte';
 import MonitorStatusConfigForm from './config-forms/MonitorStatusConfigForm.svelte';
 import SystemStatusConfigForm from './config-forms/SystemStatusConfigForm.svelte';
+import ActivityOverviewConfigForm from './config-forms/ActivityOverviewConfigForm.svelte';
 
 export interface PanelComponentProps<TConfig extends PanelConfig = PanelConfig> {
   config: TConfig;
@@ -263,6 +271,26 @@ const registry: Record<PanelType, FrontendPanelDefinition> = {
     minW: 4,
     minH: 3,
   },
+  trace_volume: {
+    type: 'trace_volume',
+    label: 'Trace Volume',
+    description: 'Span count over time, with optional errors line.',
+    icon: Waves,
+    defaultLayout: { x: 0, y: 0, w: 8, h: 3 },
+    defaultConfig: {
+      type: 'trace_volume',
+      title: 'Trace Volume',
+      source: 'traces',
+      projectId: null,
+      serviceName: null,
+      timeRange: '24h',
+      showErrors: true,
+    } as TraceVolumeConfig,
+    component: TraceVolumePanel as Component<PanelComponentProps>,
+    configForm: TraceVolumeConfigForm as Component<ConfigFormProps>,
+    minW: 4,
+    minH: 2,
+  },
   detection_events: {
     type: 'detection_events',
     label: 'Detection Events',
@@ -318,6 +346,25 @@ const registry: Record<PanelType, FrontendPanelDefinition> = {
     configForm: SystemStatusConfigForm as Component<ConfigFormProps>,
     minW: 4,
     minH: 2,
+  },
+  activity_overview: {
+    type: 'activity_overview',
+    label: 'Activity Overview',
+    description: 'Logs, traces, detections and alerts on a single timeline.',
+    icon: Layers,
+    defaultLayout: { x: 0, y: 0, w: 12, h: 4 },
+    defaultConfig: {
+      type: 'activity_overview',
+      title: 'Activity Overview',
+      source: 'mixed',
+      projectId: null,
+      timeRange: '24h',
+      series: ['logs', 'log_errors', 'spans', 'span_errors', 'detections', 'alerts'],
+    } as ActivityOverviewConfig,
+    component: ActivityOverviewPanel as Component<PanelComponentProps>,
+    configForm: ActivityOverviewConfigForm as Component<ConfigFormProps>,
+    minW: 6,
+    minH: 3,
   },
 };
 
