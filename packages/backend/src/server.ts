@@ -228,8 +228,7 @@ async function start() {
     await auditLogService.shutdown();
     await notificationManager.shutdown();
     await shutdownInternalLogging();
-    await app.close();
-    await shutdownReservoir();
+    await Promise.all([app.close(), shutdownReservoir()]);
     process.exit(0);
   };
 
