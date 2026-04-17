@@ -20,7 +20,7 @@ const runIntegration = process.env.SKIP_REDIS_TESTS !== '1';
         shards: 4,
         consumerGroup: 'flush',
         consumerName: 'consumer-1',
-        inflightTimeoutMs: 500,
+        inflightTimeoutMs: 50,
       });
       return t;
     },
