@@ -68,7 +68,35 @@ export class InMemoryTransport implements BufferTransport {
   }
 
   async enqueueMany(records: BufferRecord[]): Promise<void> {
-    for (const r of records) await this.enqueue(r);
+    if (!this.running) throw new Error('InMemoryTransport not started');
+    if (records.length === 0) return;
+
+    const byShard = new Map<number, BufferRecord[]>();
+    for (const r of records) {
+      const s = shardOf(r.projectId, this.shardCount);
+      let list = byShard.get(s);
+      if (!list) {
+        list = [];
+        byShard.set(s, list);
+      }
+      list.push(r);
+    }
+
+    for (const [shardIdx, shardRecords] of byShard) {
+      const shard = this.shards_[shardIdx];
+      const toPush: PendingEntry[] = shardRecords.map((record) => ({
+        id: String(shard.nextId++),
+        record,
+        attempts: 0,
+        inflight: false,
+        inflightSince: 0,
+      }));
+      shard.entries.push(...toPush);
+      // wake one waiter per shard (they claim up to maxBatchSize each, so one
+      // wake per shard is enough; subsequent waiters get woken as dequeue loops)
+      const waiter = shard.waiters.shift();
+      if (waiter) waiter();
+    }
   }
 
   async dequeue(shardId: number, maxBatchSize: number, maxWaitMs: number): Promise<BufferBatch | null> {

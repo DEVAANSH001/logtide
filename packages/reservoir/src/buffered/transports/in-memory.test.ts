@@ -81,6 +81,30 @@ describe('InMemoryTransport signal wakeup', () => {
   });
 });
 
+describe('InMemoryTransport enqueueMany', () => {
+  it('wakes the correct number of waiters and distributes to shards', async () => {
+    const shardCount = 8;
+    const t = new InMemoryTransport({ shards: shardCount, inflightTimeoutMs: 5000 });
+    await t.start();
+
+    const records: BufferRecord[] = [];
+    for (let i = 0; i < 1000; i++) {
+      records.push(makeRecord(`p-${i}`));
+    }
+
+    const start = Date.now();
+    await t.enqueueMany(records);
+    const elapsed = Date.now() - start;
+
+    const stats = await t.getStats();
+    expect(stats.pendingRecords).toBe(1000);
+    expect(stats.inflightRecords).toBe(0);
+    expect(elapsed).toBeLessThan(50);
+
+    await t.stop();
+  });
+});
+
 describe('InMemoryTransport reclaimExpired', () => {
   it('resets inflightSince when reclaiming an expired entry', async () => {
     const shardCount = 4;
