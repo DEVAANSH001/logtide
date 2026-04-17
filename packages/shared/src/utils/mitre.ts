@@ -7,7 +7,7 @@ import {
 } from '../constants/mitre-constants.js';
 
 export function getTacticName(tacticId: string): string {
-  const tactic = MITRE_TACTICS[tacticId.toLowerCase() as MitreTacticId];
+  const tactic = MITRE_TACTICS[tacticId?.toLowerCase() as MitreTacticId];
   if (tactic) return tactic.name;
 
   const upper = tacticId.toUpperCase();
@@ -17,7 +17,7 @@ export function getTacticName(tacticId: string): string {
 }
 
 export function getTacticDescription(tacticId: string): string {
-  const tactic = MITRE_TACTICS[tacticId.toLowerCase() as MitreTacticId];
+  const tactic = MITRE_TACTICS[tacticId?.toLowerCase() as MitreTacticId];
   return tactic?.description || '';
 }
 
@@ -57,7 +57,7 @@ export function getMitreUrl(techniqueId: string): string {
 }
 
 export function getMitreTacticUrl(tacticId: string): string {
-  const tactic = MITRE_TACTICS[tacticId.toLowerCase() as MitreTacticId];
+  const tactic = MITRE_TACTICS[tacticId?.toLowerCase() as MitreTacticId];
   return tactic
     ? `https://attack.mitre.org/tactics/${tactic.id}/`
     : `https://attack.mitre.org/tactics/TA0000/`;
@@ -69,7 +69,7 @@ export function formatMitreTactic(tactic: string): string {
     return `${upper}: ${MITRE_TACTIC_IDS[upper]}`;
   }
 
-  const tacticObj = MITRE_TACTICS[tactic.toLowerCase() as MitreTacticId];
+  const tacticObj = MITRE_TACTICS[tactic?.toLowerCase() as MitreTacticId];
   if (tacticObj) {
     return `${tacticObj.id}: ${tacticObj.name}`;
   }

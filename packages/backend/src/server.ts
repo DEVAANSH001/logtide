@@ -47,6 +47,7 @@ import websocketPlugin from './plugins/websocket.js';
 import websocketRoutes from './modules/query/websocket.js';
 import { enrichmentService } from './modules/siem/enrichment-service.js';
 import { validateStorageConfig } from './database/storage-config.js';
+import { shutdownReservoir } from './database/reservoir.js';
 import { readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import path from 'path';
@@ -227,7 +228,7 @@ async function start() {
     await auditLogService.shutdown();
     await notificationManager.shutdown();
     await shutdownInternalLogging();
-    await app.close();
+    await Promise.all([app.close(), shutdownReservoir()]);
     process.exit(0);
   };
 

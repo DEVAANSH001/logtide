@@ -73,6 +73,7 @@ export type { NativeQuery } from './core/query-translator.js';
 export { StorageEngineFactory } from './factory.js';
 export type { EngineOptions } from './factory.js';
 export { Reservoir } from './client.js';
+export type { IReservoir } from './core/reservoir-interface.js';
 
 // Engines - TimescaleDB
 export { TimescaleEngine, TimescaleQueryTranslator } from './engines/timescale/index.js';
@@ -85,4 +86,7 @@ export type { ClickHouseEngineOptions } from './engines/clickhouse/index.js';
 // Engines - MongoDB
 export { MongoDBEngine, MongoDBQueryTranslator } from './engines/mongodb/index.js';
 export type { MongoDBEngineOptions } from './engines/mongodb/index.js';
+
+// Buffered (async buffer layer)
+export * from './buffered/index.js';
 
