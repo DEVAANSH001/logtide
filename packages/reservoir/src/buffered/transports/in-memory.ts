@@ -13,6 +13,7 @@ interface ShardState {
   entries: PendingEntry[];
   dlq: Array<{ record: BufferRecord; reason: string; attempts: number }>;
   nextId: number;
+  waiters: Array<() => void>;
 }
 
 export interface InMemoryTransportOptions {
@@ -34,6 +35,7 @@ export class InMemoryTransport implements BufferTransport {
       entries: [],
       dlq: [],
       nextId: 1,
+      waiters: [],
     }));
   }
 
@@ -43,6 +45,12 @@ export class InMemoryTransport implements BufferTransport {
 
   async stop(): Promise<void> {
     this.running = false;
+    // wake any dequeuers that are currently waiting so they return promptly
+    for (const s of this.shards_) {
+      const waiters = s.waiters;
+      s.waiters = [];
+      for (const w of waiters) w();
+    }
   }
 
   async enqueue(record: BufferRecord): Promise<void> {
@@ -55,6 +63,8 @@ export class InMemoryTransport implements BufferTransport {
       inflight: false,
       inflightSince: 0,
     });
+    const waiter = shard.waiters.shift();
+    if (waiter) waiter();
   }
 
   async enqueueMany(records: BufferRecord[]): Promise<void> {
@@ -85,7 +95,37 @@ export class InMemoryTransport implements BufferTransport {
           records: claimed.map((e) => e.record),
         };
       }
-      await new Promise((r) => setTimeout(r, Math.min(50, Math.max(1, deadline - Date.now()))));
+
+      const remaining = deadline - Date.now();
+      if (remaining <= 0) break;
+      // cap each wait segment by the earliest reclaim deadline among inflight
+      // entries, so if a consumer dies we pick up its abandoned entry at the
+      // right time without relying on a new enqueue to wake us.
+      let segment = remaining;
+      let earliestInflightSince = Infinity;
+      for (const e of shard.entries) {
+        if (e.inflight && e.inflightSince < earliestInflightSince) {
+          earliestInflightSince = e.inflightSince;
+        }
+      }
+      if (earliestInflightSince !== Infinity) {
+        const reclaimDeadline = earliestInflightSince + this.inflightTimeoutMs + 1;
+        segment = Math.max(1, Math.min(segment, reclaimDeadline - Date.now()));
+      }
+      await new Promise<void>((resolve) => {
+        let settled = false;
+        const done = (): void => {
+          if (settled) return;
+          settled = true;
+          resolve();
+        };
+        shard.waiters.push(done);
+        setTimeout(() => {
+          const i = shard.waiters.indexOf(done);
+          if (i >= 0) shard.waiters.splice(i, 1);
+          done();
+        }, segment);
+      });
     }
     return null;
   }
@@ -133,10 +173,17 @@ export class InMemoryTransport implements BufferTransport {
 
   private reclaimExpired(shard: ShardState): void {
     const now = Date.now();
+    let reclaimed = false;
     for (const e of shard.entries) {
       if (e.inflight && now - e.inflightSince > this.inflightTimeoutMs) {
         e.inflight = false;
+        e.inflightSince = 0;
+        reclaimed = true;
       }
+    }
+    if (reclaimed) {
+      const waiter = shard.waiters.shift();
+      if (waiter) waiter();
     }
   }
 }

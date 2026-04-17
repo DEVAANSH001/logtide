@@ -11,6 +11,12 @@ export interface BufferRecord {
 
 export interface BufferBatch {
   shardId: number;
+  /**
+   * Opaque token returned by the transport to identify this batch.
+   * Consumers MUST treat this as an arbitrary string and only pass it back
+   * to the same transport's ack() / nack() methods. The format is
+   * transport-specific and may change without notice.
+   */
   ackToken: string;
   attempt: number;
   records: BufferRecord[];

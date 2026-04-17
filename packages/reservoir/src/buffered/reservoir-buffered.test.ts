@@ -92,12 +92,15 @@ describe('ReservoirBuffered', () => {
       circuitBreaker: { ...DEFAULT_BREAKER, pendingThreshold: 0 },
       retry: DEFAULT_RETRY,
     });
-    await buffered.start();
+    // intentionally do NOT start the flush pool: we want a deterministic
+    // "pending stays in the buffer" scenario so the breaker can observe
+    // pendingRecords > 0 without racing a fast consumer.
+    await transport.start();
 
     await buffered.ingest([{ message: 'x', level: 'info', projectId: 'p1' } as never]);
     await buffered.ingest([{ message: 'y', level: 'info', projectId: 'p1' } as never]);
     expect(reservoir.ingest).toHaveBeenCalled();
 
-    await buffered.stop();
+    await transport.stop();
   });
 });
