@@ -28,6 +28,7 @@
     "load:smoke": "k6 run load-tests/smoke.js",
     "load:ingestion": "k6 run load-tests/ingestion.js",
     "load:query": "k6 run load-tests/query.js",
+    "load:buffered-vs-sync": "k6 run load-tests/buffered-vs-sync.js",
     "load:e2e:smoke": "bash scripts/run-load-tests.sh smoke",
     "load:e2e:ingestion": "bash scripts/run-load-tests.sh ingestion",
     "load:e2e:query": "bash scripts/run-load-tests.sh query",
