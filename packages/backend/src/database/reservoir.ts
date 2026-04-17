@@ -12,6 +12,7 @@ import {
   loadShardCount,
   loadStreamPrefix,
   type BufferTransport,
+  type IReservoir,
 } from '@logtide/reservoir';
 import { pool } from './connection.js';
 import { STORAGE_ENGINE, getClickHouseConfig, getMongoDBConfig } from './storage-config.js';
@@ -74,7 +75,7 @@ const baseReservoir = createBaseReservoir();
 
 const bufferEnabled = process.env.RESERVOIR_BUFFER_ENABLED === 'true';
 
-export const reservoir: Reservoir | ReservoirBuffered = bufferEnabled
+export const reservoir: IReservoir = bufferEnabled
   ? new ReservoirBuffered(baseReservoir, {
       transport: createBufferTransport(baseReservoir),
       flush: loadBufferFlushConfig(process.env),
@@ -86,7 +87,7 @@ export const reservoir: Reservoir | ReservoirBuffered = bufferEnabled
 // Initialize (and start buffered consumer pool if applicable)
 export const reservoirReady = (async () => {
   try {
-    await (bufferEnabled ? (reservoir as ReservoirBuffered).initialize() : reservoir.initialize());
+    await reservoir.initialize();
     if (bufferEnabled) await (reservoir as ReservoirBuffered).start();
     console.log(`[Reservoir] Ready (buffer=${bufferEnabled ? 'enabled' : 'disabled'})`);
   } catch (err) {
