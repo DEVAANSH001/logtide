@@ -77,6 +77,15 @@ const baseReservoir = createBaseReservoir();
 
 const bufferEnabled = process.env.RESERVOIR_BUFFER_ENABLED === 'true';
 
+if (bufferEnabled && STORAGE_ENGINE !== 'timescale') {
+  console.warn(
+    `[Reservoir] WARNING: RESERVOIR_BUFFER_ENABLED=true on STORAGE_ENGINE=${STORAGE_ENGINE}. ` +
+    `Benchmarks show the buffer regresses p95 latency on ${STORAGE_ENGINE} under saturation ` +
+    `(see https://logtide.dev/docs/async-buffer/). Consider disabling the buffer unless you ` +
+    `have measured a benefit on your specific workload.`,
+  );
+}
+
 export const reservoir: IReservoir = bufferEnabled
   ? new ReservoirBuffered(baseReservoir, {
       transport: createBufferTransport(baseReservoir),
