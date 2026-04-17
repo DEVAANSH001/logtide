@@ -180,11 +180,21 @@ jobs:
       - name: Build reservoir package
         run: pnpm --filter '@logtide/reservoir' build
 
-      - name: Run reservoir tests
+      - name: Run reservoir tests with coverage
         working-directory: packages/reservoir
         env:
           REDIS_URL: redis://localhost:6380
-        run: npx vitest run --reporter=verbose
+        run: npx vitest run --coverage --coverage.reporter=text --coverage.reporter=lcov --coverage.reporter=json --reporter=verbose
+
+      - name: Upload reservoir coverage to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./packages/reservoir/coverage/lcov.info,./packages/reservoir/coverage/coverage-final.json
+          flags: reservoir
+          name: reservoir-coverage
+          fail_ci_if_error: false
+          verbose: true
 
   # ====================
   # Typecheck
