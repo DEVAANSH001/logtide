@@ -28,17 +28,10 @@ export function runTransportContract(
 
     it('enqueue then dequeue returns the same record', async () => {
       await transport.enqueue(makeRecord('p1'));
+      // on redis transport, p1 may not hash to shard 0 - iterate all shards
       let batch = null;
-      for (let i = 0; i < 10 && !batch; i++) {
-        batch = await transport.dequeue(0, 100, 50);
-        if (!batch) continue;
-        // on redis transport, p1 may not hash to shard 0 — probe all
-      }
-      // Robust: iterate all shards
-      if (!batch) {
-        for (let s = 0; s < transport.shardCount && !batch; s++) {
-          batch = await transport.dequeue(s, 100, 50);
-        }
+      for (let s = 0; s < transport.shardCount && !batch; s++) {
+        batch = await transport.dequeue(s, 100, 50);
       }
       expect(batch).not.toBeNull();
       expect(batch!.records.length).toBeGreaterThanOrEqual(1);

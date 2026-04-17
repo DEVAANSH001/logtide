@@ -23,7 +23,7 @@ export class CircuitBreaker {
 
   async shouldBypass(): Promise<boolean> {
     if (this.state_ === 'open') {
-      if (Date.now() - this.openedAt > this.config.cooldownMs) {
+      if (Date.now() - this.openedAt >= this.config.cooldownMs) {
         this.state_ = 'half-open';
       } else {
         return true;

@@ -119,14 +119,15 @@ export class BufferMetrics {
         lines.push(`# TYPE ${name} histogram`);
         seen.add(name);
       }
+      const labelSuffix = key.includes('{') ? key.slice(key.indexOf('{')) : '';
       for (let i = 0; i < h.buckets.length; i++) {
-        const labels = key.includes('{')
-          ? key.replace('}', `,le="${h.buckets[i]}"}`)
-          : `${name}{le="${h.buckets[i]}"}`;
-        lines.push(`${labels} ${h.counts[i]}`);
+        const bucketLabels = labelSuffix
+          ? labelSuffix.replace('}', `,le="${h.buckets[i]}"}`)
+          : `{le="${h.buckets[i]}"}`;
+        lines.push(`${name}_bucket${bucketLabels} ${h.counts[i]}`);
       }
-      lines.push(`${key.replace('_bucket', '_sum')} ${h.sum}`);
-      lines.push(`${key.replace('_bucket', '_count')} ${h.count}`);
+      lines.push(`${name}_sum${labelSuffix} ${h.sum}`);
+      lines.push(`${name}_count${labelSuffix} ${h.count}`);
     }
     return lines.join('\n') + '\n';
   }

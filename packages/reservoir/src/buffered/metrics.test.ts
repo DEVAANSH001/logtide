@@ -34,4 +34,35 @@ describe('BufferMetrics', () => {
     m.setBreakerState('log', 'closed');
     expect(m.snapshot().gauges['reservoir_buffer_breaker_state{kind="log"}']).toBe(0);
   });
+
+  it('emits distinct _bucket, _sum and _count series for histograms', () => {
+    const m = new BufferMetrics();
+    m.observeFlushSuccess('log', 0, 100, 42);
+    const text = m.toPrometheusText();
+
+    const bucketMatches = text.match(
+      /^reservoir_buffer_flush_duration_ms_bucket\{[^}]+\} \d+$/gm,
+    );
+    const sumMatches = text.match(
+      /^reservoir_buffer_flush_duration_ms_sum\{[^}]+\} \d+(\.\d+)?$/gm,
+    );
+    const countMatches = text.match(
+      /^reservoir_buffer_flush_duration_ms_count\{[^}]+\} \d+$/gm,
+    );
+
+    expect(bucketMatches).not.toBeNull();
+    expect(bucketMatches!.length).toBeGreaterThan(0);
+    expect(sumMatches).not.toBeNull();
+    expect(sumMatches!.length).toBe(1);
+    expect(countMatches).not.toBeNull();
+    expect(countMatches!.length).toBe(1);
+
+    // Duplicate-series guard: no (metric + labelset) combo should appear twice.
+    const seriesLines = text
+      .split('\n')
+      .filter((l) => l && !l.startsWith('#'))
+      .map((l) => l.slice(0, l.lastIndexOf(' ')));
+    const duplicates = seriesLines.filter((v, i, arr) => arr.indexOf(v) !== i);
+    expect(duplicates).toEqual([]);
+  });
 });

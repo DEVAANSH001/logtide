@@ -80,4 +80,19 @@ describe('CircuitBreaker', () => {
     breaker.recordSuccess();
     expect(breaker.state()).toBe('closed');
   });
+
+  it('moves to half-open immediately when cooldownMs is zero', async () => {
+    vi.setSystemTime(0);
+    const breaker = new CircuitBreaker(
+      { pendingThreshold: 100, errorRateThreshold: 0.5, cooldownMs: 0, windowMs: 1000 },
+      mockTransport({ pendingRecords: 200 }),
+    );
+    expect(await breaker.shouldBypass()).toBe(true);
+    expect(breaker.state()).toBe('open');
+
+    // Swap transport to healthy stats, same tick (elapsed = 0, cooldown = 0).
+    breaker['transport'] = mockTransport({ pendingRecords: 10 });
+    expect(await breaker.shouldBypass()).toBe(false);
+    expect(breaker.state()).toBe('half-open');
+  });
 });
