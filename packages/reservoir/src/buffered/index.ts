@@ -8,9 +8,10 @@ export type {
   FlushConfig,
   CircuitBreakerConfig,
   RetryConfig,
+  FlushLogger,
 } from './types.js';
 
-export { DEFAULT_FLUSH, DEFAULT_BREAKER, DEFAULT_RETRY } from './types.js';
+export { DEFAULT_FLUSH, DEFAULT_BREAKER, DEFAULT_RETRY, defaultFlushLogger } from './types.js';
 
 export { shardOf } from './sharding.js';
 export { RollingWindow } from './rolling-window.js';

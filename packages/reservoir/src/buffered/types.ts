@@ -61,6 +61,22 @@ export interface BufferedConfig {
   retry: RetryConfig;
 }
 
+export interface FlushLogger {
+  warn(message: string, context?: Record<string, unknown>): void;
+  error(message: string, context?: Record<string, unknown>): void;
+}
+
+export const defaultFlushLogger: FlushLogger = {
+  warn(message, context) {
+    if (context !== undefined) console.warn(message, context);
+    else console.warn(message);
+  },
+  error(message, context) {
+    if (context !== undefined) console.error(message, context);
+    else console.error(message);
+  },
+};
+
 export const DEFAULT_FLUSH: FlushConfig = {
   maxBatchSize: 5000,
   maxBatchAgeMs: 1000,
