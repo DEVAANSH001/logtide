@@ -1,4 +1,3 @@
-import type { StorageEngine } from './storage-engine.js';
 import type {
   EngineType,
   LogRecord,
@@ -98,6 +97,5 @@ export interface IReservoir {
 
   // Lifecycle & introspection
   getEngineType(): EngineType;
-  getEngine(): StorageEngine;
   close(): Promise<void>;
 }
