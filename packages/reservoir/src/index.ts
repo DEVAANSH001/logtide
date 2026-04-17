@@ -86,3 +86,6 @@ export type { ClickHouseEngineOptions } from './engines/clickhouse/index.js';
 export { MongoDBEngine, MongoDBQueryTranslator } from './engines/mongodb/index.js';
 export type { MongoDBEngineOptions } from './engines/mongodb/index.js';
 
+// Buffered (async buffer layer)
+export * from './buffered/index.js';
+
