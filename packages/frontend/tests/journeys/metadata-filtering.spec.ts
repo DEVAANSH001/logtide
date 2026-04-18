@@ -78,9 +78,13 @@ test.describe('Metadata Filtering Journey', () => {
 
     await expect(page.getByText('dev boom')).not.toBeVisible({ timeout: 10000 });
 
-    // Re-open the metadata popover to access the Clear button.
-    await page.getByTestId('filter-pill-metadata').click();
-    await page.getByTestId('metadata-filter-clear-all').click();
+    // Apply does not close the popover, so the Clear button is still reachable.
+    // Guard: if the popover has been dismissed (e.g. by an outside click), re-open it.
+    const clearBtn = page.getByTestId('metadata-filter-clear-all');
+    if (!(await clearBtn.isVisible().catch(() => false))) {
+      await page.getByTestId('filter-pill-metadata').click();
+    }
+    await clearBtn.click();
 
     await expect(page.getByText('prod boom')).toBeVisible({ timeout: 10000 });
     await expect(page.getByText('dev boom')).toBeVisible();

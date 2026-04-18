@@ -214,16 +214,17 @@ test.describe('Search Journey', () => {
     await page.waitForLoadState('load');
     await page.waitForTimeout(2000);
 
+    const pill = page.getByTestId('filter-pill-time-range');
+
     // Open the Time range pill popover, then click Last Hour inside it.
-    await page.getByTestId('filter-pill-time-range').click();
-    const lastHourButton = page.locator('button:has-text("Last Hour")');
+    await pill.click();
+    const lastHourButton = page.getByRole('button', { name: 'Last Hour', exact: true });
     await lastHourButton.waitFor({ state: 'visible' });
     await lastHourButton.click();
     await page.waitForTimeout(2000);
 
-    // Re-open the popover so we can assert on the selection.
-    await page.getByTestId('filter-pill-time-range').click();
-    await expect(page.locator('button:has-text("Last Hour")')).toHaveClass(/default|primary|bg-primary/);
+    // Verify the pill label updated to reflect the new range.
+    await expect(pill).toContainText(/last hour/i);
   });
 
   test('9. User can use custom time range', async ({ page }) => {
