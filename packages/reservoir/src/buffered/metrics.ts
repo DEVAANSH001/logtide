@@ -122,7 +122,7 @@ export class BufferMetrics {
       const labelSuffix = key.includes('{') ? key.slice(key.indexOf('{')) : '';
       for (let i = 0; i < h.buckets.length; i++) {
         const bucketLabels = labelSuffix
-          ? labelSuffix.replace('}', `,le="${h.buckets[i]}"}`)
+          ? `${labelSuffix.slice(0, -1)},le="${h.buckets[i]}"}`
           : `{le="${h.buckets[i]}"}`;
         lines.push(`${name}_bucket${bucketLabels} ${h.counts[i]}`);
       }

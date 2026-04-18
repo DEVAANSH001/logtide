@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { loadBufferFlushConfig, loadBreakerConfig, loadRetryConfig, selectTransportKind } from './config.js';
+import { loadBufferFlushConfig, selectTransportKind } from './config.js';
 
 describe('loadBufferConfigFromEnv helpers', () => {
   const base = { ...process.env };
