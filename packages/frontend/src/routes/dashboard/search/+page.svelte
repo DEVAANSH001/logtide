@@ -1914,18 +1914,112 @@
                     disabled={currentPage === 1 || isLoading}
                   >
                     <ChevronLeft class="w-4 h-4" />
-                    Previous
+                    <span class="hidden sm:inline">Previous</span>
                   </Button>
-                  <span class="text-sm text-muted-foreground px-3">
-                    Page {currentPage}{totalPages > 0 ? ` of ${totalPages.toLocaleString()}` : ""}
-                  </span>
+                  {#if totalPages > 0}
+                    <div class="flex items-center gap-1">
+                      {#if totalPages <= 7}
+                        {#each Array.from({ length: totalPages }, (_, i) => i + 1) as pg}
+                          <Button
+                            variant={currentPage === pg ? "default" : "outline"}
+                            size="sm"
+                            onclick={() => goToPage(pg)}
+                            disabled={isLoading}
+                            class="w-10"
+                          >
+                            {pg}
+                          </Button>
+                        {/each}
+                      {:else if currentPage <= 3}
+                        {#each [1, 2, 3, 4] as pg}
+                          <Button
+                            variant={currentPage === pg ? "default" : "outline"}
+                            size="sm"
+                            onclick={() => goToPage(pg)}
+                            disabled={isLoading}
+                            class="w-10"
+                          >
+                            {pg}
+                          </Button>
+                        {/each}
+                        <span class="px-2 text-muted-foreground">…</span>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onclick={() => goToPage(totalPages)}
+                          disabled={isLoading}
+                          class="w-10"
+                        >
+                          {totalPages}
+                        </Button>
+                      {:else if currentPage >= totalPages - 2}
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onclick={() => goToPage(1)}
+                          disabled={isLoading}
+                          class="w-10"
+                        >
+                          1
+                        </Button>
+                        <span class="px-2 text-muted-foreground">…</span>
+                        {#each [totalPages - 3, totalPages - 2, totalPages - 1, totalPages] as pg}
+                          <Button
+                            variant={currentPage === pg ? "default" : "outline"}
+                            size="sm"
+                            onclick={() => goToPage(pg)}
+                            disabled={isLoading}
+                            class="w-10"
+                          >
+                            {pg}
+                          </Button>
+                        {/each}
+                      {:else}
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onclick={() => goToPage(1)}
+                          disabled={isLoading}
+                          class="w-10"
+                        >
+                          1
+                        </Button>
+                        <span class="px-2 text-muted-foreground">…</span>
+                        {#each [currentPage - 1, currentPage, currentPage + 1] as pg}
+                          <Button
+                            variant={currentPage === pg ? "default" : "outline"}
+                            size="sm"
+                            onclick={() => goToPage(pg)}
+                            disabled={isLoading}
+                            class="w-10"
+                          >
+                            {pg}
+                          </Button>
+                        {/each}
+                        <span class="px-2 text-muted-foreground">…</span>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onclick={() => goToPage(totalPages)}
+                          disabled={isLoading}
+                          class="w-10"
+                        >
+                          {totalPages}
+                        </Button>
+                      {/if}
+                    </div>
+                  {:else}
+                    <span class="text-sm text-muted-foreground px-3">
+                      Page {currentPage.toLocaleString()}
+                    </span>
+                  {/if}
                   <Button
                     variant="outline"
                     size="sm"
                     onclick={nextPage}
-                    disabled={!hasMoreLogs || isLoading}
+                    disabled={!hasMoreLogs || isLoading || (totalPages > 0 && currentPage >= totalPages)}
                   >
-                    Next
+                    <span class="hidden sm:inline">Next</span>
                     <ChevronRight class="w-4 h-4" />
                   </Button>
                 </div>

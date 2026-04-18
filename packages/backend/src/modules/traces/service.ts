@@ -8,11 +8,13 @@ import type {
 } from '@logtide/reservoir';
 
 export interface TraceListQuery {
-  projectId: string;
-  service?: string;
+  projectId: string | string[];
+  service?: string | string[];
   error?: boolean;
   from?: Date;
   to?: Date;
+  minDurationMs?: number;
+  maxDurationMs?: number;
   limit?: number;
   offset?: number;
 }
@@ -151,6 +153,8 @@ export class TracesService {
       error: query.error,
       from: query.from || thirtyDaysAgo,
       to: query.to || now,
+      minDurationMs: query.minDurationMs,
+      maxDurationMs: query.maxDurationMs,
       limit: query.limit || 50,
       offset: query.offset || 0,
     });
