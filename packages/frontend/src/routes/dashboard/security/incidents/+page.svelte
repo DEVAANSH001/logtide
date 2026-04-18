@@ -274,7 +274,7 @@
 		/>
 		{#if incidents.length > 0}
 			<p class="text-sm text-muted-foreground">
-				Showing {(currentPage - 1) * pageSize + 1} to {Math.min(currentPage * pageSize, totalIncidents)} of {totalIncidents} incident{totalIncidents !== 1 ? 's' : ''}
+				Showing {((currentPage - 1) * pageSize + 1).toLocaleString()} to {Math.min(currentPage * pageSize, totalIncidents).toLocaleString()} of {totalIncidents.toLocaleString()} incident{totalIncidents !== 1 ? 's' : ''}
 				{#if activeFiltersCount > 0}
 					(filtered)
 				{/if}

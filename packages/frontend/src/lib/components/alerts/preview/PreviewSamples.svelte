@@ -141,7 +141,7 @@
 
 		{#if incidents.length > 5}
 			<p class="text-xs text-center text-muted-foreground pt-2">
-				Showing 5 of {incidents.length} incidents
+				Showing 5 of {incidents.length.toLocaleString()} incidents
 			</p>
 		{/if}
 	{/if}

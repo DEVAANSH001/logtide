@@ -255,7 +255,7 @@
 						{pack.category}
 					</Badge>
 					<span class="text-sm text-muted-foreground">
-						{pack.rules.length} Sigma rules
+						{pack.rules.length.toLocaleString()} Sigma rules
 					</span>
 					{#if pack.enabled && pack.generatedRulesCount > 0}
 						<span class="text-sm text-muted-foreground">

@@ -602,7 +602,7 @@
         <div class="flex items-center justify-between">
           <CardTitle>
             {#if totalTraces > 0}
-              {totalTraces}
+              {totalTraces.toLocaleString()}
               {totalTraces === 1 ? "trace" : "traces"}
             {:else}
               No traces
@@ -681,10 +681,10 @@
           {#if traces.length > 0}
             <div class="flex items-center justify-between mt-6 px-2">
               <div class="text-sm text-muted-foreground">
-                Showing {(currentPage - 1) * pageSize + 1} to {Math.min(
+                Showing {((currentPage - 1) * pageSize + 1).toLocaleString()} to {Math.min(
                   currentPage * pageSize,
                   totalTraces,
-                )} of {totalTraces} traces
+                ).toLocaleString()} of {totalTraces.toLocaleString()} traces
               </div>
               <div class="flex items-center gap-2">
                 <Button

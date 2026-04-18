@@ -57,6 +57,7 @@
   import SquareTerminal from "@lucide/svelte/icons/square-terminal";
   import Table2 from "@lucide/svelte/icons/table-2";
   import WrapText from "@lucide/svelte/icons/wrap-text";
+  import Clock from "@lucide/svelte/icons/clock";
 
   interface LogEntry {
     id?: string;
@@ -859,6 +860,14 @@
   }
 
   async function handleTimeRangeChange() {
+    // Sync page-level state so the chip label and fallback getTimeRange()
+    // stay correct when the time-range popover closes and the picker unmounts.
+    if (timeRangePicker) {
+      timeRangeType = timeRangePicker.getType();
+      const custom = timeRangePicker.getCustomValues();
+      customFromTime = custom.from;
+      customToTime = custom.to;
+    }
     await Promise.all([loadServices(), loadHostnames()]);
     applyFilters();
   }
@@ -894,6 +903,99 @@
     to: getTimeRange().to.toISOString(),
   });
 
+  const timeRangeLabel = $derived.by(() => {
+    switch (timeRangeType) {
+      case "last_hour": return "Last hour";
+      case "last_24h": return "Last 24 hours";
+      case "last_7d": return "Last 7 days";
+      case "custom": return "Custom range";
+      default: return "Time range";
+    }
+  });
+
+  // Label shown inside each filter pill. Short and consistent so the pill
+  // row stays scannable at a glance; truncation keeps ID-like values in bounds.
+  function truncate(s: string, max = 16): string {
+    return s.length > max ? s.slice(0, max - 1) + "\u2026" : s;
+  }
+
+  const projectsPillLabel = $derived.by(() => {
+    if (selectedProjects.length === 0) return "Projects: none";
+    if (projects.length > 0 && selectedProjects.length === projects.length) return "All projects";
+    if (selectedProjects.length === 1) {
+      return `Project: ${truncate(projects.find((p) => p.id === selectedProjects[0])?.name ?? "\u2014")}`;
+    }
+    return `Projects: ${selectedProjects.length}`;
+  });
+  const projectsPillActive = $derived(
+    selectedProjects.length === 0 ||
+    (projects.length > 0 && selectedProjects.length < projects.length)
+  );
+
+  const servicesPillLabel = $derived.by(() => {
+    if (selectedServices.length === 0) return "All services";
+    if (selectedServices.length === 1) return `Service: ${truncate(selectedServices[0])}`;
+    return `Services: ${selectedServices.length}`;
+  });
+  const servicesPillActive = $derived(selectedServices.length > 0);
+
+  const hostsPillLabel = $derived.by(() => {
+    if (selectedHostnames.length === 0) return "All hosts";
+    if (selectedHostnames.length === 1) return `Host: ${truncate(selectedHostnames[0])}`;
+    return `Hosts: ${selectedHostnames.length}`;
+  });
+  const hostsPillActive = $derived(selectedHostnames.length > 0);
+
+  const levelsPillLabel = $derived.by(() => {
+    if (selectedLevels.length === 0 || selectedLevels.length === 5) return "All levels";
+    if (selectedLevels.length === 1) {
+      return `Level: ${selectedLevels[0]}`;
+    }
+    return `Levels: ${selectedLevels.length}`;
+  });
+  const levelsPillActive = $derived(
+    selectedLevels.length > 0 && selectedLevels.length < 5
+  );
+
+  const tracePillLabel = $derived(
+    traceId.trim().length > 0 ? `Trace: ${truncate(traceId, 10)}` : "Trace ID"
+  );
+  const tracePillActive = $derived(traceId.trim().length > 0);
+
+  const sessionPillLabel = $derived(
+    sessionId.trim().length > 0 ? `Session: ${truncate(sessionId, 10)}` : "Session ID"
+  );
+  const sessionPillActive = $derived(sessionId.trim().length > 0);
+
+  const metadataPillCount = $derived(
+    metadataFilters.filter((f) => f.key.trim().length > 0).length
+  );
+  const metadataPillLabel = $derived(
+    metadataPillCount > 0 ? `Metadata: ${metadataPillCount}` : "Metadata"
+  );
+  const metadataPillActive = $derived(metadataPillCount > 0);
+
+  const activeFilterCount = $derived(
+    (projectsPillActive ? 1 : 0) +
+    (servicesPillActive ? 1 : 0) +
+    (hostsPillActive ? 1 : 0) +
+    (levelsPillActive ? 1 : 0) +
+    (tracePillActive ? 1 : 0) +
+    (sessionPillActive ? 1 : 0) +
+    metadataPillCount
+  );
+
+  function clearAllFilters() {
+    traceId = "";
+    sessionId = "";
+    selectedProjects = projects.map((p) => p.id);
+    selectedServices = [];
+    selectedHostnames = [];
+    selectedLevels = [];
+    metadataFilters = [];
+    applyFilters();
+  }
+
   function formatDateTime(dateStr: string): string {
     const date = new Date(dateStr);
     const year = date.getFullYear();
@@ -921,565 +1023,559 @@
         </p>
       </div>
 
-      <Card class="mb-6">
-        <CardHeader>
-          <CardTitle>Filters</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div class="grid gap-4 md:grid-cols-2 lg:grid-cols-6">
-            <div class="space-y-2 lg:col-span-2">
-              <Label for="search">Search Message</Label>
-              <div class="flex gap-2">
-                <Input
-                  id="search"
-                  type="search"
-                  placeholder={searchMode === "fulltext" ? "Search words..." : "Find text anywhere..."}
-                  bind:value={searchQuery}
-                  oninput={debouncedSearch}
-                  class="flex-1"
-                />
-                <Select.Root
-                  type="single"
-                  value={searchMode}
-                  onValueChange={(v) => {
-                    if (v && (v === "fulltext" || v === "substring")) {
-                      searchMode = v;
-                      sessionStorage.setItem("logtide_search_mode", searchMode);
-                      if (searchQuery) {
-                        debouncedSearch();
-                      }
-                    }
-                  }}
-                >
-                  <Select.Trigger class="w-[130px]" title="Search mode: Full-text (word-based) or Substring (find anywhere)">
-                    {searchMode === "fulltext" ? "Full-text" : "Substring"}
-                  </Select.Trigger>
-                  <Select.Content>
-                    <Select.Item value="fulltext">Full-text</Select.Item>
-                    <Select.Item value="substring">Substring</Select.Item>
-                  </Select.Content>
-                </Select.Root>
-              </div>
-            </div>
+      <div class="mb-6 rounded-lg border bg-card p-2 sm:p-3 space-y-2">
+        <div class="flex flex-wrap items-center gap-2">
+          <div class="flex gap-2 flex-1 min-w-[280px]">
+            <Input
+              id="search"
+              type="search"
+              placeholder={searchMode === "fulltext" ? "Search words..." : "Find text anywhere..."}
+              bind:value={searchQuery}
+              oninput={debouncedSearch}
+              class="flex-1 h-9"
+            />
+            <Select.Root
+              type="single"
+              value={searchMode}
+              onValueChange={(v) => {
+                if (v && (v === "fulltext" || v === "substring")) {
+                  searchMode = v;
+                  sessionStorage.setItem("logtide_search_mode", searchMode);
+                  if (searchQuery) {
+                    debouncedSearch();
+                  }
+                }
+              }}
+            >
+              <Select.Trigger class="w-[130px] h-9" title="Search mode: Full-text (word-based) or Substring (find anywhere)">
+                {searchMode === "fulltext" ? "Full-text" : "Substring"}
+              </Select.Trigger>
+              <Select.Content>
+                <Select.Item value="fulltext">Full-text</Select.Item>
+                <Select.Item value="substring">Substring</Select.Item>
+              </Select.Content>
+            </Select.Root>
+          </div>
 
-            <div class="space-y-2">
-              <Label for="traceId">Trace ID</Label>
+          <Popover.Root>
+            <Popover.Trigger>
+              {#snippet child({ props })}
+                <Button {...props} variant="outline" size="sm" class="gap-2">
+                  <Clock class="w-4 h-4" />
+                  <span>{timeRangeLabel}</span>
+                  <ChevronDown class="w-4 h-4 opacity-50" />
+                </Button>
+              {/snippet}
+            </Popover.Trigger>
+            <Popover.Content class="w-[320px] max-w-[90vw] p-4" align="end">
+              <TimeRangePicker
+                bind:this={timeRangePicker}
+                initialType={timeRangeType}
+                initialCustomFrom={customFromTime}
+                initialCustomTo={customToTime}
+                onchange={handleTimeRangeChange}
+              />
+            </Popover.Content>
+          </Popover.Root>
+
+          <div class="flex items-center gap-2 ml-auto">
+            <Label for="live-tail" class="m-0 flex items-center gap-1.5 text-sm font-normal cursor-pointer">
+              <Radio
+                class="w-3.5 h-3.5 {liveTail
+                  ? 'text-green-500 animate-pulse'
+                  : 'text-muted-foreground'}"
+              />
+              Live tail
+            </Label>
+            <Switch id="live-tail" bind:checked={liveTail} />
+            {#if liveTail}
+              <Select.Root
+                type="single"
+                value={String(liveTailLimit)}
+                onValueChange={(v) => {
+                  if (v) {
+                    liveTailLimit = parseInt(v, 10);
+                    localStorage.setItem("logtide_livetail_limit", String(liveTailLimit));
+                    if (logs.length > liveTailLimit) {
+                      logs = logs.slice(0, liveTailLimit);
+                    }
+                  }
+                }}
+              >
+                <Select.Trigger class="w-[95px] h-9">
+                  {liveTailLimit}
+                </Select.Trigger>
+                <Select.Content>
+                  <Select.Item value="50">50</Select.Item>
+                  <Select.Item value="100">100</Select.Item>
+                  <Select.Item value="200">200</Select.Item>
+                  <Select.Item value="500">500</Select.Item>
+                  <Select.Item value="1000">1000</Select.Item>
+                </Select.Content>
+              </Select.Root>
+            {/if}
+          </div>
+
+          <Button
+            variant="outline"
+            size="sm"
+            onclick={() => (exportDialogOpen = true)}
+            disabled={liveTail || logs.length === 0}
+            class="gap-2"
+          >
+            <Download class="w-4 h-4" />
+            <span class="hidden sm:inline">Export</span>
+          </Button>
+        </div>
+
+        <div class="flex flex-wrap items-center gap-1.5 pt-2 border-t border-dashed">
+          <Popover.Root>
+            <Popover.Trigger>
+              {#snippet child({ props })}
+                <Button
+                  {...props}
+                  variant={projectsPillActive ? "secondary" : "outline"}
+                  size="sm"
+                  class="h-7 gap-1.5 text-xs font-normal"
+                >
+                  <span>{projectsPillLabel}</span>
+                  <ChevronDown class="w-3 h-3 opacity-60" />
+                </Button>
+              {/snippet}
+            </Popover.Trigger>
+            <Popover.Content class="w-[280px] max-w-[90vw] p-0" align="start">
+              <div class="p-1.5 border-b">
+                <div class="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    class="flex-1 h-7 text-xs"
+                    onclick={async () => {
+                      selectedProjects = projects.map((p) => p.id);
+                      await Promise.all([loadServices(), loadHostnames()]);
+                      applyFilters();
+                    }}
+                  >
+                    Select All
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    class="flex-1 h-7 text-xs"
+                    onclick={() => {
+                      selectedProjects = [];
+                      availableServices = [];
+                      availableHostnames = [];
+                      applyFilters();
+                    }}
+                  >
+                    Clear
+                  </Button>
+                </div>
+              </div>
+              <div class="max-h-[260px] overflow-y-auto p-1.5">
+                <div class="space-y-1">
+                  {#each projects as project}
+                    <label
+                      class="flex items-center gap-2 cursor-pointer hover:bg-accent px-2 py-1 rounded-sm"
+                    >
+                      <input
+                        type="checkbox"
+                        value={project.id}
+                        checked={selectedProjects.includes(project.id)}
+                        onchange={async (e) => {
+                          if (e.currentTarget.checked) {
+                            selectedProjects = [...selectedProjects, project.id];
+                          } else {
+                            selectedProjects = selectedProjects.filter(
+                              (id) => id !== project.id,
+                            );
+                          }
+                          await Promise.all([loadServices(), loadHostnames()]);
+                          applyFilters();
+                        }}
+                        class="h-4 w-4 rounded border-gray-300"
+                      />
+                      <span class="text-sm flex-1">{project.name}</span>
+                    </label>
+                  {/each}
+                </div>
+              </div>
+            </Popover.Content>
+          </Popover.Root>
+
+          <Popover.Root>
+            <Popover.Trigger>
+              {#snippet child({ props })}
+                <Button
+                  {...props}
+                  variant={servicesPillActive ? "secondary" : "outline"}
+                  size="sm"
+                  class="h-7 gap-1.5 text-xs font-normal"
+                >
+                  <span>{servicesPillLabel}</span>
+                  <ChevronDown class="w-3 h-3 opacity-60" />
+                </Button>
+              {/snippet}
+            </Popover.Trigger>
+            <Popover.Content class="w-[280px] max-w-[90vw] p-0" align="start">
+              <div class="p-1.5 border-b">
+                <div class="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    class="flex-1 h-7 text-xs"
+                    onclick={() => {
+                      selectedServices = [...availableServices];
+                      applyFilters();
+                    }}
+                  >
+                    Select All
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    class="flex-1 h-7 text-xs"
+                    onclick={() => {
+                      selectedServices = [];
+                      applyFilters();
+                    }}
+                  >
+                    Clear
+                  </Button>
+                </div>
+              </div>
+              <div class="max-h-[260px] overflow-y-auto p-1.5">
+                {#if isLoadingServices}
+                  <div class="text-center py-4 text-sm text-muted-foreground">
+                    Loading services...
+                  </div>
+                {:else if displayedServices().length === 0}
+                  <div class="text-center py-4 text-sm text-muted-foreground">
+                    No services available
+                  </div>
+                {:else}
+                  <div class="space-y-1">
+                    {#each displayedServices() as service}
+                      {@const hasLogsInTimeRange = availableServices.includes(service)}
+                      <label
+                        class="flex items-center gap-2 cursor-pointer hover:bg-accent px-2 py-1 rounded-sm"
+                      >
+                        <input
+                          type="checkbox"
+                          value={service}
+                          checked={selectedServices.includes(service)}
+                          onchange={(e) => {
+                            if (e.currentTarget.checked) {
+                              selectedServices = [...selectedServices, service];
+                            } else {
+                              selectedServices = selectedServices.filter(
+                                (s) => s !== service,
+                              );
+                            }
+                            applyFilters();
+                          }}
+                          class="h-4 w-4 rounded border-gray-300"
+                        />
+                        <span class="text-sm flex-1 {!hasLogsInTimeRange ? 'text-muted-foreground italic' : ''}">{service}</span>
+                        {#if !hasLogsInTimeRange}
+                          <span class="text-xs text-muted-foreground">(no logs)</span>
+                        {/if}
+                      </label>
+                    {/each}
+                  </div>
+                {/if}
+              </div>
+            </Popover.Content>
+          </Popover.Root>
+
+          <Popover.Root>
+            <Popover.Trigger>
+              {#snippet child({ props })}
+                <Button
+                  {...props}
+                  variant={hostsPillActive ? "secondary" : "outline"}
+                  size="sm"
+                  class="h-7 gap-1.5 text-xs font-normal"
+                >
+                  <span>{hostsPillLabel}</span>
+                  <ChevronDown class="w-3 h-3 opacity-60" />
+                </Button>
+              {/snippet}
+            </Popover.Trigger>
+            <Popover.Content class="w-[280px] max-w-[90vw] p-0" align="start">
+              <div class="p-1.5 border-b">
+                <div class="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    class="flex-1 h-7 text-xs"
+                    onclick={() => {
+                      selectedHostnames = [...availableHostnames];
+                      applyFilters();
+                    }}
+                  >
+                    Select All
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    class="flex-1 h-7 text-xs"
+                    onclick={() => {
+                      selectedHostnames = [];
+                      applyFilters();
+                    }}
+                  >
+                    Clear
+                  </Button>
+                </div>
+              </div>
+              <div class="max-h-[260px] overflow-y-auto p-1.5">
+                {#if isLoadingHostnames}
+                  <div class="text-center py-4 text-sm text-muted-foreground">
+                    Loading hostnames...
+                  </div>
+                {:else if displayedHostnames().length === 0}
+                  <div class="text-center py-4 text-sm text-muted-foreground">
+                    No hostnames available
+                  </div>
+                {:else}
+                  <div class="space-y-1">
+                    {#each displayedHostnames() as hostname}
+                      {@const hasLogsInTimeRange = availableHostnames.includes(hostname)}
+                      <label
+                        class="flex items-center gap-2 cursor-pointer hover:bg-accent px-2 py-1 rounded-sm"
+                      >
+                        <input
+                          type="checkbox"
+                          value={hostname}
+                          checked={selectedHostnames.includes(hostname)}
+                          onchange={(e) => {
+                            if (e.currentTarget.checked) {
+                              selectedHostnames = [...selectedHostnames, hostname];
+                            } else {
+                              selectedHostnames = selectedHostnames.filter(
+                                (h) => h !== hostname,
+                              );
+                            }
+                            applyFilters();
+                          }}
+                          class="h-4 w-4 rounded border-gray-300"
+                        />
+                        <span class="text-sm flex-1 font-mono {!hasLogsInTimeRange ? 'text-muted-foreground italic' : ''}">{hostname}</span>
+                        {#if !hasLogsInTimeRange}
+                          <span class="text-xs text-muted-foreground">(no logs)</span>
+                        {/if}
+                      </label>
+                    {/each}
+                  </div>
+                {/if}
+              </div>
+            </Popover.Content>
+          </Popover.Root>
+
+          <Popover.Root>
+            <Popover.Trigger>
+              {#snippet child({ props })}
+                <Button
+                  {...props}
+                  variant={levelsPillActive ? "secondary" : "outline"}
+                  size="sm"
+                  class="h-7 gap-1.5 text-xs font-normal"
+                >
+                  <span>{levelsPillLabel}</span>
+                  <ChevronDown class="w-3 h-3 opacity-60" />
+                </Button>
+              {/snippet}
+            </Popover.Trigger>
+            <Popover.Content class="w-[240px] max-w-[90vw] p-0" align="start">
+              <div class="p-1.5 border-b">
+                <div class="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    class="flex-1 h-7 text-xs"
+                    onclick={() => {
+                      selectedLevels = ["debug", "info", "warn", "error", "critical"];
+                      applyFilters();
+                    }}
+                  >
+                    Select All
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    class="flex-1 h-7 text-xs"
+                    onclick={() => {
+                      selectedLevels = [];
+                      applyFilters();
+                    }}
+                  >
+                    Clear
+                  </Button>
+                </div>
+              </div>
+              <div class="max-h-[260px] overflow-y-auto p-1.5">
+                <div class="space-y-1">
+                  {#each ["debug", "info", "warn", "error", "critical"] as level}
+                    <label
+                      class="flex items-center gap-2 cursor-pointer hover:bg-accent px-2 py-1 rounded-sm"
+                    >
+                      <input
+                        type="checkbox"
+                        value={level}
+                        checked={selectedLevels.includes(level)}
+                        onchange={(e) => {
+                          if (e.currentTarget.checked) {
+                            selectedLevels = [...selectedLevels, level];
+                          } else {
+                            selectedLevels = selectedLevels.filter((l) => l !== level);
+                          }
+                          applyFilters();
+                        }}
+                        class="h-4 w-4 rounded border-gray-300"
+                      />
+                      <span class="text-sm flex-1 capitalize">{level}</span>
+                    </label>
+                  {/each}
+                </div>
+              </div>
+            </Popover.Content>
+          </Popover.Root>
+
+          <Popover.Root>
+            <Popover.Trigger>
+              {#snippet child({ props })}
+                <Button
+                  {...props}
+                  variant={tracePillActive ? "secondary" : "outline"}
+                  size="sm"
+                  class="h-7 gap-1.5 text-xs font-normal"
+                >
+                  <span>{tracePillLabel}</span>
+                  <ChevronDown class="w-3 h-3 opacity-60" />
+                </Button>
+              {/snippet}
+            </Popover.Trigger>
+            <Popover.Content class="w-[280px] max-w-[90vw] p-2 space-y-2" align="start">
+              <Label for="traceId" class="text-xs uppercase text-muted-foreground">Trace ID</Label>
               <Input
                 id="traceId"
                 type="text"
                 placeholder="Filter by trace ID..."
                 bind:value={traceId}
                 oninput={debouncedSearch}
+                class="h-8 text-sm"
               />
-            </div>
+              {#if traceId.trim().length > 0}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  class="text-muted-foreground"
+                  onclick={() => { traceId = ""; applyFilters(); }}
+                >
+                  Clear
+                </Button>
+              {/if}
+            </Popover.Content>
+          </Popover.Root>
 
-            <div class="space-y-2">
-              <Label for="sessionId">Session ID</Label>
+          <Popover.Root>
+            <Popover.Trigger>
+              {#snippet child({ props })}
+                <Button
+                  {...props}
+                  variant={sessionPillActive ? "secondary" : "outline"}
+                  size="sm"
+                  class="h-7 gap-1.5 text-xs font-normal"
+                >
+                  <span>{sessionPillLabel}</span>
+                  <ChevronDown class="w-3 h-3 opacity-60" />
+                </Button>
+              {/snippet}
+            </Popover.Trigger>
+            <Popover.Content class="w-[280px] max-w-[90vw] p-2 space-y-2" align="start">
+              <Label for="sessionId" class="text-xs uppercase text-muted-foreground">Session ID</Label>
               <Input
                 id="sessionId"
                 type="text"
                 placeholder="Filter by session ID..."
                 bind:value={sessionId}
                 oninput={debouncedSearch}
+                class="h-8 text-sm"
               />
-            </div>
-
-            <div class="space-y-2">
-              <Label>Projects</Label>
-              <Popover.Root>
-                <Popover.Trigger>
-                  {#snippet child({ props })}
-                    <Button
-                      {...props}
-                      variant="outline"
-                      role="combobox"
-                      class="w-full justify-between font-normal"
-                    >
-                      <span class="truncate">
-                        {#if selectedProjects.length === 0}
-                          Select projects...
-                        {:else if selectedProjects.length === projects.length}
-                          All projects ({projects.length})
-                        {:else if selectedProjects.length === 1}
-                          {projects.find((p) => p.id === selectedProjects[0])
-                            ?.name}
-                        {:else}
-                          {selectedProjects.length} projects selected
-                        {/if}
-                      </span>
-                      <ChevronDown class="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                    </Button>
-                  {/snippet}
-                </Popover.Trigger>
-                <Popover.Content class="w-[300px] p-0" align="start">
-                  <div class="p-2 border-b">
-                    <div class="flex gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        class="flex-1"
-                        onclick={async () => {
-                          selectedProjects = projects.map((p) => p.id);
-                          await Promise.all([loadServices(), loadHostnames()]);
-                          applyFilters();
-                        }}
-                      >
-                        Select All
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        class="flex-1"
-                        onclick={() => {
-                          selectedProjects = [];
-                          availableServices = [];
-                          availableHostnames = [];
-                          applyFilters();
-                        }}
-                      >
-                        Clear
-                      </Button>
-                    </div>
-                  </div>
-                  <div class="max-h-[300px] overflow-y-auto p-2">
-                    <div class="space-y-1">
-                      {#each projects as project}
-                        <label
-                          class="flex items-center gap-2 cursor-pointer hover:bg-accent px-3 py-2 rounded-sm"
-                        >
-                          <input
-                            type="checkbox"
-                            value={project.id}
-                            checked={selectedProjects.includes(project.id)}
-                            onchange={async (e) => {
-                              if (e.currentTarget.checked) {
-                                selectedProjects = [
-                                  ...selectedProjects,
-                                  project.id,
-                                ];
-                              } else {
-                                selectedProjects = selectedProjects.filter(
-                                  (id) => id !== project.id,
-                                );
-                              }
-                              await Promise.all([loadServices(), loadHostnames()]);
-                              applyFilters();
-                            }}
-                            class="h-4 w-4 rounded border-gray-300"
-                          />
-                          <span class="text-sm flex-1">{project.name}</span>
-                        </label>
-                      {/each}
-                    </div>
-                  </div>
-                </Popover.Content>
-              </Popover.Root>
-            </div>
-
-            <div class="space-y-2">
-              <Label>Services</Label>
-              <Popover.Root>
-                <Popover.Trigger>
-                  {#snippet child({ props })}
-                    <Button
-                      {...props}
-                      variant="outline"
-                      role="combobox"
-                      class="w-full justify-between font-normal"
-                    >
-                      <span class="truncate">
-                        {#if selectedServices.length === 0}
-                          All services
-                        {:else if selectedServices.length === availableServices.length && availableServices.length > 0}
-                          All services ({availableServices.length})
-                        {:else if selectedServices.length === 1}
-                          {selectedServices[0]}
-                        {:else}
-                          {selectedServices.length} services
-                        {/if}
-                      </span>
-                      <ChevronDown class="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                    </Button>
-                  {/snippet}
-                </Popover.Trigger>
-                <Popover.Content class="w-[300px] p-0" align="start">
-                  <div class="p-2 border-b">
-                    <div class="flex gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        class="flex-1"
-                        onclick={() => {
-                          selectedServices = [...availableServices];
-                          applyFilters();
-                        }}
-                      >
-                        Select All
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        class="flex-1"
-                        onclick={() => {
-                          selectedServices = [];
-                          applyFilters();
-                        }}
-                      >
-                        Clear
-                      </Button>
-                    </div>
-                  </div>
-                  <div class="max-h-[300px] overflow-y-auto p-2">
-                    {#if isLoadingServices}
-                      <div
-                        class="text-center py-4 text-sm text-muted-foreground"
-                      >
-                        Loading services...
-                      </div>
-                    {:else if displayedServices().length === 0}
-                      <div
-                        class="text-center py-4 text-sm text-muted-foreground"
-                      >
-                        No services available
-                      </div>
-                    {:else}
-                      <div class="space-y-1">
-                        {#each displayedServices() as service}
-                          {@const hasLogsInTimeRange = availableServices.includes(service)}
-                          <label
-                            class="flex items-center gap-2 cursor-pointer hover:bg-accent px-3 py-2 rounded-sm"
-                          >
-                            <input
-                              type="checkbox"
-                              value={service}
-                              checked={selectedServices.includes(service)}
-                              onchange={(e) => {
-                                if (e.currentTarget.checked) {
-                                  selectedServices = [
-                                    ...selectedServices,
-                                    service,
-                                  ];
-                                } else {
-                                  selectedServices = selectedServices.filter(
-                                    (s) => s !== service,
-                                  );
-                                }
-                                applyFilters();
-                              }}
-                              class="h-4 w-4 rounded border-gray-300"
-                            />
-                            <span class="text-sm flex-1 {!hasLogsInTimeRange ? 'text-muted-foreground italic' : ''}">{service}</span>
-                            {#if !hasLogsInTimeRange}
-                              <span class="text-xs text-muted-foreground">(no logs)</span>
-                            {/if}
-                          </label>
-                        {/each}
-                      </div>
-                    {/if}
-                  </div>
-                </Popover.Content>
-              </Popover.Root>
-            </div>
-
-            <div class="space-y-2">
-              <Label>Hostnames</Label>
-              <Popover.Root>
-                <Popover.Trigger>
-                  {#snippet child({ props })}
-                    <Button
-                      {...props}
-                      variant="outline"
-                      role="combobox"
-                      class="w-full justify-between font-normal"
-                    >
-                      <span class="truncate">
-                        {#if selectedHostnames.length === 0}
-                          All hosts
-                        {:else if selectedHostnames.length === availableHostnames.length && availableHostnames.length > 0}
-                          All hosts ({availableHostnames.length})
-                        {:else if selectedHostnames.length === 1}
-                          {selectedHostnames[0]}
-                        {:else}
-                          {selectedHostnames.length} hosts
-                        {/if}
-                      </span>
-                      <ChevronDown class="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                    </Button>
-                  {/snippet}
-                </Popover.Trigger>
-                <Popover.Content class="w-[300px] p-0" align="start">
-                  <div class="p-2 border-b">
-                    <div class="flex gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        class="flex-1"
-                        onclick={() => {
-                          selectedHostnames = [...availableHostnames];
-                          applyFilters();
-                        }}
-                      >
-                        Select All
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        class="flex-1"
-                        onclick={() => {
-                          selectedHostnames = [];
-                          applyFilters();
-                        }}
-                      >
-                        Clear
-                      </Button>
-                    </div>
-                  </div>
-                  <div class="max-h-[300px] overflow-y-auto p-2">
-                    {#if isLoadingHostnames}
-                      <div
-                        class="text-center py-4 text-sm text-muted-foreground"
-                      >
-                        Loading hostnames...
-                      </div>
-                    {:else if displayedHostnames().length === 0}
-                      <div
-                        class="text-center py-4 text-sm text-muted-foreground"
-                      >
-                        No hostnames available
-                      </div>
-                    {:else}
-                      <div class="space-y-1">
-                        {#each displayedHostnames() as hostname}
-                          {@const hasLogsInTimeRange = availableHostnames.includes(hostname)}
-                          <label
-                            class="flex items-center gap-2 cursor-pointer hover:bg-accent px-3 py-2 rounded-sm"
-                          >
-                            <input
-                              type="checkbox"
-                              value={hostname}
-                              checked={selectedHostnames.includes(hostname)}
-                              onchange={(e) => {
-                                if (e.currentTarget.checked) {
-                                  selectedHostnames = [
-                                    ...selectedHostnames,
-                                    hostname,
-                                  ];
-                                } else {
-                                  selectedHostnames = selectedHostnames.filter(
-                                    (h) => h !== hostname,
-                                  );
-                                }
-                                applyFilters();
-                              }}
-                              class="h-4 w-4 rounded border-gray-300"
-                            />
-                            <span class="text-sm flex-1 font-mono {!hasLogsInTimeRange ? 'text-muted-foreground italic' : ''}">{hostname}</span>
-                            {#if !hasLogsInTimeRange}
-                              <span class="text-xs text-muted-foreground">(no logs)</span>
-                            {/if}
-                          </label>
-                        {/each}
-                      </div>
-                    {/if}
-                  </div>
-                </Popover.Content>
-              </Popover.Root>
-            </div>
-
-            <div class="space-y-2">
-              <Label>Levels</Label>
-              <Popover.Root>
-                <Popover.Trigger>
-                  {#snippet child({ props })}
-                    <Button
-                      {...props}
-                      variant="outline"
-                      role="combobox"
-                      class="w-full justify-between font-normal"
-                    >
-                      <span class="truncate">
-                        {#if selectedLevels.length === 0}
-                          All levels
-                        {:else if selectedLevels.length === 5}
-                          All levels (5)
-                        {:else if selectedLevels.length === 1}
-                          {selectedLevels[0].charAt(0).toUpperCase() +
-                            selectedLevels[0].slice(1)}
-                        {:else}
-                          {selectedLevels.length} levels
-                        {/if}
-                      </span>
-                      <ChevronDown class="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                    </Button>
-                  {/snippet}
-                </Popover.Trigger>
-                <Popover.Content class="w-[300px] p-0" align="start">
-                  <div class="p-2 border-b">
-                    <div class="flex gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        class="flex-1"
-                        onclick={() => {
-                          selectedLevels = [
-                            "debug",
-                            "info",
-                            "warn",
-                            "error",
-                            "critical",
-                          ];
-                          applyFilters();
-                        }}
-                      >
-                        Select All
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        class="flex-1"
-                        onclick={() => {
-                          selectedLevels = [];
-                          applyFilters();
-                        }}
-                      >
-                        Clear
-                      </Button>
-                    </div>
-                  </div>
-                  <div class="max-h-[300px] overflow-y-auto p-2">
-                    <div class="space-y-1">
-                      {#each ["debug", "info", "warn", "error", "critical"] as level}
-                        <label
-                          class="flex items-center gap-2 cursor-pointer hover:bg-accent px-3 py-2 rounded-sm"
-                        >
-                          <input
-                            type="checkbox"
-                            value={level}
-                            checked={selectedLevels.includes(level)}
-                            onchange={(e) => {
-                              if (e.currentTarget.checked) {
-                                selectedLevels = [...selectedLevels, level];
-                              } else {
-                                selectedLevels = selectedLevels.filter(
-                                  (l) => l !== level,
-                                );
-                              }
-                              applyFilters();
-                            }}
-                            class="h-4 w-4 rounded border-gray-300"
-                          />
-                          <span class="text-sm flex-1 capitalize">{level}</span>
-                        </label>
-                      {/each}
-                    </div>
-                  </div>
-                </Popover.Content>
-              </Popover.Root>
-            </div>
-
-            <div class="space-y-2">
-              <Label for="live-tail" class="flex items-center gap-1.5">
-                Live Tail
-                <Radio
-                  class="w-3.5 h-3.5 {liveTail
-                    ? 'text-green-500 animate-pulse'
-                    : 'text-muted-foreground'}"
-                />
-              </Label>
-              <div class="flex items-center gap-3 h-9">
-                <Switch id="live-tail" bind:checked={liveTail} />
-                {#if liveTail}
-                  <Select.Root
-                    type="single"
-                    value={String(liveTailLimit)}
-                    onValueChange={(v) => {
-                      if (v) {
-                        liveTailLimit = parseInt(v, 10);
-                        localStorage.setItem("logtide_livetail_limit", String(liveTailLimit));
-                        if (logs.length > liveTailLimit) {
-                          logs = logs.slice(0, liveTailLimit);
-                        }
-                      }
-                    }}
-                  >
-                    <Select.Trigger class="w-[110px] h-9 whitespace-nowrap">
-                      {liveTailLimit} logs
-                    </Select.Trigger>
-                    <Select.Content>
-                      <Select.Item value="50">50 logs</Select.Item>
-                      <Select.Item value="100">100 logs</Select.Item>
-                      <Select.Item value="200">200 logs</Select.Item>
-                      <Select.Item value="500">500 logs</Select.Item>
-                      <Select.Item value="1000">1000 logs</Select.Item>
-                    </Select.Content>
-                  </Select.Root>
-                {/if}
-              </div>
-            </div>
-          </div>
-
-          <div class="mt-4">
-            <TimeRangePicker
-              bind:this={timeRangePicker}
-              initialType={timeRangeType}
-              initialCustomFrom={customFromTime}
-              initialCustomTo={customToTime}
-              onchange={handleTimeRangeChange}
-            />
-          </div>
-
-          <div class="mt-4 space-y-2">
-            <Label>Metadata filters</Label>
-            <MetadataFilterBuilder
-              bind:filters={metadataFilters}
-            />
-            {#if metadataFilters.length > 0}
-              <div class="flex gap-2">
-                <Button
-                  variant="default"
-                  size="sm"
-                  data-testid="metadata-filter-apply"
-                  onclick={() => applyFilters()}
-                >
-                  Apply metadata filters
-                </Button>
+              {#if sessionId.trim().length > 0}
                 <Button
                   variant="ghost"
                   size="sm"
-                  data-testid="metadata-filter-clear-all"
-                  onclick={() => {
-                    metadataFilters = [];
-                    applyFilters();
-                  }}
                   class="text-muted-foreground"
+                  onclick={() => { sessionId = ""; applyFilters(); }}
                 >
                   Clear
                 </Button>
-              </div>
-            {/if}
-          </div>
+              {/if}
+            </Popover.Content>
+          </Popover.Root>
 
-          <div class="flex gap-2 mt-4">
-            <Button
-              variant="outline"
-              size="sm"
-              onclick={() => (exportDialogOpen = true)}
-              disabled={liveTail || logs.length === 0}
-              class="gap-2"
+          <Popover.Root>
+            <Popover.Trigger>
+              {#snippet child({ props })}
+                <Button
+                  {...props}
+                  variant={metadataPillActive ? "secondary" : "outline"}
+                  size="sm"
+                  class="h-7 gap-1.5 text-xs font-normal"
+                >
+                  <span>{metadataPillLabel}</span>
+                  <ChevronDown class="w-3 h-3 opacity-60" />
+                </Button>
+              {/snippet}
+            </Popover.Trigger>
+            <Popover.Content class="w-[360px] max-w-[90vw] p-2 space-y-2 max-h-[70vh] overflow-y-auto" align="start">
+              <Label class="text-xs uppercase text-muted-foreground">Metadata filters</Label>
+              <MetadataFilterBuilder bind:filters={metadataFilters} />
+              {#if metadataFilters.length > 0}
+                <div class="flex gap-2">
+                  <Button
+                    variant="default"
+                    size="sm"
+                    data-testid="metadata-filter-apply"
+                    onclick={() => applyFilters()}
+                  >
+                    Apply
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    data-testid="metadata-filter-clear-all"
+                    onclick={() => { metadataFilters = []; applyFilters(); }}
+                    class="text-muted-foreground"
+                  >
+                    Clear
+                  </Button>
+                </div>
+              {/if}
+            </Popover.Content>
+          </Popover.Root>
+
+          {#if activeFilterCount > 0}
+            <button
+              type="button"
+              class="ml-auto text-xs text-muted-foreground hover:text-foreground underline underline-offset-2"
+              onclick={clearAllFilters}
             >
-              <Download class="w-4 h-4" />
-              Export
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+              Clear all
+            </button>
+          {/if}
+        </div>
+      </div>
 
       <Card>
         <CardHeader>
           <div class="flex items-center justify-between">
             <CardTitle>
               {#if effectiveTotalLogs > 0}
-                {effectiveTotalLogs}
+                {effectiveTotalLogs.toLocaleString()}
                 {effectiveTotalLogs === 1 ? "log" : "logs"}
                 {#if liveTail}
                   <span class="text-sm font-normal text-muted-foreground"
@@ -1789,7 +1885,7 @@
               <div class="flex items-center justify-between mt-6 px-2">
                 <div class="text-sm text-muted-foreground">
                   {#if totalLogs > 0}
-                    Showing {(currentPage - 1) * pageSize + 1} to {Math.min(currentPage * pageSize, totalLogs)} of {totalLogs.toLocaleString()} logs
+                    Showing {((currentPage - 1) * pageSize + 1).toLocaleString()} to {Math.min(currentPage * pageSize, totalLogs).toLocaleString()} of {totalLogs.toLocaleString()} logs
                   {:else}
                     Showing {(currentPage - 1) * pageSize + 1} to {(currentPage - 1) * pageSize + logs.length} logs
                   {/if}

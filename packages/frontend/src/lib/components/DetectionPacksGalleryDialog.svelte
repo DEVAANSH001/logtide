@@ -228,7 +228,7 @@
 													{pack.category}
 												</Badge>
 												<span class="text-xs text-muted-foreground">
-													{pack.rules.length} rules
+													{pack.rules.length.toLocaleString()} rules
 												</span>
 											</div>
 										</div>
