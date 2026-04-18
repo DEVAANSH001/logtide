@@ -1063,7 +1063,7 @@
           <Popover.Root>
             <Popover.Trigger>
               {#snippet child({ props })}
-                <Button {...props} variant="outline" size="sm" class="gap-2">
+                <Button {...props} variant="outline" size="sm" class="gap-2" data-testid="filter-pill-time-range">
                   <Clock class="w-4 h-4" />
                   <span>{timeRangeLabel}</span>
                   <ChevronDown class="w-4 h-4 opacity-50" />
@@ -1454,6 +1454,7 @@
                   variant={tracePillActive ? "secondary" : "outline"}
                   size="sm"
                   class="h-7 gap-1.5 text-xs font-normal"
+                  data-testid="filter-pill-trace-id"
                 >
                   <span>{tracePillLabel}</span>
                   <ChevronDown class="w-3 h-3 opacity-60" />
@@ -1528,6 +1529,7 @@
                   variant={metadataPillActive ? "secondary" : "outline"}
                   size="sm"
                   class="h-7 gap-1.5 text-xs font-normal"
+                  data-testid="filter-pill-metadata"
                 >
                   <span>{metadataPillLabel}</span>
                   <ChevronDown class="w-3 h-3 opacity-60" />
