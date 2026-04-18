@@ -165,6 +165,147 @@ describe('Traces Routes', () => {
       expect(response.body.traces).toHaveLength(2);
       expect(response.body.total).toBe(5);
     });
+
+    it('should accept a CSV list of services and match any of them', async () => {
+      await createTestTrace({
+        projectId: context.project.id,
+        organizationId: context.organization.id,
+        serviceName: 'svc-a',
+      });
+      await createTestTrace({
+        projectId: context.project.id,
+        organizationId: context.organization.id,
+        serviceName: 'svc-b',
+      });
+      await createTestTrace({
+        projectId: context.project.id,
+        organizationId: context.organization.id,
+        serviceName: 'svc-c',
+      });
+
+      const response = await request(app.server)
+        .get('/api/v1/traces')
+        .query({ service: 'svc-a,svc-b' })
+        .set('x-api-key', apiKey)
+        .expect(200);
+
+      const services = response.body.traces.map((t: any) => t.service_name).sort();
+      expect(services).toEqual(['svc-a', 'svc-b']);
+    });
+
+    it('should filter by minDurationMs', async () => {
+      await createTestTrace({
+        projectId: context.project.id,
+        organizationId: context.organization.id,
+        durationMs: 50,
+      });
+      await createTestTrace({
+        projectId: context.project.id,
+        organizationId: context.organization.id,
+        durationMs: 500,
+      });
+
+      const response = await request(app.server)
+        .get('/api/v1/traces')
+        .query({ minDurationMs: 200 })
+        .set('x-api-key', apiKey)
+        .expect(200);
+
+      expect(response.body.traces).toHaveLength(1);
+      expect(response.body.traces[0].duration_ms).toBe(500);
+    });
+
+    it('should filter by maxDurationMs', async () => {
+      await createTestTrace({
+        projectId: context.project.id,
+        organizationId: context.organization.id,
+        durationMs: 50,
+      });
+      await createTestTrace({
+        projectId: context.project.id,
+        organizationId: context.organization.id,
+        durationMs: 500,
+      });
+
+      const response = await request(app.server)
+        .get('/api/v1/traces')
+        .query({ maxDurationMs: 100 })
+        .set('x-api-key', apiKey)
+        .expect(200);
+
+      expect(response.body.traces).toHaveLength(1);
+      expect(response.body.traces[0].duration_ms).toBe(50);
+    });
+
+    it('should combine minDurationMs and maxDurationMs to bracket a range', async () => {
+      for (const ms of [10, 100, 500, 2000]) {
+        await createTestTrace({
+          projectId: context.project.id,
+          organizationId: context.organization.id,
+          durationMs: ms,
+        });
+      }
+
+      const response = await request(app.server)
+        .get('/api/v1/traces')
+        .query({ minDurationMs: 50, maxDurationMs: 1000 })
+        .set('x-api-key', apiKey)
+        .expect(200);
+
+      const durations = response.body.traces.map((t: any) => t.duration_ms).sort((a: number, b: number) => a - b);
+      expect(durations).toEqual([100, 500]);
+    });
+  });
+
+  // ==========================================================================
+  // GET /api/v1/traces/stream  (SSE live tail)
+  // ==========================================================================
+  describe('GET /api/v1/traces/stream', () => {
+    it('should return 400 when no projectId is provided', async () => {
+      const session = await createSession(context.user.id);
+      const response = await request(app.server)
+        .get('/api/v1/traces/stream')
+        .set('Authorization', `Bearer ${session.token}`)
+        .expect(400);
+      expect(response.body.error).toContain('Project context missing');
+    });
+
+    it('should reject cross-project access with session auth', async () => {
+      const other = await createTestContext();
+      const session = await createSession(context.user.id);
+      const response = await request(app.server)
+        .get('/api/v1/traces/stream')
+        .query({ projectId: other.project.id })
+        .set('Authorization', `Bearer ${session.token}`)
+        .expect(403);
+      expect(response.body.error).toContain('Access denied');
+    });
+
+    it('should open an SSE stream and emit a connected event', async () => {
+      // supertest buffers the SSE body; we only need the initial connected
+      // event, so we abort once we've read enough bytes.
+      const url = `http://127.0.0.1:${(app.server.address() as any).port}/api/v1/traces/stream?projectId=${context.project.id}`;
+      const controller = new AbortController();
+      const fetchPromise = fetch(url, {
+        headers: { 'x-api-key': apiKey },
+        signal: controller.signal,
+      });
+      const timer = setTimeout(() => controller.abort(), 1500);
+      try {
+        const res = await fetchPromise;
+        expect(res.status).toBe(200);
+        expect(res.headers.get('content-type')).toContain('text/event-stream');
+        const reader = res.body!.getReader();
+        const { value } = await reader.read();
+        const chunk = new TextDecoder().decode(value);
+        expect(chunk).toContain('"type":"connected"');
+        await reader.cancel();
+      } catch (e) {
+        if ((e as Error).name !== 'AbortError') throw e;
+      } finally {
+        clearTimeout(timer);
+      }
+    });
   });
 
   // ==========================================================================
