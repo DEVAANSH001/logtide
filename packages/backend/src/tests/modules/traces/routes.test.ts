@@ -281,30 +281,37 @@ describe('Traces Routes', () => {
       expect(response.body.error).toContain('Access denied');
     });
 
-    it('should open an SSE stream and emit a connected event', async () => {
-      // supertest buffers the SSE body; we only need the initial connected
-      // event, so we abort once we've read enough bytes.
-      const url = `http://127.0.0.1:${(app.server.address() as any).port}/api/v1/traces/stream?projectId=${context.project.id}`;
-      const controller = new AbortController();
-      const fetchPromise = fetch(url, {
+    it('should set SSE headers and emit the connected event via inject', async () => {
+      // Fastify's inject buffers the full response, so for SSE we drive it
+      // via app.inject and read the payload after the first tick. The
+      // handler writes `type:"connected"` synchronously before the
+      // setInterval starts, which is enough to exercise the headers + the
+      // initial frame without having to bind the server to a socket.
+      const res = await app.inject({
+        method: 'GET',
+        url: `/api/v1/traces/stream?projectId=${context.project.id}`,
         headers: { 'x-api-key': apiKey },
-        signal: controller.signal,
+        payloadAsStream: true,
       });
-      const timer = setTimeout(() => controller.abort(), 1500);
-      try {
-        const res = await fetchPromise;
-        expect(res.status).toBe(200);
-        expect(res.headers.get('content-type')).toContain('text/event-stream');
-        const reader = res.body!.getReader();
-        const { value } = await reader.read();
-        const chunk = new TextDecoder().decode(value);
-        expect(chunk).toContain('"type":"connected"');
-        await reader.cancel();
-      } catch (e) {
-        if ((e as Error).name !== 'AbortError') throw e;
-      } finally {
-        clearTimeout(timer);
-      }
+      expect(res.statusCode).toBe(200);
+      expect(res.headers['content-type']).toContain('text/event-stream');
+      const stream = res.stream();
+      const chunk: Buffer = await new Promise((resolve, reject) => {
+        const timer = setTimeout(() => {
+          stream.destroy();
+          reject(new Error('timeout waiting for connected frame'));
+        }, 2000);
+        stream.once('data', (b: Buffer) => {
+          clearTimeout(timer);
+          stream.destroy();
+          resolve(b);
+        });
+        stream.once('error', (err: Error) => {
+          clearTimeout(timer);
+          reject(err);
+        });
+      });
+      expect(chunk.toString('utf8')).toContain('"type":"connected"');
     });
   });
 
