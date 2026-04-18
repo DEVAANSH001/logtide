@@ -8,6 +8,7 @@ import { CacheManager } from '../../utils/cache.js';
 import { notificationPublisher } from '../streaming/index.js';
 import { correlationService, type IdentifierMatch } from '../correlation/service.js';
 import { piiMaskingService } from '../pii-masking/service.js';
+import { projectsService } from '../projects/service.js';
 import { extractHostname } from './routes.js';
 
 /**
@@ -140,6 +141,9 @@ export class IngestionService {
         console.error('[Ingestion] Failed to trigger pipeline processing:', err);
       });
     }
+
+    // Mark the project as having logs (debounced in-memory, fire-and-forget)
+    projectsService.markHasData(projectId, 'logs').catch(() => {});
 
     // Invalidate query caches for this project (async, non-blocking)
     CacheManager.invalidateProjectQueries(projectId).catch((err) => {

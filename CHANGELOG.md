@@ -6,7 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
-## [0.9.3] - 2026-04-18
+## [0.9.4] - Unreleased
+
+### Changed
+- **`GET /api/v1/projects/data-availability` rewritten to read from cached flags on `projects`** instead of fanning out `N*3` existence queries to the reservoir per call. In production (ClickHouse, ~70M rows) the old path scanned `count(*)` and `LIMIT 1` probes across logs/traces/metrics for every project in the org, taking 6s+ on non-trivial orgs. The new path is a single `SELECT id, has_logs_at, has_traces_at, has_metrics_at FROM projects WHERE organization_id = $1` plus an in-memory staleness filter against `organizations.retention_days`, returning in <50ms regardless of ingest volume. The response shape is unchanged (`{ logs: string[], traces: string[], metrics: string[] }`)
+- **Ingest paths mark data-availability flags fire-and-forget**: after a successful batch in logs / traces / metrics ingest, `projectsService.markHasData(projectId, kind)` updates `projects.has_X_at`. A module-scoped in-memory debounce (5 min per `(projectId, kind)`) prevents UPDATE spam on hot projects: at most one UPDATE per 5 min per pod per project per kind. Failures are logged and swallowed so ingest is never impacted; the boot-time backfill is the safety net
+
+### Added
+- **Migration 042 `project_data_availability`**: adds nullable `has_logs_at`, `has_traces_at`, `has_metrics_at` `TIMESTAMPTZ` columns to `projects`. No backfill in SQL (handled at runtime, see below)
+- **One-shot backfill at server boot**: `runDataAvailabilityBackfill()` runs fire-and-forget after `app.listen`, guarded by a `data_availability.backfilled` row in `system_settings` so subsequent boots are a no-op. It selects every project with all three flags still NULL and, for each, runs three `LIMIT 1` probes (logs / traces / metrics) via the reservoir in parallel. Throttled in batches of 10 with a 50ms pause to avoid hammering ClickHouse/Timescale/Mongo at boot. On a deployment with 1000 projects this takes ~6s on ClickHouse or MongoDB, up to ~30s on TimescaleDB when most projects are empty (chunk scan confirming zero rows). Force a re-backfill by deleting the safety row
+- **Multi-engine staleness rule**: a project is reported as "has data" only if `has_X_at >= now() - organizations.retention_days`. Handles the "data aged out by retention" case without needing a background worker. The same logic works identically on TimescaleDB, ClickHouse and MongoDB deployments because the flag lives in Postgres and the reservoir only backs the ingest and backfill paths
 
 ### Added
 - **Traces live tail (SSE)**: new `GET /api/v1/traces/stream` Server-Sent Events endpoint polls the traces table once a second and emits new `trace_id`s as they appear, filtered by `projectId`, `service` (CSV) and `error`. On the frontend the traces page now has a "Live tail" switch + rows-limit selector (50/100/200/500/1000, persisted in `localStorage`) in the filter bar; incoming traces are prepended and the list is capped at the chosen limit. The `tracesEventSource` is torn down on `onDestroy` and on every filter-key change

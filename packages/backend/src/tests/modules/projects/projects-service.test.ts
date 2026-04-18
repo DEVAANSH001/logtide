@@ -396,11 +396,9 @@ describe('ProjectsService', () => {
 
             const result = await projectsService.getProjectDataAvailability(organization.id, user.id);
 
-            // Shape: { logs: string[], traces: string[], metrics: string[] }
-            expect(result.logs).toBeDefined();
-            expect(result.traces).toBeDefined();
-            expect(result.metrics).toBeDefined();
-            expect(Array.isArray(result.logs)).toBe(true);
+            expect(result.logs).toEqual([]);
+            expect(result.traces).toEqual([]);
+            expect(result.metrics).toEqual([]);
         });
 
         it('should throw when user is not a member of the organization', async () => {
@@ -412,23 +410,24 @@ describe('ProjectsService', () => {
             ).rejects.toThrow('do not have access');
         });
 
-        it('should include project in logs array when logs exist', async () => {
+        it('includes a project in logs when markHasData(logs) has run', async () => {
             const { user, organization, project } = await createTestContext();
 
-            await db.insertInto('logs').values({
-                project_id: project.id,
-                service: 'api',
-                level: 'info',
-                message: 'test log',
-                time: new Date(),
-            }).execute();
+            await projectsService.markHasData(project.id, 'logs');
 
             const result = await projectsService.getProjectDataAvailability(organization.id, user.id);
             expect(result.logs).toContain(project.id);
+            expect(result.traces).not.toContain(project.id);
+            expect(result.metrics).not.toContain(project.id);
         });
 
-        it('should not include project in logs array when no logs exist', async () => {
+        it('does not include a project whose has_logs_at is older than org retention', async () => {
             const { user, organization, project } = await createTestContext();
+
+            // Force retention to 1 day, then plant has_logs_at 10 days ago.
+            await db.updateTable('organizations').set({ retention_days: 1 }).where('id', '=', organization.id).execute();
+            const tenDaysAgo = new Date(Date.now() - 10 * 24 * 60 * 60 * 1000);
+            await db.updateTable('projects').set({ has_logs_at: tenDaysAgo }).where('id', '=', project.id).execute();
 
             const result = await projectsService.getProjectDataAvailability(organization.id, user.id);
             expect(result.logs).not.toContain(project.id);
@@ -445,19 +444,82 @@ describe('ProjectsService', () => {
             expect(result.metrics).toEqual([]);
         });
 
-        it('should include project in traces array when traces exist', async () => {
-            const { user, organization } = await createTestContext();
-            const { createTestTrace } = await import('../../helpers/factories.js');
-            const traceProject = await projectsService.createProject({
-                organizationId: organization.id,
-                userId: user.id,
-                name: 'Trace Project',
-            });
+        it('includes a project in traces when markHasData(traces) has run', async () => {
+            const { user, organization, project } = await createTestContext();
 
-            await createTestTrace({ projectId: traceProject.id, organizationId: organization.id });
+            await projectsService.markHasData(project.id, 'traces');
 
             const result = await projectsService.getProjectDataAvailability(organization.id, user.id);
-            expect(result.traces).toContain(traceProject.id);
+            expect(result.traces).toContain(project.id);
+        });
+
+        it('includes a project in metrics when markHasData(metrics) has run', async () => {
+            const { user, organization, project } = await createTestContext();
+
+            await projectsService.markHasData(project.id, 'metrics');
+
+            const result = await projectsService.getProjectDataAvailability(organization.id, user.id);
+            expect(result.metrics).toContain(project.id);
+        });
+    });
+
+    describe('markHasData', () => {
+        it('sets the corresponding column to a fresh timestamp', async () => {
+            const { project } = await createTestContext();
+
+            await projectsService.markHasData(project.id, 'logs');
+
+            const row = await db
+                .selectFrom('projects')
+                .select(['has_logs_at', 'has_traces_at', 'has_metrics_at'])
+                .where('id', '=', project.id)
+                .executeTakeFirstOrThrow();
+
+            expect(row.has_logs_at).not.toBeNull();
+            expect(row.has_traces_at).toBeNull();
+            expect(row.has_metrics_at).toBeNull();
+        });
+
+        it('debounces rapid calls for the same (project, kind)', async () => {
+            const { project } = await createTestContext();
+
+            // Fresh service instance does not reset the module-level debounce Map,
+            // so we use a distinct project created in this test to guarantee a
+            // clean slate.
+            await projectsService.markHasData(project.id, 'logs');
+
+            const firstTimestamp = (await db
+                .selectFrom('projects')
+                .select('has_logs_at')
+                .where('id', '=', project.id)
+                .executeTakeFirstOrThrow()).has_logs_at;
+
+            // Second call within the debounce window must be a no-op.
+            await projectsService.markHasData(project.id, 'logs');
+
+            const secondTimestamp = (await db
+                .selectFrom('projects')
+                .select('has_logs_at')
+                .where('id', '=', project.id)
+                .executeTakeFirstOrThrow()).has_logs_at;
+
+            expect(secondTimestamp).toEqual(firstTimestamp);
+        });
+
+        it('does not touch other kinds when updating one', async () => {
+            const { project } = await createTestContext();
+
+            await projectsService.markHasData(project.id, 'traces');
+
+            const row = await db
+                .selectFrom('projects')
+                .select(['has_logs_at', 'has_traces_at', 'has_metrics_at'])
+                .where('id', '=', project.id)
+                .executeTakeFirstOrThrow();
+
+            expect(row.has_traces_at).not.toBeNull();
+            expect(row.has_logs_at).toBeNull();
+            expect(row.has_metrics_at).toBeNull();
         });
     });
 

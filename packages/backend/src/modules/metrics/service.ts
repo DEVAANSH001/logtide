@@ -1,4 +1,5 @@
 import { reservoir } from '../../database/reservoir.js';
+import { projectsService } from '../projects/service.js';
 import type {
   MetricRecord,
   AggregationInterval,
@@ -20,6 +21,10 @@ export class MetricsService {
     }));
 
     const result = await reservoir.ingestMetrics(enriched);
+
+    // Mark the project as having metrics (debounced, fire-and-forget)
+    projectsService.markHasData(projectId, 'metrics').catch(() => {});
+
     return result.ingested;
   }
 

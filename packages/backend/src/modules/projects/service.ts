@@ -1,5 +1,4 @@
 import { db } from '../../database/connection.js';
-import { reservoir } from '../../database/reservoir.js';
 import type { Project, StatusPageVisibility } from '@logtide/shared';
 import bcrypt from 'bcrypt';
 import { validateSlug } from '../../utils/slug.js';
@@ -8,6 +7,20 @@ function generateProjectSlug(name: string): string {
   const base = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
   return base || 'project';
 }
+
+export type DataAvailabilityKind = 'logs' | 'traces' | 'metrics';
+
+const DATA_AVAILABILITY_COLUMNS: Record<DataAvailabilityKind, 'has_logs_at' | 'has_traces_at' | 'has_metrics_at'> = {
+  logs: 'has_logs_at',
+  traces: 'has_traces_at',
+  metrics: 'has_metrics_at',
+};
+
+// Debounce window: after a successful UPDATE we skip further UPDATEs for the
+// same (projectId, kind) for this many ms. Prevents UPDATE spam on hot ingest
+// paths; the timestamp precision we need is "roughly this hour", not ms-accurate.
+const MARK_HAS_DATA_DEBOUNCE_MS = 5 * 60 * 1000;
+const markHasDataLastUpdate = new Map<string, number>();
 
 export interface CreateProjectInput {
   organizationId: string;
@@ -255,7 +268,41 @@ export class ProjectsService {
   }
 
   /**
-   * Get which projects have data per category (logs, traces, metrics)
+   * Mark that a project has received data of a given kind. Debounced in-memory
+   * to avoid hammering Postgres with UPDATE on every ingest batch. Fire-and-forget
+   * from the caller: failures are logged but never bubble up into ingest.
+   */
+  async markHasData(projectId: string, kind: DataAvailabilityKind): Promise<void> {
+    const cacheKey = `${projectId}:${kind}`;
+    const lastUpdate = markHasDataLastUpdate.get(cacheKey) ?? 0;
+    const now = Date.now();
+    if (now - lastUpdate < MARK_HAS_DATA_DEBOUNCE_MS) return;
+
+    // Set the cache entry optimistically so concurrent callers don't pile up
+    // on the same UPDATE.
+    markHasDataLastUpdate.set(cacheKey, now);
+
+    const column = DATA_AVAILABILITY_COLUMNS[kind];
+    try {
+      await db
+        .updateTable('projects')
+        .set({ [column]: new Date() } as Record<string, Date>)
+        .where('id', '=', projectId)
+        .execute();
+    } catch (err) {
+      // Roll back the debounce so a later call can retry.
+      markHasDataLastUpdate.delete(cacheKey);
+      console.error(`[projects] markHasData(${projectId}, ${kind}) failed:`, err);
+    }
+  }
+
+  /**
+   * Get which projects have data per category (logs, traces, metrics).
+   *
+   * Reads from the cached flags on `projects` (populated by ingest-side
+   * markHasData + one-shot backfill at boot). A flag is considered empty if
+   * its timestamp is older than the organization retention window, which
+   * handles the "data aged out" case without a background worker.
    */
   async getProjectDataAvailability(
     organizationId: string,
@@ -263,86 +310,31 @@ export class ProjectsService {
   ): Promise<{ logs: string[]; traces: string[]; metrics: string[] }> {
     await this.checkOrganizationAccess(organizationId, userId);
 
+    const org = await db
+      .selectFrom('organizations')
+      .select('retention_days')
+      .where('id', '=', organizationId)
+      .executeTakeFirst();
+
+    const retentionDays = org?.retention_days ?? 90;
+    const staleThreshold = new Date(Date.now() - retentionDays * 24 * 60 * 60 * 1000);
+
     const projects = await db
       .selectFrom('projects')
-      .select('id')
+      .select(['id', 'has_logs_at', 'has_traces_at', 'has_metrics_at'])
       .where('organization_id', '=', organizationId)
       .execute();
 
-    const projectIds = projects.map((p) => p.id);
-
-    if (projectIds.length === 0) {
-      return { logs: [], traces: [], metrics: [] };
-    }
-
-    const isTimescale = reservoir.getEngineType() === 'timescale';
-    const epoch = new Date(0);
-    const now = new Date();
-
-    if (isTimescale) {
-      const [logsResult, tracesResult, metricsResult] = await Promise.all([
-        db
-          .selectFrom('logs')
-          .select('project_id')
-          .where('project_id', 'in', projectIds)
-          .groupBy('project_id')
-          .execute()
-          .catch(() => []),
-        db
-          .selectFrom('traces')
-          .select('project_id')
-          .where('project_id', 'in', projectIds)
-          .groupBy('project_id')
-          .execute()
-          .catch(() => []),
-        db
-          .selectFrom('metrics')
-          .select('project_id')
-          .where('project_id', 'in', projectIds)
-          .groupBy('project_id')
-          .execute()
-          .catch(() => []),
-      ]);
-
-      return {
-        logs: logsResult.map((r) => r.project_id).filter((id): id is string => id !== null),
-        traces: tracesResult.map((r) => r.project_id),
-        metrics: metricsResult.map((r) => r.project_id),
-      };
-    }
-
-    // Non-timescale (ClickHouse/MongoDB): query via reservoir
-    const [logChecks, traceChecks, metricChecks] = await Promise.all([
-      Promise.all(
-        projectIds.map((id) =>
-          reservoir
-            .count({ projectId: id, from: epoch, to: now })
-            .then((r) => (r.count > 0 ? id : null))
-            .catch(() => null),
-        ),
-      ),
-      Promise.all(
-        projectIds.map((id) =>
-          reservoir
-            .queryTraces({ projectId: id, from: epoch, to: now, limit: 1 })
-            .then((r) => (r.traces.length > 0 ? id : null))
-            .catch(() => null),
-        ),
-      ),
-      Promise.all(
-        projectIds.map((id) =>
-          reservoir
-            .queryMetrics({ projectId: id, from: epoch, to: now, limit: 1 })
-            .then((r) => (r.metrics.length > 0 ? id : null))
-            .catch(() => null),
-        ),
-      ),
-    ]);
+    const isFresh = (ts: Date | string | null): boolean => {
+      if (ts === null) return false;
+      const t = ts instanceof Date ? ts : new Date(ts);
+      return t >= staleThreshold;
+    };
 
     return {
-      logs: logChecks.filter((id): id is string => id !== null),
-      traces: traceChecks.filter((id): id is string => id !== null),
-      metrics: metricChecks.filter((id): id is string => id !== null),
+      logs: projects.filter((p) => isFresh(p.has_logs_at)).map((p) => p.id),
+      traces: projects.filter((p) => isFresh(p.has_traces_at)).map((p) => p.id),
+      metrics: projects.filter((p) => isFresh(p.has_metrics_at)).map((p) => p.id),
     };
   }
 
