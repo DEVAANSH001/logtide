@@ -78,6 +78,7 @@
   let hasMoreLogs = $state(false);
   let expandedRows = $state(new Set<number>());
   let isLoading = $state(false);
+  let hasLoadedOnce = $state(false);
   let logsContainer = $state<HTMLDivElement | null>(null);
   let selectedLogIndex = $state(-1);
 
@@ -460,6 +461,7 @@
     if (selectedProjects.length === 0) {
       logs = [];
       hasMoreLogs = false;
+      hasLoadedOnce = true;
       return;
     }
 
@@ -516,6 +518,7 @@
       hasMoreLogs = false;
     } finally {
       isLoading = false;
+      hasLoadedOnce = true;
     }
   }
 
@@ -1648,10 +1651,23 @@
           </div>
         </CardHeader>
         <CardContent>
-          {#if isLoading && logs.length === 0}
+          {#if !hasLoadedOnce || (isLoading && logs.length === 0)}
             <SkeletonTable rows={8} columns={6} />
           {:else if paginatedLogs.length === 0}
-            <EmptyLogs />
+            {#if searchQuery.trim() || activeFilterCount > 0}
+              <div class="text-center py-16 text-muted-foreground space-y-2">
+                <p class="text-sm">No logs match the current filters.</p>
+                <button
+                  type="button"
+                  class="text-xs underline underline-offset-2 hover:text-foreground"
+                  onclick={clearAllFilters}
+                >
+                  Clear filters
+                </button>
+              </div>
+            {:else}
+              <EmptyLogs />
+            {/if}
           {:else if viewMode === "terminal"}
             <TableLoadingOverlay loading={isLoading}>
             <TerminalLogView
@@ -1901,7 +1917,7 @@
                     Previous
                   </Button>
                   <span class="text-sm text-muted-foreground px-3">
-                    Page {currentPage}{#if totalPages > 0} of {totalPages}{/if}
+                    Page {currentPage}{totalPages > 0 ? ` of ${totalPages.toLocaleString()}` : ""}
                   </span>
                   <Button
                     variant="outline"

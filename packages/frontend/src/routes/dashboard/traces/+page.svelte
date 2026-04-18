@@ -72,6 +72,7 @@
   let stats = $state<TraceStats | null>(null);
   let totalTraces = $state(0);
   let isLoading = $state(false);
+  let hasLoadedOnce = $state(false);
   let availableServices = $state<string[]>([]);
 
   // View toggle: list or map
@@ -217,6 +218,7 @@
     if (!selectedProject) {
       traces = [];
       totalTraces = 0;
+      hasLoadedOnce = true;
       return;
     }
 
@@ -251,6 +253,7 @@
       traces = [];
     } finally {
       isLoading = false;
+      hasLoadedOnce = true;
     }
   }
 
@@ -611,10 +614,23 @@
         </div>
       </CardHeader>
       <CardContent>
-        {#if isLoading && traces.length === 0}
+        {#if !hasLoadedOnce || (isLoading && traces.length === 0)}
           <SkeletonTable rows={7} columns={7} />
         {:else if traces.length === 0}
-          <EmptyTraces />
+          {#if selectedService || errorOnly}
+            <div class="text-center py-16 text-muted-foreground space-y-2">
+              <p class="text-sm">No traces match the current filters.</p>
+              <button
+                type="button"
+                class="text-xs underline underline-offset-2 hover:text-foreground"
+                onclick={() => { selectedService = null; errorOnly = false; loadTraces(); }}
+              >
+                Clear filters
+              </button>
+            </div>
+          {:else}
+            <EmptyTraces />
+          {/if}
         {:else}
           <TableLoadingOverlay loading={isLoading}>
           <div class="rounded-md border">

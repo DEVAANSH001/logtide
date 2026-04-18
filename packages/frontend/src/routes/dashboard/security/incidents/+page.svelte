@@ -28,6 +28,7 @@
 	// State
 	let incidents = $state<Incident[]>([]);
 	let loading = $state(false);
+	let hasLoadedOnce = $state(false);
 	let error = $state('');
 	let lastLoadedOrg = $state<string | null>(null);
 	let refreshing = $state(false);
@@ -111,6 +112,7 @@
 			toastStore.error(error);
 		} finally {
 			loading = false;
+			hasLoadedOnce = true;
 		}
 	}
 
@@ -283,7 +285,7 @@
 	</div>
 
 	<!-- Content -->
-	{#if loading && incidents.length === 0}
+	{#if !hasLoadedOnce || (loading && incidents.length === 0)}
 		<SkeletonTable rows={5} columns={5} />
 	{:else if error}
 		<div class="text-center py-24">
@@ -313,7 +315,7 @@
 		<!-- Pagination -->
 		<div class="mt-6 flex items-center justify-between">
 			<div class="text-sm text-muted-foreground">
-				Page {currentPage}{#if totalPages > 0} of {totalPages}{/if}
+				Page {currentPage}{totalPages > 0 ? ` of ${totalPages.toLocaleString()}` : ""}
 			</div>
 			<div class="flex items-center gap-2">
 				<Button
