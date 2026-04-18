@@ -377,13 +377,12 @@ export class CustomDashboardsService {
         id: id(5),
         layout: { x: 0, y: 2, w: 12, h: 4 },
         config: {
-          type: 'time_series',
-          title: 'Log Volume (Last 24 Hours)',
-          source: 'logs',
+          type: 'activity_overview',
+          title: 'Activity Overview (Last 24 Hours)',
+          source: 'mixed',
           projectId: null,
-          interval: '24h',
-          levels: ['debug', 'info', 'warn', 'error', 'critical'],
-          service: null,
+          timeRange: '24h',
+          series: ['logs', 'log_errors', 'spans', 'span_errors', 'detections', 'alerts'],
         },
       },
       {

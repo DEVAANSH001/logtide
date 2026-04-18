@@ -13,6 +13,7 @@
   import Shield from '@lucide/svelte/icons/shield';
   import Settings from '@lucide/svelte/icons/settings';
   import BarChart3 from '@lucide/svelte/icons/bar-chart-3';
+  import Activity from '@lucide/svelte/icons/activity';
   import PanelLeftClose from '@lucide/svelte/icons/panel-left-close';
   import Keyboard from '@lucide/svelte/icons/keyboard';
   import RefreshCw from '@lucide/svelte/icons/refresh-cw';
@@ -43,6 +44,7 @@
     { label: 'Errors', href: '/dashboard/errors', icon: Bug, shortcut: 'g r' },
     { label: 'Alerts', href: '/dashboard/alerts', icon: AlertTriangle, shortcut: 'g a' },
     { label: 'Security', href: '/dashboard/security', icon: Shield, shortcut: 'g e' },
+    { label: 'Monitoring', href: '/dashboard/monitoring', icon: Activity, shortcut: 'g o' },
     { label: 'Projects', href: '/dashboard/projects', icon: FolderKanban, shortcut: 'g p' },
     { label: 'Settings', href: '/dashboard/settings', icon: Settings, shortcut: 'g x' },
   ];

@@ -185,7 +185,7 @@
   <title>{data?.projectName ?? $page.params.projectSlug} - Status</title>
 </svelte:head>
 
-<div class="mx-auto max-w-3xl px-4 py-10 sm:px-6">
+<div class="mx-auto max-w-3xl px-3 py-6 sm:px-6 sm:py-10">
   {#if loading}
     <div class="flex items-center justify-center py-32">
       <div class="h-8 w-8 animate-spin rounded-full border-[3px] border-muted border-t-primary"></div>
@@ -202,7 +202,7 @@
           type="password"
           bind:value={passwordInput}
           placeholder="Enter password"
-          class="h-10 w-64 rounded-md border bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary text-center"
+          class="h-10 w-full max-w-xs rounded-md border bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary text-center"
           autofocus
         />
         {#if passwordError}
@@ -308,8 +308,8 @@
                 {#each incident.updates as update (update.id)}
                   <div>
                     <div class="flex items-center gap-1.5">
-                      <span class="text-[10px] font-medium uppercase text-muted-foreground">{update.status}</span>
-                      <span class="text-[10px] text-muted-foreground">{new Date(update.createdAt).toLocaleString()}</span>
+                      <span class="text-xs font-medium uppercase text-muted-foreground">{update.status}</span>
+                      <span class="text-xs text-muted-foreground">{new Date(update.createdAt).toLocaleString()}</span>
                     </div>
                     <p class="text-xs">{update.message}</p>
                   </div>
@@ -327,7 +327,7 @@
           <div class="flex items-center gap-3 mb-3">
             <span class="h-2.5 w-2.5 rounded-full {statusDot(monitor.status)} shadow-sm shrink-0"></span>
             <span class="font-medium text-sm flex-1 truncate">{monitor.name}</span>
-            <span class="text-[10px] uppercase tracking-wider text-muted-foreground font-medium px-1.5 py-0.5 rounded bg-muted">{getMonitorTypeLabel(monitor.type)}</span>
+            <span class="hidden sm:inline-flex text-[10px] uppercase tracking-wider text-muted-foreground font-medium px-1.5 py-0.5 rounded bg-muted">{getMonitorTypeLabel(monitor.type)}</span>
             {#if avgUptime(monitor.uptimeHistory) != null}
               <span class="text-xs font-semibold tabular-nums px-2 py-0.5 rounded-full ring-1 ring-inset {badgeColor(avgUptime(monitor.uptimeHistory) ?? 0)}">
                 {avgUptime(monitor.uptimeHistory)?.toFixed(1)}%
@@ -337,12 +337,12 @@
 
           <div class="flex items-center gap-[2px]">
             {#each Array(Math.max(0, 45 - monitor.uptimeHistory.length)) as _}
-              <div class="bar-cell flex-1 min-w-[6px] h-[22px] rounded-sm bg-muted">
+              <div class="bar-cell flex-1 min-w-[4px] sm:min-w-[6px] h-[22px] rounded-sm bg-muted">
                 <span class="bar-tooltip">No data</span>
               </div>
             {/each}
             {#each monitor.uptimeHistory.slice(-45) as bucket}
-              <div class="bar-cell flex-1 min-w-[6px] h-[22px] rounded-sm {barColor(bucket.uptimePct)} transition-colors hover:brightness-110">
+              <div class="bar-cell flex-1 min-w-[4px] sm:min-w-[6px] h-[22px] rounded-sm {barColor(bucket.uptimePct)} transition-colors hover:brightness-110">
                 <span class="bar-tooltip">{new Date(bucket.bucket).toLocaleDateString()}<br/>{pct(bucket.uptimePct).toFixed(1)}%</span>
               </div>
             {/each}
@@ -369,15 +369,15 @@
             <div class="rounded-lg border bg-card px-4 py-3">
               <div class="flex items-center justify-between mb-1">
                 <p class="text-sm font-medium">{incident.title}</p>
-                <span class="text-[10px] text-muted-foreground">{new Date(incident.resolvedAt ?? incident.createdAt).toLocaleDateString()}</span>
+                <span class="text-xs text-muted-foreground">{new Date(incident.resolvedAt ?? incident.createdAt).toLocaleDateString()}</span>
               </div>
               {#if incident.updates.length > 0}
                 <div class="space-y-1 border-l-2 border-muted pl-3 mt-2">
                   {#each incident.updates as update (update.id)}
                     <div>
                       <div class="flex items-center gap-1.5">
-                        <span class="text-[10px] font-medium uppercase text-muted-foreground">{update.status}</span>
-                        <span class="text-[10px] text-muted-foreground">{new Date(update.createdAt).toLocaleString()}</span>
+                        <span class="text-xs font-medium uppercase text-muted-foreground">{update.status}</span>
+                        <span class="text-xs text-muted-foreground">{new Date(update.createdAt).toLocaleString()}</span>
                       </div>
                       <p class="text-xs text-muted-foreground">{update.message}</p>
                     </div>
@@ -390,9 +390,12 @@
       </div>
     {/if}
 
-    <div class="mt-6 text-center text-[10px] text-muted-foreground space-y-1">
+    <div class="mt-8 text-center text-xs text-muted-foreground space-y-1.5">
       <p>Last updated {new Date(data.lastUpdated).toLocaleString()}</p>
-      <p><a href="https://logtide.dev" class="hover:text-foreground transition-colors">Powered by LogTide</a></p>
+      <p>
+        Powered by
+        <a href="https://logtide.dev" class="font-medium text-primary hover:underline underline-offset-2">LogTide</a>
+      </p>
     </div>
   {/if}
 </div>

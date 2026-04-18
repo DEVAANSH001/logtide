@@ -114,6 +114,16 @@ const traceLatencySchema = z.object({
   showPercentiles: z.array(z.enum(['p50', 'p95', 'p99'])).min(1),
 });
 
+const traceVolumeSchema = z.object({
+  type: z.literal('trace_volume'),
+  title: z.string().min(1).max(100),
+  source: z.literal('traces'),
+  projectId: z.string().uuid().nullable(),
+  serviceName: z.string().max(200).nullable(),
+  timeRange: z.enum(['1h', '6h', '24h', '7d']),
+  showErrors: z.boolean(),
+});
+
 const detectionEventsSchema = z.object({
   type: z.literal('detection_events'),
   title: z.string().min(1).max(100),
@@ -142,6 +152,24 @@ const systemStatusSchema = z.object({
   showCounts: z.boolean(),
 });
 
+const activityOverviewSeriesEnum = z.enum([
+  'logs',
+  'log_errors',
+  'spans',
+  'span_errors',
+  'detections',
+  'alerts',
+]);
+
+const activityOverviewSchema = z.object({
+  type: z.literal('activity_overview'),
+  title: z.string().min(1).max(100),
+  source: z.literal('mixed'),
+  projectId: z.string().uuid().nullable(),
+  timeRange: z.enum(['24h', '7d', '30d']),
+  series: z.array(activityOverviewSeriesEnum).min(1),
+});
+
 export const panelConfigSchema = z.discriminatedUnion('type', [
   timeSeriesSchema,
   singleStatSchema,
@@ -151,9 +179,11 @@ export const panelConfigSchema = z.discriminatedUnion('type', [
   metricChartSchema,
   metricStatSchema,
   traceLatencySchema,
+  traceVolumeSchema,
   detectionEventsSchema,
   monitorStatusSchema,
   systemStatusSchema,
+  activityOverviewSchema,
 ]);
 
 export interface BackendPanelDefinition {
@@ -203,6 +233,11 @@ export const panelRegistry: Record<PanelType, BackendPanelDefinition> = {
     schema: traceLatencySchema as unknown as z.ZodType<PanelConfig>,
     defaultLayout: { w: 6, h: 4 },
   },
+  trace_volume: {
+    type: 'trace_volume',
+    schema: traceVolumeSchema as unknown as z.ZodType<PanelConfig>,
+    defaultLayout: { w: 8, h: 3 },
+  },
   detection_events: {
     type: 'detection_events',
     schema: detectionEventsSchema as unknown as z.ZodType<PanelConfig>,
@@ -217,6 +252,11 @@ export const panelRegistry: Record<PanelType, BackendPanelDefinition> = {
     type: 'system_status',
     schema: systemStatusSchema as unknown as z.ZodType<PanelConfig>,
     defaultLayout: { w: 12, h: 2 },
+  },
+  activity_overview: {
+    type: 'activity_overview',
+    schema: activityOverviewSchema as unknown as z.ZodType<PanelConfig>,
+    defaultLayout: { w: 12, h: 4 },
   },
 };
 

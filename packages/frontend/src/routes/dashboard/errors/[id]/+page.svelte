@@ -343,7 +343,7 @@
 			<Tabs.List>
 				<Tabs.Trigger value="stacktrace">Stack Trace</Tabs.Trigger>
 				<Tabs.Trigger value="trend">Trend</Tabs.Trigger>
-				<Tabs.Trigger value="logs">Logs ({logsTotal})</Tabs.Trigger>
+				<Tabs.Trigger value="logs">Logs ({logsTotal.toLocaleString()})</Tabs.Trigger>
 			</Tabs.List>
 
 			<!-- Stack Trace Tab -->
@@ -455,7 +455,7 @@
 											<Spinner class="w-4 h-4 mr-2" />
 											Loading...
 										{:else}
-											Load More ({logsTotal - logs.length} remaining)
+											Load More ({(logsTotal - logs.length).toLocaleString()} remaining)
 										{/if}
 									</Button>
 								</div>

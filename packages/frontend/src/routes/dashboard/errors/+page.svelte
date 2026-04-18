@@ -46,6 +46,7 @@
 	});
 	let total = $state(0);
 	let loading = $state(false);
+	let hasLoadedOnce = $state(false);
 	let error = $state('');
 	let lastLoadedOrg = $state<string | null>(null);
 	let refreshing = $state(false);
@@ -115,6 +116,7 @@
 			toastStore.error(error);
 		} finally {
 			loading = false;
+			hasLoadedOnce = true;
 		}
 	}
 
@@ -321,7 +323,7 @@
 			</CardTitle>
 		</CardHeader>
 		<CardContent>
-			{#if loading && groups.length === 0}
+			{#if !hasLoadedOnce || (loading && groups.length === 0)}
 				<SkeletonTable rows={5} columns={4} />
 			{:else if error}
 				<div class="text-center py-12 text-destructive">
