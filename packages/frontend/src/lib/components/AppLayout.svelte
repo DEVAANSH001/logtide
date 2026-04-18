@@ -25,7 +25,6 @@
   const DropdownMenuGroup = DropdownMenuPrimitive.Group;
   import { Badge } from "$lib/components/ui/badge";
   import OrganizationSwitcher from "$lib/components/OrganizationSwitcher.svelte";
-  import UserSettingsDialog from "$lib/components/UserSettingsDialog.svelte";
   import LayoutDashboard from "@lucide/svelte/icons/layout-dashboard";
   import FileText from "@lucide/svelte/icons/file-text";
   import FolderKanban from "@lucide/svelte/icons/folder-kanban";
@@ -64,7 +63,6 @@
 
   let user = $state<any>(null);
   let token = $state<string | null>(null);
-  let showUserSettings = $state(false);
   let notifications = $state<Notification[]>([]);
   let unreadCount = $state(0);
   let loadingNotifications = $state(false);
@@ -784,7 +782,7 @@
             <DropdownMenuSeparator />
             <DropdownMenuGroup>
               <DropdownMenuItem
-                onclick={() => (showUserSettings = true)}
+                onclick={() => goto("/dashboard/account")}
                 class="cursor-pointer"
               >
                 <Settings class="w-4 h-4 mr-2" />
@@ -819,7 +817,6 @@
   </div>
 </div>
 
-<UserSettingsDialog bind:open={showUserSettings} />
 <CommandPalette />
 <ShortcutsHelpModal />
 </TooltipPrimitive.Provider>
