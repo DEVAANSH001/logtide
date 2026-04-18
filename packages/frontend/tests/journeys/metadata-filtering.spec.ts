@@ -53,6 +53,8 @@ test.describe('Metadata Filtering Journey', () => {
   });
 
   test('2. Metadata filter by environment=production shows only prod log', async ({ page }) => {
+    // Metadata controls now live inside the "Metadata" pill popover.
+    await page.getByTestId('filter-pill-metadata').click();
     await page.getByTestId('metadata-filter-add').click();
 
     await page.getByTestId('metadata-filter-key').fill('environment');
@@ -67,6 +69,7 @@ test.describe('Metadata Filtering Journey', () => {
   });
 
   test('3. Clearing metadata filters restores all logs', async ({ page }) => {
+    await page.getByTestId('filter-pill-metadata').click();
     await page.getByTestId('metadata-filter-add').click();
     await page.getByTestId('metadata-filter-key').fill('environment');
     await page.getByTestId('metadata-filter-op').selectOption('equals');
@@ -75,7 +78,13 @@ test.describe('Metadata Filtering Journey', () => {
 
     await expect(page.getByText('dev boom')).not.toBeVisible({ timeout: 10000 });
 
-    await page.getByTestId('metadata-filter-clear-all').click();
+    // Apply does not close the popover, so the Clear button is still reachable.
+    // Guard: if the popover has been dismissed (e.g. by an outside click), re-open it.
+    const clearBtn = page.getByTestId('metadata-filter-clear-all');
+    if (!(await clearBtn.isVisible().catch(() => false))) {
+      await page.getByTestId('filter-pill-metadata').click();
+    }
+    await clearBtn.click();
 
     await expect(page.getByText('prod boom')).toBeVisible({ timeout: 10000 });
     await expect(page.getByText('dev boom')).toBeVisible();

@@ -83,7 +83,7 @@
 		<CardTitle class="text-base font-semibold flex items-center gap-2">
 			<AlertTriangle class="w-4 h-4 text-destructive" />
 			Detection Events
-			<span class="text-muted-foreground font-normal">({detections.length})</span>
+			<span class="text-muted-foreground font-normal">({detections.length.toLocaleString()})</span>
 		</CardTitle>
 	</CardHeader>
 	<CardContent>

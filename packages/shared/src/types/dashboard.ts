@@ -23,9 +23,11 @@ export type PanelType =
   | 'metric_chart'
   | 'metric_stat'
   | 'trace_latency'
+  | 'trace_volume'
   | 'detection_events'
   | 'monitor_status'
-  | 'system_status';
+  | 'system_status'
+  | 'activity_overview';
 
 // ─── Layout (12-column grid) ────────────────────────────────────────────────
 
@@ -140,6 +142,18 @@ export interface TraceLatencyConfig {
   showPercentiles: Array<'p50' | 'p95' | 'p99'>;
 }
 
+// ─── Trace volume panel ──────────────────────────────────────────────────────
+
+export interface TraceVolumeConfig {
+  type: 'trace_volume';
+  title: string;
+  source: 'traces';
+  projectId: string | null;
+  serviceName: string | null;
+  timeRange: '1h' | '6h' | '24h' | '7d';
+  showErrors: boolean;
+}
+
 // ─── Detection events panel ──────────────────────────────────────────────────
 
 export interface DetectionEventsConfig {
@@ -172,6 +186,25 @@ export interface SystemStatusConfig {
   showCounts: boolean;
 }
 
+// ─── Activity overview panel (logs + traces + detections + alerts) ──────────
+
+export type ActivityOverviewSeries =
+  | 'logs'
+  | 'log_errors'
+  | 'spans'
+  | 'span_errors'
+  | 'detections'
+  | 'alerts';
+
+export interface ActivityOverviewConfig {
+  type: 'activity_overview';
+  title: string;
+  source: 'mixed';
+  projectId: string | null;
+  timeRange: '24h' | '7d' | '30d';
+  series: ActivityOverviewSeries[];
+}
+
 export type PanelConfig =
   | TimeSeriesConfig
   | SingleStatConfig
@@ -181,9 +214,11 @@ export type PanelConfig =
   | MetricChartConfig
   | MetricStatConfig
   | TraceLatencyConfig
+  | TraceVolumeConfig
   | DetectionEventsConfig
   | MonitorStatusConfig
-  | SystemStatusConfig;
+  | SystemStatusConfig
+  | ActivityOverviewConfig;
 
 // ─── Panel instance (layout + config) ───────────────────────────────────────
 

@@ -302,7 +302,7 @@
 						<TabsTrigger value="detections" class="gap-2">
 							<AlertTriangle class="w-4 h-4" />
 							Detections
-							<Badge variant="secondary" class="ml-1">{detections.length}</Badge>
+							<Badge variant="secondary" class="ml-1">{detections.length.toLocaleString()}</Badge>
 						</TabsTrigger>
 						<TabsTrigger value="comments" class="gap-2">
 							<MessageSquare class="w-4 h-4" />

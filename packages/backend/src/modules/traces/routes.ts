@@ -9,11 +9,15 @@ const tracesRoutes: FastifyPluginAsync = async (fastify) => {
       querystring: {
         type: 'object',
         properties: {
+          // projectId and service accept CSV strings to stay compatible with
+          // the existing query-string parser; we split on commas server-side.
           projectId: { type: 'string' },
           service: { type: 'string' },
           error: { type: 'boolean' },
           from: { type: 'string', format: 'date-time' },
           to: { type: 'string', format: 'date-time' },
+          minDurationMs: { type: 'number', minimum: 0 },
+          maxDurationMs: { type: 'number', minimum: 0 },
           limit: { type: 'number', minimum: 1, maximum: 100, default: 50 },
           offset: { type: 'number', minimum: 0, default: 0 },
         },
@@ -22,18 +26,94 @@ const tracesRoutes: FastifyPluginAsync = async (fastify) => {
     handler: async (request: any, reply) => {
       if (!await requireFullAccess(request, reply)) return;
 
-      const { projectId: queryProjectId, service, error, from, to, limit, offset } = request.query as {
+      const {
+        projectId: queryProjectId,
+        service,
+        error,
+        from,
+        to,
+        minDurationMs,
+        maxDurationMs,
+        limit,
+        offset,
+      } = request.query as {
         projectId?: string;
         service?: string;
         error?: boolean;
         from?: string;
         to?: string;
+        minDurationMs?: number;
+        maxDurationMs?: number;
         limit?: number;
         offset?: number;
       };
 
-      const projectId = queryProjectId || request.projectId;
+      const projectIdsRaw = queryProjectId || request.projectId;
+      if (!projectIdsRaw) {
+        return reply.code(400).send({
+          error: 'Project context missing - provide projectId query parameter',
+        });
+      }
 
+      const projectIds: string[] = Array.isArray(projectIdsRaw)
+        ? (projectIdsRaw as string[])
+        : String(projectIdsRaw).split(',').map((s: string) => s.trim()).filter(Boolean);
+
+      if (request.user?.id) {
+        for (const pid of projectIds) {
+          const hasAccess = await verifyProjectAccess(pid, request.user.id);
+          if (!hasAccess) {
+            return reply.code(403).send({
+              error: 'Access denied - you do not have access to this project',
+            });
+          }
+        }
+      }
+
+      const services = service
+        ? service.split(',').map((s) => s.trim()).filter(Boolean)
+        : undefined;
+
+      const result = await tracesService.listTraces({
+        projectId: projectIds.length === 1 ? projectIds[0] : projectIds,
+        service: services && services.length > 0 ? (services.length === 1 ? services[0] : services) : undefined,
+        error,
+        from: from ? new Date(from) : undefined,
+        to: to ? new Date(to) : undefined,
+        minDurationMs,
+        maxDurationMs,
+        limit: limit || 50,
+        offset: offset || 0,
+      });
+
+      return result;
+    },
+  });
+
+  // Live tail stream (SSE) - must be registered before :traceId wildcard
+  fastify.get('/api/v1/traces/stream', {
+    schema: {
+      description: 'Live tail traces via Server-Sent Events',
+      tags: ['traces'],
+      querystring: {
+        type: 'object',
+        properties: {
+          projectId: { type: 'string' },
+          service: { type: 'string' }, // CSV of service names
+          error: { type: 'boolean' },
+        },
+      },
+    },
+    handler: async (request: any, reply) => {
+      if (!await requireFullAccess(request, reply)) return;
+
+      const { projectId: queryProjectId, service, error } = request.query as {
+        projectId?: string;
+        service?: string;
+        error?: boolean;
+      };
+
+      const projectId = queryProjectId || request.projectId;
       if (!projectId) {
         return reply.code(400).send({
           error: 'Project context missing - provide projectId query parameter',
@@ -49,17 +129,68 @@ const tracesRoutes: FastifyPluginAsync = async (fastify) => {
         }
       }
 
-      const result = await tracesService.listTraces({
-        projectId,
-        service,
-        error,
-        from: from ? new Date(from) : undefined,
-        to: to ? new Date(to) : undefined,
-        limit: limit || 50,
-        offset: offset || 0,
-      });
+      const services = service
+        ? service.split(',').map((s: string) => s.trim()).filter(Boolean)
+        : undefined;
 
-      return result;
+      reply.raw.setHeader('Access-Control-Allow-Origin', '*');
+      reply.raw.setHeader('Access-Control-Allow-Credentials', 'false');
+      reply.raw.setHeader('Content-Type', 'text/event-stream');
+      reply.raw.setHeader('Cache-Control', 'no-cache');
+      reply.raw.setHeader('Connection', 'keep-alive');
+
+      let lastTimestamp = new Date();
+      let sentIds = new Set<string>();
+
+      reply.raw.write(`data: ${JSON.stringify({ type: 'connected', timestamp: new Date() })}\n\n`);
+
+      const intervalId = setInterval(async () => {
+        try {
+          const result = await tracesService.listTraces({
+            projectId,
+            service: services && services.length > 0 ? (services.length === 1 ? services[0] : services) : undefined,
+            error,
+            from: lastTimestamp,
+            to: new Date(),
+            limit: 100,
+            offset: 0,
+          });
+
+          if (result.traces.length > 0) {
+            const fresh = result.traces.filter((t) => !sentIds.has(t.trace_id));
+            if (fresh.length > 0) {
+              let maxTimeMs = lastTimestamp.getTime();
+              for (const t of result.traces) {
+                const tMs = new Date(t.start_time).getTime();
+                if (tMs > maxTimeMs) maxTimeMs = tMs;
+              }
+              lastTimestamp = new Date(maxTimeMs);
+
+              // Rebuild sentIds with just the latest-bucket trace_ids to bound memory.
+              sentIds = new Set<string>();
+              for (const t of result.traces) {
+                if (new Date(t.start_time).getTime() === maxTimeMs) {
+                  sentIds.add(t.trace_id);
+                }
+              }
+
+              for (const t of fresh) {
+                reply.raw.write(`data: ${JSON.stringify({ type: 'trace', data: t })}\n\n`);
+              }
+            }
+          }
+
+          reply.raw.write(`: heartbeat\n\n`);
+        } catch (e) {
+          console.error('Error in traces SSE stream:', e);
+          clearInterval(intervalId);
+          reply.raw.end();
+        }
+      }, 1000);
+
+      request.raw.on('close', () => {
+        clearInterval(intervalId);
+      });
     },
   });
 

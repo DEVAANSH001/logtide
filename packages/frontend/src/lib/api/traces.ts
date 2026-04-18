@@ -37,11 +37,13 @@ export interface TracesResponse {
 }
 
 export interface TraceFilters {
-  projectId: string;
-  service?: string;
+  projectId: string | string[];
+  service?: string | string[];
   error?: boolean;
   from?: string;
   to?: string;
+  minDurationMs?: number;
+  maxDurationMs?: number;
   limit?: number;
   offset?: number;
 }
@@ -116,11 +118,17 @@ export class TracesAPI {
   async getTraces(filters: TraceFilters): Promise<TracesResponse> {
     const params = new URLSearchParams();
 
-    params.append('projectId', filters.projectId);
-    if (filters.service) params.append('service', filters.service);
+    const projectIds = Array.isArray(filters.projectId) ? filters.projectId : [filters.projectId];
+    params.append('projectId', projectIds.join(','));
+    if (filters.service) {
+      const services = Array.isArray(filters.service) ? filters.service : [filters.service];
+      if (services.length > 0) params.append('service', services.join(','));
+    }
     if (filters.error !== undefined) params.append('error', String(filters.error));
     if (filters.from) params.append('from', filters.from);
     if (filters.to) params.append('to', filters.to);
+    if (filters.minDurationMs != null) params.append('minDurationMs', filters.minDurationMs.toString());
+    if (filters.maxDurationMs != null) params.append('maxDurationMs', filters.maxDurationMs.toString());
     if (filters.limit) params.append('limit', filters.limit.toString());
     if (filters.offset != null) params.append('offset', filters.offset.toString());
 
@@ -212,6 +220,29 @@ export class TracesAPI {
     }
 
     return response.json();
+  }
+
+  /**
+   * Open an SSE stream that emits new traces as they arrive. Filters match
+   * the traces query (projectId, service, error). Returns an EventSource the
+   * caller is responsible for closing.
+   */
+  createTracesEventSource(filters: {
+    projectId: string;
+    service?: string | string[];
+    error?: boolean;
+  }): EventSource {
+    const params = new URLSearchParams();
+    params.append('projectId', filters.projectId);
+    if (filters.service) {
+      const services = Array.isArray(filters.service) ? filters.service : [filters.service];
+      if (services.length > 0) params.append('service', services.join(','));
+    }
+    if (filters.error !== undefined) params.append('error', String(filters.error));
+    const token = this.getToken();
+    if (token) params.append('token', token);
+    const url = `${getApiBaseUrl()}/traces/stream?${params.toString()}`;
+    return new EventSource(url, { withCredentials: true });
   }
 
   async getServiceMap(projectId: string, from?: string, to?: string): Promise<EnrichedServiceDependencies> {

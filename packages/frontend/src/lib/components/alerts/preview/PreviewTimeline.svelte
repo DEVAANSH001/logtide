@@ -229,8 +229,8 @@
 			class="h-[200px] md:h-[250px] w-full"
 		></div>
 		<p class="text-xs text-center text-muted-foreground mt-2">
-			{incidents.length} incident{incidents.length !== 1 ? "s" : ""} detected
-			- dashed line shows threshold ({threshold} logs)
+			{incidents.length.toLocaleString()} incident{incidents.length !== 1 ? "s" : ""} detected
+			- dashed line shows threshold ({threshold.toLocaleString()} logs)
 		</p>
 	{/if}
 </div>

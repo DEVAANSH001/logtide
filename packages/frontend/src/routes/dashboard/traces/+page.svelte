@@ -32,9 +32,14 @@
     TableRow,
   } from "$lib/components/ui/table";
   import * as Select from "$lib/components/ui/select";
+  import * as Popover from "$lib/components/ui/popover";
+  import Input from "$lib/components/ui/input/input.svelte";
+  import Switch from "$lib/components/ui/switch/switch.svelte";
+  import TimeRangePicker from "$lib/components/TimeRangePicker.svelte";
   import GitBranch from "@lucide/svelte/icons/git-branch";
   import ChevronLeft from "@lucide/svelte/icons/chevron-left";
   import ChevronRight from "@lucide/svelte/icons/chevron-right";
+  import ChevronDown from "@lucide/svelte/icons/chevron-down";
   import AlertCircle from "@lucide/svelte/icons/alert-circle";
   import Timer from "@lucide/svelte/icons/timer";
   import Layers from "@lucide/svelte/icons/layers";
@@ -44,11 +49,15 @@
   import X from "@lucide/svelte/icons/x";
   import ArrowRight from "@lucide/svelte/icons/arrow-right";
   import ArrowLeft from "@lucide/svelte/icons/arrow-left";
+  import Clock from "@lucide/svelte/icons/clock";
+  import Radio from "@lucide/svelte/icons/radio";
   import EmptyTraces from "$lib/components/EmptyTraces.svelte";
   import Spinner from "$lib/components/Spinner.svelte";
   import { SkeletonTable, TableLoadingOverlay } from "$lib/components/ui/skeleton";
   import { layoutStore } from "$lib/stores/layout";
   import { toastStore } from "$lib/stores/toast";
+  import { shortcutsStore } from "$lib/stores/shortcuts";
+  import type { SpanRecord } from "$lib/api/traces";
 
   let token = $state<string | null>(null);
   let maxWidthClass = $state("max-w-7xl");
@@ -72,14 +81,30 @@
   let stats = $state<TraceStats | null>(null);
   let totalTraces = $state(0);
   let isLoading = $state(false);
+  let hasLoadedOnce = $state(false);
   let availableServices = $state<string[]>([]);
 
   // View toggle: list or map
   let activeView = $state<'list' | 'map'>('list');
 
   // List view filters
-  let selectedService = $state<string | null>(null);
-  let errorOnly = $state(false);
+  let selectedServices = $state<string[]>([]);
+  let statusFilter = $state<'all' | 'errors' | 'ok'>('all');
+  let minDurationMs = $state<number | null>(null);
+  let maxDurationMs = $state<number | null>(null);
+  let traceIdInput = $state("");
+
+  // Live tail
+  let liveTail = $state(false);
+  let liveTailLimit = $state(100);
+  let liveTailConnectionKey = $state<string | null>(null);
+  let tracesEventSource: EventSource | null = null;
+
+  // Row expansion + keyboard nav
+  let expandedTraceIds = $state<Set<string>>(new Set());
+  let traceSpansCache = $state<Map<string, SpanRecord[]>>(new Map());
+  let loadingSpansFor = $state<Set<string>>(new Set());
+  let selectedTraceIndex = $state(-1);
 
   // Map view state
   let mapData = $state<EnrichedServiceDependencies | null>(null);
@@ -92,15 +117,18 @@
   });
 
   onDestroy(() => {
+    stopLiveTail();
+    shortcutsStore.unregisterScope('traces');
     unsubAuthStore();
   });
 
   // Local project and time range state
   let projects = $state<Project[]>([]);
   let selectedProject = $state<string | null>(null);
+  let timeRangePicker = $state<ReturnType<typeof TimeRangePicker> | null>(null);
   let timeRangeType = $state<'last_hour' | 'last_24h' | 'last_7d' | 'custom'>('last_24h');
-  let customFrom = $state<string | null>(null);
-  let customTo = $state<string | null>(null);
+  let customFromTime = $state("");
+  let customToTime = $state("");
 
   let projectsAPI = $derived(new ProjectsAPI(() => token));
 
@@ -124,6 +152,9 @@
   }
 
   function getTimeRange(): { from: Date; to: Date } {
+    if (timeRangePicker) {
+      return timeRangePicker.getTimeRange();
+    }
     const now = new Date();
     switch (timeRangeType) {
       case 'last_hour':
@@ -132,13 +163,32 @@
         return { from: new Date(now.getTime() - 24 * 60 * 60 * 1000), to: now };
       case 'last_7d':
         return { from: new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000), to: now };
-      case 'custom':
-        return {
-          from: customFrom ? new Date(customFrom) : new Date(now.getTime() - 24 * 60 * 60 * 1000),
-          to: customTo ? new Date(customTo) : now,
-        };
+      case 'custom': {
+        const from = customFromTime ? new Date(customFromTime) : new Date(now.getTime() - 24 * 60 * 60 * 1000);
+        const to = customToTime ? new Date(customToTime) : now;
+        return { from, to };
+      }
       default:
         return { from: new Date(now.getTime() - 24 * 60 * 60 * 1000), to: now };
+    }
+  }
+
+  async function handleTimeRangeChange() {
+    if (!timeRangePicker) return;
+    const newType = timeRangePicker.getType();
+    const custom = timeRangePicker.getCustomValues();
+    customFromTime = custom.from;
+    customToTime = custom.to;
+    // Mutating `timeRangeType` re-fires the effect that reloads traces and
+    // services. We only trigger an explicit load when the preset type didn't
+    // change (custom range edit within the same "custom" preset).
+    if (newType === timeRangeType) {
+      currentPage = 1;
+      await loadServices();
+      loadTraces();
+      if (activeView === 'map') loadMap();
+    } else {
+      timeRangeType = newType;
     }
   }
 
@@ -150,6 +200,74 @@
   let lastLoadedOrg = $state<string | null>(null);
 
   onMount(() => {
+    shortcutsStore.setScope('traces');
+    shortcutsStore.register([
+      {
+        id: 'traces:focus',
+        combo: '/',
+        label: 'Focus trace ID input',
+        scope: 'traces',
+        category: 'search',
+        action: () => {
+          const el = document.getElementById('trace-id-input') as HTMLInputElement | null;
+          el?.focus();
+        },
+      },
+      {
+        id: 'traces:refresh',
+        combo: 'r',
+        label: 'Refresh results',
+        scope: 'traces',
+        category: 'actions',
+        action: () => loadTraces(),
+      },
+      {
+        id: 'traces:next',
+        combo: 'j',
+        label: 'Next trace',
+        scope: 'traces',
+        category: 'navigation',
+        action: () => {
+          if (traces.length === 0) return;
+          selectedTraceIndex = Math.min(selectedTraceIndex + 1, traces.length - 1);
+          scrollToSelectedTrace();
+        },
+      },
+      {
+        id: 'traces:prev',
+        combo: 'k',
+        label: 'Previous trace',
+        scope: 'traces',
+        category: 'navigation',
+        action: () => {
+          if (traces.length === 0) return;
+          selectedTraceIndex = Math.max(selectedTraceIndex - 1, 0);
+          scrollToSelectedTrace();
+        },
+      },
+      {
+        id: 'traces:expand',
+        combo: 'enter',
+        label: 'Expand/collapse selected trace',
+        scope: 'traces',
+        category: 'actions',
+        action: () => {
+          if (selectedTraceIndex >= 0 && selectedTraceIndex < traces.length) {
+            void toggleTraceRow(traces[selectedTraceIndex].trace_id);
+          }
+        },
+      },
+    ]);
+
+    // Restore live-tail limit persisted across sessions.
+    if (typeof localStorage !== 'undefined') {
+      const saved = localStorage.getItem('logtide_traces_livetail_limit');
+      if (saved) {
+        const n = parseInt(saved, 10);
+        if (!Number.isNaN(n) && n > 0) liveTailLimit = n;
+      }
+    }
+
     // Read URL params for cross-page links
     const urlService = page.url.searchParams.get('service');
     const urlProjectId = page.url.searchParams.get('projectId');
@@ -157,7 +275,7 @@
     const urlTo = page.url.searchParams.get('to');
 
     if (urlService) {
-      selectedService = urlService;
+      selectedServices = [urlService];
     }
 
     if (urlProjectId) {
@@ -166,8 +284,8 @@
 
     if (urlFrom && urlTo) {
       timeRangeType = 'custom';
-      customFrom = urlFrom;
-      customTo = urlTo;
+      customFromTime = urlFrom;
+      customToTime = urlTo;
     }
 
     loadProjects();
@@ -217,6 +335,7 @@
     if (!selectedProject) {
       traces = [];
       totalTraces = 0;
+      hasLoadedOnce = true;
       return;
     }
 
@@ -228,10 +347,14 @@
 
       const response = await tracesAPI.getTraces({
         projectId: selectedProject,
-        service: selectedService || undefined,
-        error: errorOnly || undefined,
+        service: selectedServices.length > 0
+          ? (selectedServices.length === 1 ? selectedServices[0] : selectedServices)
+          : undefined,
+        error: statusFilter === 'errors' ? true : statusFilter === 'ok' ? false : undefined,
         from: timeRange.from.toISOString(),
         to: timeRange.to.toISOString(),
+        minDurationMs: minDurationMs ?? undefined,
+        maxDurationMs: maxDurationMs ?? undefined,
         limit: pageSize,
         offset: offset,
       });
@@ -251,6 +374,77 @@
       traces = [];
     } finally {
       isLoading = false;
+      hasLoadedOnce = true;
+    }
+  }
+
+  // ─── Live tail ────────────────────────────────────────────────────────
+  $effect(() => {
+    // React to liveTail toggle and the filters that change the subscription.
+    liveTail;
+    selectedProject;
+    selectedServices;
+    statusFilter;
+
+    if (!liveTail || !selectedProject) {
+      const wasLive = liveTailConnectionKey !== null;
+      stopLiveTail();
+      liveTailConnectionKey = null;
+      if (wasLive && selectedProject) {
+        loadTraces();
+      }
+      return;
+    }
+
+    const key = `${selectedProject}|${selectedServices.join(',')}|${statusFilter}`;
+    if (key === liveTailConnectionKey) return;
+
+    stopLiveTail();
+    startLiveTail();
+    liveTailConnectionKey = key;
+  });
+
+  function startLiveTail() {
+    if (!selectedProject) return;
+    try {
+      const es = tracesAPI.createTracesEventSource({
+        projectId: selectedProject,
+        service: selectedServices.length > 0 ? selectedServices : undefined,
+        error: statusFilter === 'errors' ? true : statusFilter === 'ok' ? false : undefined,
+      });
+
+      es.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          if (data.type === 'trace') {
+            const incoming = data.data as TraceRecord;
+            // Prepend and dedupe by trace_id; cap at liveTailLimit.
+            const existing = traces.findIndex((t) => t.trace_id === incoming.trace_id);
+            const next = existing >= 0
+              ? [incoming, ...traces.filter((_, i) => i !== existing)]
+              : [incoming, ...traces];
+            traces = next.slice(0, liveTailLimit);
+            totalTraces = traces.length;
+          }
+        } catch (e) {
+          console.error('[TracesLiveTail] parse error', e);
+        }
+      };
+
+      es.onerror = (err) => {
+        console.error('[TracesLiveTail] EventSource error:', err);
+      };
+
+      tracesEventSource = es;
+    } catch (e) {
+      console.error('[TracesLiveTail] failed to start:', e);
+    }
+  }
+
+  function stopLiveTail() {
+    if (tracesEventSource) {
+      tracesEventSource.close();
+      tracesEventSource = null;
     }
   }
 
@@ -324,7 +518,7 @@
   }
 
   function viewTracesForService(serviceName: string) {
-    selectedService = serviceName;
+    selectedServices = [serviceName];
     selectedNode = null;
     activeView = 'list';
     currentPage = 1;
@@ -407,6 +601,152 @@
       goto(`/dashboard/traces/${traceId}?projectId=${selectedProject}`);
     }
   }
+
+  function jumpToTraceId() {
+    const id = traceIdInput.trim();
+    if (!id || !selectedProject) return;
+    goto(`/dashboard/traces/${id}?projectId=${selectedProject}`);
+  }
+
+  async function toggleTraceRow(traceId: string) {
+    const next = new Set(expandedTraceIds);
+    if (next.has(traceId)) {
+      next.delete(traceId);
+      expandedTraceIds = next;
+      return;
+    }
+    next.add(traceId);
+    expandedTraceIds = next;
+    if (!traceSpansCache.has(traceId) && selectedProject) {
+      const loading = new Set(loadingSpansFor);
+      loading.add(traceId);
+      loadingSpansFor = loading;
+      try {
+        const spans = await tracesAPI.getTraceSpans(traceId, selectedProject);
+        const cache = new Map(traceSpansCache);
+        cache.set(traceId, spans);
+        traceSpansCache = cache;
+      } catch (e) {
+        console.error('Failed to load spans:', e);
+        toastStore.error('Failed to load spans for this trace');
+      } finally {
+        const loading2 = new Set(loadingSpansFor);
+        loading2.delete(traceId);
+        loadingSpansFor = loading2;
+      }
+    }
+  }
+
+  function exportTracesJson() {
+    if (traces.length === 0) return;
+    const blob = new Blob([JSON.stringify(traces, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `traces-${Date.now()}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
+  function exportTracesCsv() {
+    if (traces.length === 0) return;
+    const header = 'start_time,service,operation,duration_ms,span_count,error,trace_id';
+    const rows = traces.map((t) => [
+      t.start_time,
+      JSON.stringify(t.root_service_name || t.service_name),
+      JSON.stringify(t.root_operation_name || ''),
+      t.duration_ms,
+      t.span_count,
+      t.error,
+      t.trace_id,
+    ].join(','));
+    const csv = [header, ...rows].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `traces-${Date.now()}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
+  function scrollToSelectedTrace() {
+    if (selectedTraceIndex < 0) return;
+    const row = document.querySelector(`[data-trace-index="${selectedTraceIndex}"]`);
+    if (row instanceof HTMLElement) {
+      row.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    }
+  }
+
+  // ─── Pill derived helpers ─────────────────────────────────────────────
+  function truncate(s: string, max = 16): string {
+    return s.length > max ? s.slice(0, max - 1) + "\u2026" : s;
+  }
+
+  const timeRangeLabel = $derived.by(() => {
+    switch (timeRangeType) {
+      case 'last_hour': return 'Last hour';
+      case 'last_24h': return 'Last 24 hours';
+      case 'last_7d': return 'Last 7 days';
+      case 'custom': return 'Custom range';
+      default: return 'Time range';
+    }
+  });
+
+  const projectPillLabel = $derived.by(() => {
+    if (!selectedProject) return 'Project: —';
+    const p = projects.find((x) => x.id === selectedProject);
+    return `Project: ${truncate(p?.name ?? 'unknown')}`;
+  });
+
+  const servicesPillLabel = $derived.by(() => {
+    if (selectedServices.length === 0) return 'All services';
+    if (selectedServices.length === 1) return `Service: ${truncate(selectedServices[0])}`;
+    return `Services: ${selectedServices.length}`;
+  });
+  const servicesPillActive = $derived(selectedServices.length > 0);
+
+  const statusPillLabel = $derived(
+    statusFilter === 'errors'
+      ? 'Status: errors'
+      : statusFilter === 'ok'
+        ? 'Status: ok'
+        : 'All statuses'
+  );
+  const statusPillActive = $derived(statusFilter !== 'all');
+
+  const durationPillLabel = $derived.by(() => {
+    if (minDurationMs == null && maxDurationMs == null) return 'Duration';
+    const lo = minDurationMs != null ? `${minDurationMs}ms` : '0';
+    const hi = maxDurationMs != null ? `${maxDurationMs}ms` : '∞';
+    return `${lo}–${hi}`;
+  });
+  const durationPillActive = $derived(minDurationMs != null || maxDurationMs != null);
+
+  const tracePillLabel = $derived(
+    traceIdInput.trim().length > 0 ? `Trace: ${truncate(traceIdInput, 10)}` : 'Trace ID'
+  );
+  const tracePillActive = $derived(traceIdInput.trim().length > 0);
+
+  const activeFilterCount = $derived(
+    (servicesPillActive ? 1 : 0) +
+    (statusPillActive ? 1 : 0) +
+    (durationPillActive ? 1 : 0) +
+    (tracePillActive ? 1 : 0)
+  );
+
+  function clearAllFilters() {
+    selectedServices = [];
+    statusFilter = 'all';
+    minDurationMs = null;
+    maxDurationMs = null;
+    traceIdInput = "";
+    applyFilters();
+  }
 </script>
 
 <svelte:head>
@@ -434,7 +774,7 @@
             <GitBranch class="w-5 h-5 text-muted-foreground" />
             <div>
               <p class="text-sm text-muted-foreground">Total Traces</p>
-              <p class="text-2xl font-bold">{stats.total_traces}</p>
+              <p class="text-2xl font-bold">{stats.total_traces.toLocaleString()}</p>
             </div>
           </div>
         </CardContent>
@@ -445,7 +785,7 @@
             <Layers class="w-5 h-5 text-muted-foreground" />
             <div>
               <p class="text-sm text-muted-foreground">Total Spans</p>
-              <p class="text-2xl font-bold">{stats.total_spans}</p>
+              <p class="text-2xl font-bold">{stats.total_spans.toLocaleString()}</p>
             </div>
           </div>
         </CardContent>
@@ -475,124 +815,360 @@
     </div>
   {/if}
 
-  <!-- View switcher -->
-  <div class="flex items-center gap-2 mb-6">
-    <div class="inline-flex items-center rounded-lg border bg-card p-1">
-      <Button
-        variant={activeView === 'list' ? 'default' : 'ghost'}
-        size="sm"
-        onclick={() => switchView('list')}
-        class="gap-2"
-      >
-        <List class="w-4 h-4" />
-        List
-      </Button>
-      <Button
-        variant={activeView === 'map' ? 'default' : 'ghost'}
-        size="sm"
-        onclick={() => switchView('map')}
-        class="gap-2"
-      >
-        <Network class="w-4 h-4" />
-        Map
-      </Button>
+  <!-- Filter bar (Search-style pill layout) -->
+  <div class="mb-6 rounded-lg border bg-card p-2 sm:p-3 space-y-2">
+    <div class="flex flex-wrap items-center gap-2">
+      <Popover.Root>
+        <Popover.Trigger>
+          {#snippet child({ props })}
+            <Button {...props} variant="outline" size="sm" class="gap-2">
+              <Clock class="w-4 h-4" />
+              <span>{timeRangeLabel}</span>
+              <ChevronDown class="w-4 h-4 opacity-50" />
+            </Button>
+          {/snippet}
+        </Popover.Trigger>
+        <Popover.Content class="w-[320px] max-w-[90vw] p-4" align="start">
+          <TimeRangePicker
+            bind:this={timeRangePicker}
+            initialType={timeRangeType}
+            initialCustomFrom={customFromTime}
+            initialCustomTo={customToTime}
+            onchange={handleTimeRangeChange}
+          />
+        </Popover.Content>
+      </Popover.Root>
+
+      <div class="flex items-center gap-2 ml-auto">
+        {#if activeView === 'list'}
+          <Label for="traces-live-tail" class="m-0 flex items-center gap-1.5 text-sm font-normal cursor-pointer">
+            <Radio
+              class="w-3.5 h-3.5 {liveTail ? 'text-green-500 animate-pulse' : 'text-muted-foreground'}"
+            />
+            Live tail
+          </Label>
+          <Switch id="traces-live-tail" bind:checked={liveTail} />
+          {#if liveTail}
+            <Select.Root
+              type="single"
+              value={String(liveTailLimit)}
+              onValueChange={(v) => {
+                if (v) {
+                  liveTailLimit = parseInt(v, 10);
+                  localStorage.setItem('logtide_traces_livetail_limit', String(liveTailLimit));
+                  if (traces.length > liveTailLimit) {
+                    traces = traces.slice(0, liveTailLimit);
+                  }
+                }
+              }}
+            >
+              <Select.Trigger class="w-[95px] h-9">
+                {liveTailLimit}
+              </Select.Trigger>
+              <Select.Content>
+                <Select.Item value="50">50</Select.Item>
+                <Select.Item value="100">100</Select.Item>
+                <Select.Item value="200">200</Select.Item>
+                <Select.Item value="500">500</Select.Item>
+                <Select.Item value="1000">1000</Select.Item>
+              </Select.Content>
+            </Select.Root>
+          {/if}
+        {/if}
+
+        <div class="inline-flex items-center rounded-md border bg-background p-0.5">
+          <Button
+            variant={activeView === 'list' ? 'secondary' : 'ghost'}
+            size="sm"
+            onclick={() => switchView('list')}
+            class="h-7 gap-1.5 text-xs"
+          >
+            <List class="w-3.5 h-3.5" />
+            <span class="hidden sm:inline">List</span>
+          </Button>
+          <Button
+            variant={activeView === 'map' ? 'secondary' : 'ghost'}
+            size="sm"
+            onclick={() => switchView('map')}
+            class="h-7 gap-1.5 text-xs"
+          >
+            <Network class="w-3.5 h-3.5" />
+            <span class="hidden sm:inline">Map</span>
+          </Button>
+        </div>
+
+        {#if activeView === 'list'}
+          <Popover.Root>
+            <Popover.Trigger>
+              {#snippet child({ props })}
+                <Button
+                  {...props}
+                  variant="outline"
+                  size="sm"
+                  class="gap-2"
+                  disabled={liveTail || traces.length === 0}
+                >
+                  <Download class="w-4 h-4" />
+                  <span class="hidden sm:inline">Export</span>
+                </Button>
+              {/snippet}
+            </Popover.Trigger>
+            <Popover.Content class="w-[180px] max-w-[90vw] p-1.5" align="end">
+              <div class="space-y-0.5">
+                <button
+                  type="button"
+                  class="w-full text-left text-sm px-2 py-1.5 rounded hover:bg-accent"
+                  onclick={exportTracesJson}
+                >
+                  Export JSON
+                </button>
+                <button
+                  type="button"
+                  class="w-full text-left text-sm px-2 py-1.5 rounded hover:bg-accent"
+                  onclick={exportTracesCsv}
+                >
+                  Export CSV
+                </button>
+              </div>
+            </Popover.Content>
+          </Popover.Root>
+        {/if}
+      </div>
+    </div>
+
+    <div class="flex flex-wrap items-center gap-1.5 pt-2 border-t border-dashed">
+      <!-- Project pill -->
+      <Popover.Root>
+        <Popover.Trigger>
+          {#snippet child({ props })}
+            <Button
+              {...props}
+              variant={selectedProject ? 'secondary' : 'outline'}
+              size="sm"
+              class="h-7 gap-1.5 text-xs font-normal"
+            >
+              <span>{projectPillLabel}</span>
+              <ChevronDown class="w-3 h-3 opacity-60" />
+            </Button>
+          {/snippet}
+        </Popover.Trigger>
+        <Popover.Content class="w-[280px] max-w-[90vw] p-0" align="start">
+          <div class="max-h-[260px] overflow-y-auto p-1.5">
+            {#if projects.length === 0}
+              <div class="text-center py-4 text-sm text-muted-foreground">No projects available</div>
+            {:else}
+              <div class="space-y-1">
+                {#each projects as project}
+                  <label class="flex items-center gap-2 cursor-pointer hover:bg-accent px-2 py-1 rounded-sm">
+                    <input
+                      type="radio"
+                      name="trace-project"
+                      value={project.id}
+                      checked={selectedProject === project.id}
+                      onchange={() => { selectedProject = project.id; applyFilters(); }}
+                      class="h-4 w-4"
+                    />
+                    <span class="text-sm flex-1">{project.name}</span>
+                  </label>
+                {/each}
+              </div>
+            {/if}
+          </div>
+        </Popover.Content>
+      </Popover.Root>
+
+      <!-- Services pill -->
+      <Popover.Root>
+        <Popover.Trigger>
+          {#snippet child({ props })}
+            <Button
+              {...props}
+              variant={servicesPillActive ? 'secondary' : 'outline'}
+              size="sm"
+              class="h-7 gap-1.5 text-xs font-normal"
+            >
+              <span>{servicesPillLabel}</span>
+              <ChevronDown class="w-3 h-3 opacity-60" />
+            </Button>
+          {/snippet}
+        </Popover.Trigger>
+        <Popover.Content class="w-[280px] max-w-[90vw] p-0" align="start">
+          <div class="p-1.5 border-b">
+            <div class="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                class="flex-1 h-7 text-xs"
+                onclick={() => { selectedServices = [...availableServices]; applyFilters(); }}
+              >
+                Select All
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                class="flex-1 h-7 text-xs"
+                onclick={() => { selectedServices = []; applyFilters(); }}
+              >
+                Clear
+              </Button>
+            </div>
+          </div>
+          <div class="max-h-[260px] overflow-y-auto p-1.5">
+            {#if availableServices.length === 0}
+              <div class="text-center py-4 text-sm text-muted-foreground">No services available</div>
+            {:else}
+              <div class="space-y-1">
+                {#each availableServices as service}
+                  <label class="flex items-center gap-2 cursor-pointer hover:bg-accent px-2 py-1 rounded-sm">
+                    <input
+                      type="checkbox"
+                      value={service}
+                      checked={selectedServices.includes(service)}
+                      onchange={(e) => {
+                        if ((e.currentTarget as HTMLInputElement).checked) {
+                          selectedServices = [...selectedServices, service];
+                        } else {
+                          selectedServices = selectedServices.filter((s) => s !== service);
+                        }
+                        applyFilters();
+                      }}
+                      class="h-4 w-4 rounded border-gray-300"
+                    />
+                    <span class="text-sm flex-1">{service}</span>
+                  </label>
+                {/each}
+              </div>
+            {/if}
+          </div>
+        </Popover.Content>
+      </Popover.Root>
+
+      <!-- Status pill (tri-state) -->
+      <Popover.Root>
+        <Popover.Trigger>
+          {#snippet child({ props })}
+            <Button
+              {...props}
+              variant={statusPillActive ? 'secondary' : 'outline'}
+              size="sm"
+              class="h-7 gap-1.5 text-xs font-normal"
+            >
+              <span>{statusPillLabel}</span>
+              <ChevronDown class="w-3 h-3 opacity-60" />
+            </Button>
+          {/snippet}
+        </Popover.Trigger>
+        <Popover.Content class="w-[200px] max-w-[90vw] p-1.5" align="start">
+          <div class="space-y-1">
+            {#each [['all', 'All statuses'], ['errors', 'Errors only'], ['ok', 'Success only']] as [value, label]}
+              <label class="flex items-center gap-2 cursor-pointer hover:bg-accent px-2 py-1 rounded-sm">
+                <input
+                  type="radio"
+                  name="trace-status"
+                  value={value}
+                  checked={statusFilter === value}
+                  onchange={() => { statusFilter = value as typeof statusFilter; applyFilters(); }}
+                  class="h-4 w-4"
+                />
+                <span class="text-sm flex-1">{label}</span>
+              </label>
+            {/each}
+          </div>
+        </Popover.Content>
+      </Popover.Root>
+
+      <!-- Duration pill -->
+      <Popover.Root>
+        <Popover.Trigger>
+          {#snippet child({ props })}
+            <Button
+              {...props}
+              variant={durationPillActive ? 'secondary' : 'outline'}
+              size="sm"
+              class="h-7 gap-1.5 text-xs font-normal"
+            >
+              <span>{durationPillLabel}</span>
+              <ChevronDown class="w-3 h-3 opacity-60" />
+            </Button>
+          {/snippet}
+        </Popover.Trigger>
+        <Popover.Content class="w-[280px] max-w-[90vw] p-3 space-y-2" align="start">
+          <Label class="text-xs uppercase text-muted-foreground">Duration range (ms)</Label>
+          <div class="flex items-center gap-2">
+            <Input
+              type="number"
+              placeholder="Min"
+              value={minDurationMs ?? ''}
+              oninput={(e) => {
+                const v = (e.currentTarget as HTMLInputElement).value;
+                minDurationMs = v === '' ? null : Number(v);
+              }}
+              class="h-8 text-sm"
+            />
+            <span class="text-muted-foreground text-xs">–</span>
+            <Input
+              type="number"
+              placeholder="Max"
+              value={maxDurationMs ?? ''}
+              oninput={(e) => {
+                const v = (e.currentTarget as HTMLInputElement).value;
+                maxDurationMs = v === '' ? null : Number(v);
+              }}
+              class="h-8 text-sm"
+            />
+          </div>
+          <div class="flex gap-2">
+            <Button size="sm" class="h-7 text-xs" onclick={() => applyFilters()}>Apply</Button>
+            <Button size="sm" variant="ghost" class="h-7 text-xs text-muted-foreground" onclick={() => { minDurationMs = null; maxDurationMs = null; applyFilters(); }}>Clear</Button>
+          </div>
+        </Popover.Content>
+      </Popover.Root>
+
+      <!-- Trace ID pill -->
+      <Popover.Root>
+        <Popover.Trigger>
+          {#snippet child({ props })}
+            <Button
+              {...props}
+              variant={tracePillActive ? 'secondary' : 'outline'}
+              size="sm"
+              class="h-7 gap-1.5 text-xs font-normal"
+            >
+              <span>{tracePillLabel}</span>
+              <ChevronDown class="w-3 h-3 opacity-60" />
+            </Button>
+          {/snippet}
+        </Popover.Trigger>
+        <Popover.Content class="w-[320px] max-w-[90vw] p-3 space-y-2" align="start">
+          <Label for="trace-id-input" class="text-xs uppercase text-muted-foreground">Trace ID</Label>
+          <Input
+            id="trace-id-input"
+            type="text"
+            placeholder="Paste a trace ID to jump to it..."
+            bind:value={traceIdInput}
+            onkeydown={(e) => { if ((e as KeyboardEvent).key === 'Enter') jumpToTraceId(); }}
+            class="h-8 text-sm font-mono"
+          />
+          <div class="flex gap-2">
+            <Button size="sm" class="h-7 text-xs" onclick={jumpToTraceId} disabled={!traceIdInput.trim() || !selectedProject}>Open trace</Button>
+            {#if traceIdInput.trim().length > 0}
+              <Button size="sm" variant="ghost" class="h-7 text-xs text-muted-foreground" onclick={() => { traceIdInput = ""; }}>Clear</Button>
+            {/if}
+          </div>
+        </Popover.Content>
+      </Popover.Root>
+
+      {#if activeFilterCount > 0}
+        <button
+          type="button"
+          class="ml-auto text-xs text-muted-foreground hover:text-foreground underline underline-offset-2"
+          onclick={clearAllFilters}
+        >
+          Clear all
+        </button>
+      {/if}
     </div>
   </div>
-
-  <!-- Filters (visible in both list and map views) -->
-  <Card class="mb-6">
-    <CardHeader>
-      <CardTitle>Filters</CardTitle>
-    </CardHeader>
-    <CardContent>
-      <div class="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <div class="space-y-2">
-          <Label>Project</Label>
-          <Select.Root
-            type="single"
-            value={selectedProject || ""}
-            onValueChange={(v) => {
-              selectedProject = v || null;
-            }}
-          >
-            <Select.Trigger class="w-full">
-              {projects.find(p => p.id === selectedProject)?.name || "Select project"}
-            </Select.Trigger>
-            <Select.Content>
-              {#each projects as project}
-                <Select.Item value={project.id}>{project.name}</Select.Item>
-              {/each}
-            </Select.Content>
-          </Select.Root>
-        </div>
-
-        <div class="space-y-2">
-          <Label>Time Range</Label>
-          <Select.Root
-            type="single"
-            value={timeRangeType}
-            onValueChange={(v) => {
-              if (v) timeRangeType = v as typeof timeRangeType;
-            }}
-          >
-            <Select.Trigger class="w-full">
-              {timeRangeType === 'last_hour' ? 'Last Hour' : timeRangeType === 'last_24h' ? 'Last 24 Hours' : timeRangeType === 'last_7d' ? 'Last 7 Days' : 'Custom'}
-            </Select.Trigger>
-            <Select.Content>
-              <Select.Item value="last_hour">Last Hour</Select.Item>
-              <Select.Item value="last_24h">Last 24 Hours</Select.Item>
-              <Select.Item value="last_7d">Last 7 Days</Select.Item>
-              {#if timeRangeType === 'custom'}
-                <Select.Item value="custom">Custom</Select.Item>
-              {/if}
-            </Select.Content>
-          </Select.Root>
-        </div>
-
-        <div class="space-y-2">
-          <Label>Service</Label>
-          <Select.Root
-            type="single"
-            value={selectedService || ""}
-            onValueChange={(v) => {
-              selectedService = v || null;
-              applyFilters();
-            }}
-          >
-            <Select.Trigger class="w-full">
-              {selectedService || "All services"}
-            </Select.Trigger>
-            <Select.Content>
-              <Select.Item value="">All services</Select.Item>
-              {#each availableServices as service}
-                <Select.Item value={service}>{service}</Select.Item>
-              {/each}
-            </Select.Content>
-          </Select.Root>
-        </div>
-
-        <div class="space-y-2">
-          <Label>Status</Label>
-          <Select.Root
-            type="single"
-            value={errorOnly ? "error" : "all"}
-            onValueChange={(v) => {
-              errorOnly = v === "error";
-              applyFilters();
-            }}
-          >
-            <Select.Trigger class="w-full">
-              {errorOnly ? "Errors only" : "All traces"}
-            </Select.Trigger>
-            <Select.Content>
-              <Select.Item value="all">All traces</Select.Item>
-              <Select.Item value="error">Errors only</Select.Item>
-            </Select.Content>
-          </Select.Root>
-        </div>
-      </div>
-    </CardContent>
-  </Card>
 
   <!-- LIST VIEW -->
   {#if activeView === 'list'}
@@ -602,7 +1178,7 @@
         <div class="flex items-center justify-between">
           <CardTitle>
             {#if totalTraces > 0}
-              {totalTraces}
+              {totalTraces.toLocaleString()}
               {totalTraces === 1 ? "trace" : "traces"}
             {:else}
               No traces
@@ -611,10 +1187,23 @@
         </div>
       </CardHeader>
       <CardContent>
-        {#if isLoading && traces.length === 0}
+        {#if !hasLoadedOnce || (isLoading && traces.length === 0)}
           <SkeletonTable rows={7} columns={7} />
         {:else if traces.length === 0}
-          <EmptyTraces />
+          {#if activeFilterCount > 0}
+            <div class="text-center py-16 text-muted-foreground space-y-2">
+              <p class="text-sm">No traces match the current filters.</p>
+              <button
+                type="button"
+                class="text-xs underline underline-offset-2 hover:text-foreground"
+                onclick={clearAllFilters}
+              >
+                Clear filters
+              </button>
+            </div>
+          {:else}
+            <EmptyTraces />
+          {/if}
         {:else}
           <TableLoadingOverlay loading={isLoading}>
           <div class="rounded-md border">
@@ -631,10 +1220,14 @@
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {#each traces as trace}
+                {#each traces as trace, i}
+                  {@const expanded = expandedTraceIds.has(trace.trace_id)}
+                  {@const spans = traceSpansCache.get(trace.trace_id)}
+                  {@const loadingSpans = loadingSpansFor.has(trace.trace_id)}
                   <TableRow
-                    class="cursor-pointer hover:bg-muted/50"
-                    onclick={() => viewTrace(trace.trace_id)}
+                    class="cursor-pointer hover:bg-muted/50 {selectedTraceIndex === i ? 'bg-muted/50' : ''}"
+                    data-trace-index={i}
+                    onclick={() => toggleTraceRow(trace.trace_id)}
                   >
                     <TableCell class="font-mono text-xs">
                       {formatDateTime(trace.start_time)}
@@ -673,6 +1266,61 @@
                       </Button>
                     </TableCell>
                   </TableRow>
+                  {#if expanded}
+                    <TableRow class="bg-muted/20">
+                      <TableCell colspan={7} class="p-0">
+                        <div class="p-4 space-y-2">
+                          <div class="flex items-center gap-2 text-xs text-muted-foreground font-mono">
+                            <span>trace_id:</span>
+                            <span class="text-foreground">{trace.trace_id}</span>
+                          </div>
+                          {#if loadingSpans}
+                            <div class="flex items-center gap-2 text-sm text-muted-foreground py-2">
+                              <Spinner class="w-4 h-4" />
+                              Loading spans...
+                            </div>
+                          {:else if spans && spans.length > 0}
+                            <div class="border rounded-md overflow-hidden bg-background">
+                              <div class="max-h-[300px] overflow-y-auto">
+                                <table class="w-full text-xs">
+                                  <thead class="text-muted-foreground bg-muted/40 sticky top-0">
+                                    <tr>
+                                      <th class="px-3 py-2 text-left font-medium w-[150px]">Service</th>
+                                      <th class="px-3 py-2 text-left font-medium">Operation</th>
+                                      <th class="px-3 py-2 text-left font-medium w-[80px]">Kind</th>
+                                      <th class="px-3 py-2 text-right font-medium w-[90px]">Duration</th>
+                                      <th class="px-3 py-2 text-center font-medium w-[80px]">Status</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {#each spans as span}
+                                      <tr class="border-t hover:bg-muted/30">
+                                        <td class="px-3 py-1.5 font-mono">{span.service_name}</td>
+                                        <td class="px-3 py-1.5 truncate max-w-md">{span.operation_name}</td>
+                                        <td class="px-3 py-1.5 text-muted-foreground">{span.kind ?? '—'}</td>
+                                        <td class="px-3 py-1.5 text-right font-mono">{formatDuration(span.duration_ms)}</td>
+                                        <td class="px-3 py-1.5 text-center">
+                                          {#if span.status_code === 'ERROR'}
+                                            <Badge variant="destructive" class="text-[10px] px-1.5 py-0">Error</Badge>
+                                          {:else if span.status_code === 'OK'}
+                                            <Badge variant="secondary" class="text-[10px] px-1.5 py-0">OK</Badge>
+                                          {:else}
+                                            <span class="text-muted-foreground">—</span>
+                                          {/if}
+                                        </td>
+                                      </tr>
+                                    {/each}
+                                  </tbody>
+                                </table>
+                              </div>
+                            </div>
+                          {:else if spans}
+                            <div class="text-sm text-muted-foreground py-2">No spans for this trace.</div>
+                          {/if}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  {/if}
                 {/each}
               </TableBody>
             </Table>
@@ -681,10 +1329,10 @@
           {#if traces.length > 0}
             <div class="flex items-center justify-between mt-6 px-2">
               <div class="text-sm text-muted-foreground">
-                Showing {(currentPage - 1) * pageSize + 1} to {Math.min(
+                Showing {((currentPage - 1) * pageSize + 1).toLocaleString()} to {Math.min(
                   currentPage * pageSize,
                   totalTraces,
-                )} of {totalTraces} traces
+                ).toLocaleString()} of {totalTraces.toLocaleString()} traces
               </div>
               <div class="flex items-center gap-2">
                 <Button

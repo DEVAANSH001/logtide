@@ -6,7 +6,8 @@ describe('panelRegistry', () => {
     const types = [
       'time_series', 'single_stat', 'top_n_table', 'live_log_stream',
       'alert_status', 'metric_chart', 'metric_stat', 'trace_latency',
-      'detection_events', 'monitor_status', 'system_status',
+      'trace_volume', 'detection_events', 'monitor_status', 'system_status',
+      'activity_overview',
     ];
     for (const type of types) {
       expect(panelRegistry[type as keyof typeof panelRegistry]).toBeDefined();

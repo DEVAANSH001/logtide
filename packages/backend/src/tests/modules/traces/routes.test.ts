@@ -165,6 +165,154 @@ describe('Traces Routes', () => {
       expect(response.body.traces).toHaveLength(2);
       expect(response.body.total).toBe(5);
     });
+
+    it('should accept a CSV list of services and match any of them', async () => {
+      await createTestTrace({
+        projectId: context.project.id,
+        organizationId: context.organization.id,
+        serviceName: 'svc-a',
+      });
+      await createTestTrace({
+        projectId: context.project.id,
+        organizationId: context.organization.id,
+        serviceName: 'svc-b',
+      });
+      await createTestTrace({
+        projectId: context.project.id,
+        organizationId: context.organization.id,
+        serviceName: 'svc-c',
+      });
+
+      const response = await request(app.server)
+        .get('/api/v1/traces')
+        .query({ service: 'svc-a,svc-b' })
+        .set('x-api-key', apiKey)
+        .expect(200);
+
+      const services = response.body.traces.map((t: any) => t.service_name).sort();
+      expect(services).toEqual(['svc-a', 'svc-b']);
+    });
+
+    it('should filter by minDurationMs', async () => {
+      await createTestTrace({
+        projectId: context.project.id,
+        organizationId: context.organization.id,
+        durationMs: 50,
+      });
+      await createTestTrace({
+        projectId: context.project.id,
+        organizationId: context.organization.id,
+        durationMs: 500,
+      });
+
+      const response = await request(app.server)
+        .get('/api/v1/traces')
+        .query({ minDurationMs: 200 })
+        .set('x-api-key', apiKey)
+        .expect(200);
+
+      expect(response.body.traces).toHaveLength(1);
+      expect(response.body.traces[0].duration_ms).toBe(500);
+    });
+
+    it('should filter by maxDurationMs', async () => {
+      await createTestTrace({
+        projectId: context.project.id,
+        organizationId: context.organization.id,
+        durationMs: 50,
+      });
+      await createTestTrace({
+        projectId: context.project.id,
+        organizationId: context.organization.id,
+        durationMs: 500,
+      });
+
+      const response = await request(app.server)
+        .get('/api/v1/traces')
+        .query({ maxDurationMs: 100 })
+        .set('x-api-key', apiKey)
+        .expect(200);
+
+      expect(response.body.traces).toHaveLength(1);
+      expect(response.body.traces[0].duration_ms).toBe(50);
+    });
+
+    it('should combine minDurationMs and maxDurationMs to bracket a range', async () => {
+      for (const ms of [10, 100, 500, 2000]) {
+        await createTestTrace({
+          projectId: context.project.id,
+          organizationId: context.organization.id,
+          durationMs: ms,
+        });
+      }
+
+      const response = await request(app.server)
+        .get('/api/v1/traces')
+        .query({ minDurationMs: 50, maxDurationMs: 1000 })
+        .set('x-api-key', apiKey)
+        .expect(200);
+
+      const durations = response.body.traces.map((t: any) => t.duration_ms).sort((a: number, b: number) => a - b);
+      expect(durations).toEqual([100, 500]);
+    });
+  });
+
+  // ==========================================================================
+  // GET /api/v1/traces/stream  (SSE live tail)
+  // ==========================================================================
+  describe('GET /api/v1/traces/stream', () => {
+    it('should return 400 when no projectId is provided', async () => {
+      const session = await createSession(context.user.id);
+      const response = await request(app.server)
+        .get('/api/v1/traces/stream')
+        .set('Authorization', `Bearer ${session.token}`)
+        .expect(400);
+      expect(response.body.error).toContain('Project context missing');
+    });
+
+    it('should reject cross-project access with session auth', async () => {
+      const other = await createTestContext();
+      const session = await createSession(context.user.id);
+      const response = await request(app.server)
+        .get('/api/v1/traces/stream')
+        .query({ projectId: other.project.id })
+        .set('Authorization', `Bearer ${session.token}`)
+        .expect(403);
+      expect(response.body.error).toContain('Access denied');
+    });
+
+    it('should set SSE headers and emit the connected event via inject', async () => {
+      // Fastify's inject buffers the full response, so for SSE we drive it
+      // via app.inject and read the payload after the first tick. The
+      // handler writes `type:"connected"` synchronously before the
+      // setInterval starts, which is enough to exercise the headers + the
+      // initial frame without having to bind the server to a socket.
+      const res = await app.inject({
+        method: 'GET',
+        url: `/api/v1/traces/stream?projectId=${context.project.id}`,
+        headers: { 'x-api-key': apiKey },
+        payloadAsStream: true,
+      });
+      expect(res.statusCode).toBe(200);
+      expect(res.headers['content-type']).toContain('text/event-stream');
+      const stream = res.stream();
+      const chunk: Buffer = await new Promise((resolve, reject) => {
+        const timer = setTimeout(() => {
+          stream.destroy();
+          reject(new Error('timeout waiting for connected frame'));
+        }, 2000);
+        stream.once('data', (b: Buffer) => {
+          clearTimeout(timer);
+          stream.destroy();
+          resolve(b);
+        });
+        stream.once('error', (err: Error) => {
+          clearTimeout(timer);
+          reject(err);
+        });
+      });
+      expect(chunk.toString('utf8')).toContain('"type":"connected"');
+    });
   });
 
   // ==========================================================================

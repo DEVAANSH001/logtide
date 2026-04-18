@@ -162,8 +162,10 @@ test.describe('Search Journey', () => {
     await page.waitForLoadState('load');
     await page.waitForTimeout(2000);
 
-    // Enter trace ID
-    const traceInput = page.locator('input#traceId, input[placeholder*="trace" i]');
+    // Open the Trace ID pill popover, then fill the input inside it.
+    await page.getByTestId('filter-pill-trace-id').click();
+    const traceInput = page.locator('input#traceId');
+    await traceInput.waitFor({ state: 'visible' });
     await traceInput.fill(testTraceId);
     await traceInput.press('Enter');
 
@@ -212,13 +214,17 @@ test.describe('Search Journey', () => {
     await page.waitForLoadState('load');
     await page.waitForTimeout(2000);
 
-    // Click on Last Hour button
-    const lastHourButton = page.locator('button:has-text("Last Hour")');
+    const pill = page.getByTestId('filter-pill-time-range');
+
+    // Open the Time range pill popover, then click Last Hour inside it.
+    await pill.click();
+    const lastHourButton = page.getByRole('button', { name: 'Last Hour', exact: true });
+    await lastHourButton.waitFor({ state: 'visible' });
     await lastHourButton.click();
     await page.waitForTimeout(2000);
 
-    // Verify button is selected (has different variant)
-    await expect(lastHourButton).toHaveClass(/default|primary|bg-primary/);
+    // Verify the pill label updated to reflect the new range.
+    await expect(pill).toContainText(/last hour/i);
   });
 
   test('9. User can use custom time range', async ({ page }) => {
@@ -226,8 +232,10 @@ test.describe('Search Journey', () => {
     await page.waitForLoadState('load');
     await page.waitForTimeout(2000);
 
-    // Click on Custom button
+    // Open the Time range pill popover, then click Custom inside it.
+    await page.getByTestId('filter-pill-time-range').click();
     const customButton = page.locator('button:has-text("Custom")');
+    await customButton.waitFor({ state: 'visible' });
     await customButton.click();
     await page.waitForTimeout(500);
 
