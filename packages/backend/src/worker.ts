@@ -12,7 +12,7 @@ import { processErrorNotification, type ErrorNotificationJobData } from './queue
 import { processMonitorNotification, type MonitorNotificationJob } from './queue/jobs/monitor-notification.js';
 import { processLogPipeline, type LogPipelineJobData } from './queue/jobs/log-pipeline.js';
 import { processDigestGeneration } from './queue/jobs/digest-generation.js';
-import type { DigestJobPayload } from './modules/digests/generator.js';
+import type { DigestJobPayload } from './modules/digests/scheduler.js';
 import { alertsService } from './modules/alerts/index.js';
 import { monitorService } from './modules/monitoring/index.js';
 import { maintenanceService } from './modules/maintenances/service.js';

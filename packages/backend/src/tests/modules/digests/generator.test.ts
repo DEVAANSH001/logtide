@@ -1,19 +1,28 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { DigestGeneratorService } from '../../../modules/digests/generator.js';
-import type { DigestJobPayload } from '../../../modules/digests/generator.js';
+import type { DigestJobPayload } from '../../../modules/digests/scheduler.js';
 
+vi.mock('../../../database/reservoir.js', () => ({
+  reservoir: {
+    count: vi.fn(),
+  },
+}));
 
-vi.mock('../../../database/connection.js', () => {
-  return {
+vi.mock('@logtide/core', () => ({
+  hub: {
+    captureLog: vi.fn(),
+  },
+}));
+
+vi.mock('../../../database/connection.js', () => ({
     db: {
       selectFrom: vi.fn().mockReturnThis(),
       select: vi.fn().mockReturnThis(),
       where: vi.fn().mockReturnThis(),
       execute: vi.fn(),
       executeTakeFirst: vi.fn(),
-    },
-  };
-});
+    }
+}));
 
 
 const mockSendMail = vi.fn().mockResolvedValue({ messageId: 'test-message-id' });
@@ -45,6 +54,7 @@ describe('DigestGeneratorService', () => {
   beforeEach(async () => {
     vi.clearAllMocks();
     
+    const { reservoir } = await import('../../../database/reservoir.js');
     
     const { db } = await import('../../../database/connection.js');
     mockDb = db;
@@ -81,20 +91,14 @@ describe('DigestGeneratorService', () => {
         },
       ]);
 
-      // projects lookup
-      mockDb.execute.mockResolvedValueOnce([
-        { id: 'project_1' },
-        { id: 'project_2' },
-      ]);
-
-      //  current period stats
-      mockDb.executeTakeFirst.mockResolvedValueOnce({
-        total: 15000,
+      const { reservoir } = await import('../../../database/reservoir.js');
+      
+      (reservoir.count as any).mockResolvedValueOnce({
+        count: 15000,
       });
 
-      //  previous period stats
-      mockDb.executeTakeFirst.mockResolvedValueOnce({
-        total: 12000,
+      (reservoir.count as any).mockResolvedValueOnce({
+        count: 12000,
       });
 
       await generator.generateAndSendDigest(payload);
@@ -135,15 +139,14 @@ describe('DigestGeneratorService', () => {
         },
       ]);
 
-      mockDb.execute.mockResolvedValueOnce([{ id: 'project_1' }]);
-
+      const { reservoir } = await import('../../../database/reservoir.js');
       
-      mockDb.executeTakeFirst.mockResolvedValueOnce({
-        total: 100000,
+      (reservoir.count as any).mockResolvedValueOnce({
+        count: 100000,
       });
 
-      mockDb.executeTakeFirst.mockResolvedValueOnce({
-        total: 95000,
+      (reservoir.count as any).mockResolvedValueOnce({
+        count: 95000,
       });
 
       await generator.generateAndSendDigest(payload);
@@ -173,10 +176,9 @@ describe('DigestGeneratorService', () => {
         },
       ]);
 
-      mockDb.execute.mockResolvedValueOnce([{ id: 'project_1' }]);
-
-      mockDb.executeTakeFirst.mockResolvedValueOnce({ total: 0 });
-      mockDb.executeTakeFirst.mockResolvedValueOnce({ total: 0 });
+      const { reservoir } = await import('../../../database/reservoir.js');
+      (reservoir.count as any).mockResolvedValueOnce({ count: 0 });
+      (reservoir.count as any).mockResolvedValueOnce({ count: 0 });
 
       await generator.generateAndSendDigest(payload);
 
@@ -204,10 +206,9 @@ describe('DigestGeneratorService', () => {
         },
       ]);
 
-      mockDb.execute.mockResolvedValueOnce([{ id: 'project_1' }]);
-
-      mockDb.executeTakeFirst.mockResolvedValueOnce({ total: 8000 });
-      mockDb.executeTakeFirst.mockResolvedValueOnce({ total: 10000 });
+      const { reservoir } = await import('../../../database/reservoir.js');
+      (reservoir.count as any).mockResolvedValueOnce({ count: 8000 });
+      (reservoir.count as any).mockResolvedValueOnce({ count: 10000 });
 
       await generator.generateAndSendDigest(payload);
 
@@ -235,10 +236,9 @@ describe('DigestGeneratorService', () => {
         },
       ]);
 
-      mockDb.execute.mockResolvedValueOnce([{ id: 'project_1' }]);
-
-      mockDb.executeTakeFirst.mockResolvedValueOnce({ total: 5000 });
-      mockDb.executeTakeFirst.mockResolvedValueOnce({ total: 0 });
+      const { reservoir } = await import('../../../database/reservoir.js');
+      (reservoir.count as any).mockResolvedValueOnce({ count: 5000 });
+      (reservoir.count as any).mockResolvedValueOnce({ count: 0 });
 
       await generator.generateAndSendDigest(payload);
 
@@ -286,9 +286,6 @@ describe('DigestGeneratorService', () => {
         },
       ]);
 
-      // No projects
-      mockDb.execute.mockResolvedValueOnce([]);
-
       await generator.generateAndSendDigest(payload);
 
       expect(mockSendMail).toHaveBeenCalledTimes(1);
@@ -331,9 +328,9 @@ describe('DigestGeneratorService', () => {
         },
       ]);
 
-      mockDb.execute.mockResolvedValueOnce([{ id: 'project_1' }]);
-      mockDb.executeTakeFirst.mockResolvedValueOnce({ total: 1000 });
-      mockDb.executeTakeFirst.mockResolvedValueOnce({ total: 900 });
+      const { reservoir } = await import('../../../database/reservoir.js');
+      (reservoir.count as any).mockResolvedValueOnce({ count: 1000 });
+      (reservoir.count as any).mockResolvedValueOnce({ count: 900 });
 
       await generator.generateAndSendDigest(payload);
 

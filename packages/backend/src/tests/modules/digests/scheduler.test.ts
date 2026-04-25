@@ -3,6 +3,12 @@ import { DigestScheduler, digestScheduler } from '../../../modules/digests/sched
 import { db } from '../../../database/connection.js';
 import { getCronRegistry } from '../../../queue/queue-factory.js';
 
+vi.mock('@logtide/core', () => ({
+    hub: {
+        captureLog: vi.fn(),
+    },
+}));
+
 
 vi.mock('../../../database/connection.js', () => {
     return {
@@ -31,16 +37,14 @@ describe('DigestScheduler', () => {
 
     describe('registerAllDigests', () => {
         it('should log and return early if no active configs are found', async () => {
-            const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+            const { hub } = await import('@logtide/core');
             ((db as any).execute as ReturnType<typeof vi.fn>).mockResolvedValue([]);
 
             const scheduler = new DigestScheduler();
             await scheduler.registerAllDigests();
 
-            expect(consoleSpy).toHaveBeenCalledWith('[DigestScheduler] No active digest configs found');
-            expect(getCronRegistry().registerCronJobs).not.toHaveBeenCalled();
-
-            consoleSpy.mockRestore();
+            expect(hub.captureLog).toHaveBeenCalledWith('info', '[DigestScheduler] No active digest configs found');
+            expect(getCronRegistry('digest-generation').registerCronJobs).not.toHaveBeenCalled();
         });
 
         it('should correctly register a daily and a weekly cron job', async () => {
@@ -62,7 +66,7 @@ describe('DigestScheduler', () => {
             ];
 
             ((db as any).execute as ReturnType<typeof vi.fn>).mockResolvedValue(mockConfigs);
-            const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+            const { hub } = await import('@logtide/core');
 
             const scheduler = new DigestScheduler();
             await scheduler.registerAllDigests();
@@ -90,10 +94,8 @@ describe('DigestScheduler', () => {
                 }
             ];
 
-            expect(getCronRegistry().registerCronJobs).toHaveBeenCalledWith(expectedItems);
-            expect(consoleSpy).toHaveBeenCalledWith('[DigestScheduler] Registered 2 digest schedule(s)');
-
-            consoleSpy.mockRestore();
+            expect(getCronRegistry('digest-generation').registerCronJobs).toHaveBeenCalledWith(expectedItems);
+            expect(hub.captureLog).toHaveBeenCalledWith('info', '[DigestScheduler] Registered 2 digest schedule(s)');
         });
     });
 

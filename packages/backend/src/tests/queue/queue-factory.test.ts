@@ -412,18 +412,18 @@ describe('QueueFactory', () => {
                 databaseUrl: 'postgresql://localhost:5432',
             });
 
-            const registry = queueFactory.getCronRegistry();
+            const registry = queueFactory.getCronRegistry('test-queue');
 
             expect(registry).toBeDefined();
             
-            expect((registry as any).name).toBe('digest-generation');
+            expect((registry as any).name).toBe('test-queue');
         });
 
         it('should throw if not initialized', async () => {
             vi.resetModules();
             const freshFactory = await import('../../queue/queue-factory.js');
 
-            expect(() => freshFactory.getCronRegistry()).toThrow('Not initialized');
+            expect(() => freshFactory.getCronRegistry('test-queue')).toThrow('Not initialized');
         });
     });
 });

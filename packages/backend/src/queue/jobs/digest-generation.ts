@@ -5,7 +5,8 @@
  */
 
 import type { IJob } from '../abstractions/types.js';
-import { digestGenerator, type DigestJobPayload } from '../../modules/digests/generator.js';
+import { digestGenerator } from '../../modules/digests/generator.js';
+import type { DigestJobPayload } from '../../modules/digests/scheduler.js';
  
 //called by the worker when a scheduled digest cron job fires.
 export async function processDigestGeneration(job: IJob<DigestJobPayload>): Promise<void> {
