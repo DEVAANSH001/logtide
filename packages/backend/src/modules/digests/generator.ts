@@ -6,14 +6,10 @@
 
 import nodemailer from 'nodemailer';
 import { db } from '../../database/connection.js';
+import { reservoir } from '../../database/reservoir.js';
+import { hub } from '@logtide/core';
 import { config } from '../../config/index.js';
-import { sql } from 'kysely';
-
-export interface DigestJobPayload {
-  organizationId: string;
-  digestConfigId: string;
-  frequency: 'daily' | 'weekly';
-}
+import type { DigestJobPayload } from './scheduler.js';
 
 interface LogVolumeStats {
   currentPeriodCount: number;
@@ -32,7 +28,7 @@ let emailTransporter: nodemailer.Transporter | null = null;
 function getEmailTransporter(): nodemailer.Transporter | null {
   if (!emailTransporter) {
     if (!config.SMTP_HOST) {
-      console.warn('[DigestGenerator] SMTP not configured - digest emails disabled');
+      hub.captureLog('warn', '[DigestGenerator] SMTP not configured - digest emails disabled');
       return null;
     }
 
@@ -50,7 +46,7 @@ function getEmailTransporter(): nodemailer.Transporter | null {
     }
 
     emailTransporter = nodemailer.createTransport(transportOpts as nodemailer.TransportOptions);
-    console.log(`[DigestGenerator] Email transporter configured: ${config.SMTP_HOST}:${config.SMTP_PORT}`);
+    hub.captureLog('info', `[DigestGenerator] Email transporter configured: ${config.SMTP_HOST}:${config.SMTP_PORT}`);
   }
 
   return emailTransporter;
@@ -61,7 +57,7 @@ export class DigestGeneratorService {
   async generateAndSendDigest(payload: DigestJobPayload): Promise<void> {
     const { organizationId, digestConfigId, frequency } = payload;
 
-    console.log(`[DigestGenerator] Generating ${frequency} digest for org ${organizationId}`);
+    hub.captureLog('info', `[DigestGenerator] Generating ${frequency} digest for org ${organizationId}`);
 
     try {
       
@@ -79,7 +75,7 @@ export class DigestGeneratorService {
       const recipients = await this.fetchRecipients(organizationId, digestConfigId);
 
       if (recipients.length === 0) {
-        console.log(`[DigestGenerator] No subscribed recipients for org ${organizationId}, skipping`);
+        hub.captureLog('info', `[DigestGenerator] No subscribed recipients for org ${organizationId}, skipping`);
         return;
       }
 
@@ -94,9 +90,9 @@ export class DigestGeneratorService {
         stats
       );
 
-      console.log(`[DigestGenerator] Digest sent to ${recipients.length} recipient(s) for org ${organizationId}`);
-    } catch (error) {
-      console.error(`[DigestGenerator] Failed to generate digest for org ${organizationId}:`, error);
+      hub.captureLog('info', `[DigestGenerator] Digest sent to ${recipients.length} recipient(s) for org ${organizationId}`);
+    } catch (error: any) {
+      hub.captureLog('error', `[DigestGenerator] Failed to generate digest for org ${organizationId}: ${error.message}`, { error });
       throw error;
     }
   }
@@ -121,51 +117,37 @@ export class DigestGeneratorService {
     organizationId: string,
     frequency: 'daily' | 'weekly'
   ): Promise<LogVolumeStats> {
+    // Uses a 24-hour sliding window relative to execution time
     const hoursInPeriod = frequency === 'daily' ? 24 : 168; // 7 days = 168 hours
 
-    
-    const projects = await db
-      .selectFrom('projects')
-      .select('id')
-      .where('organization_id', '=', organizationId)
-      .execute();
-
-    const projectIds = projects.map((p) => p.id);
-
-    if (projectIds.length === 0) {
-      return {
-        currentPeriodCount: 0,
-        previousPeriodCount: 0,
-        trend: 'no change',
-      };
-    }
-
-    //time boundaries
     const now = new Date();
     const currentPeriodStart = new Date(now.getTime() - hoursInPeriod * 60 * 60 * 1000);
     const previousPeriodStart = new Date(now.getTime() - hoursInPeriod * 2 * 60 * 60 * 1000);
     const previousPeriodEnd = currentPeriodStart;
 
-  
-    const currentPeriodResult = await db
-      .selectFrom('logs_hourly_stats')
-      .select(sql<number>`COALESCE(SUM(log_count), 0)`.as('total'))
-      .where('project_id', 'in', projectIds)
-      .where('bucket', '>=', currentPeriodStart)
-      .where('bucket', '<', now)
-      .executeTakeFirst();
+    let currentPeriodCount = 0;
+    let previousPeriodCount = 0;
 
-    const currentPeriodCount = Number(currentPeriodResult?.total || 0);
+    try {
+      const currentPeriodResult = await reservoir.count({
+        organizationId,
+        from: currentPeriodStart,
+        to: now,
+        toExclusive: true,
+      });
+      currentPeriodCount = currentPeriodResult.count;
 
-    const previousPeriodResult = await db
-      .selectFrom('logs_hourly_stats')
-      .select(sql<number>`COALESCE(SUM(log_count), 0)`.as('total'))
-      .where('project_id', 'in', projectIds)
-      .where('bucket', '>=', previousPeriodStart)
-      .where('bucket', '<', previousPeriodEnd)
-      .executeTakeFirst();
+      const previousPeriodResult = await reservoir.count({
+        organizationId,
+        from: previousPeriodStart,
+        to: previousPeriodEnd,
+        toExclusive: true,
+      });
+      previousPeriodCount = previousPeriodResult.count;
+    } catch (error: any) {
+      hub.captureLog('error', `[DigestGenerator] Log volume count failed for org ${organizationId}: ${error.message}`, { error });
+    }
 
-    const previousPeriodCount = Number(previousPeriodResult?.total || 0);
     const trend = this.calculateTrend(currentPeriodCount, previousPeriodCount);
 
     return {
@@ -230,7 +212,7 @@ export class DigestGeneratorService {
         text,
       });
 
-      console.log(`[DigestGenerator] Email sent to ${recipient.email}`);
+      hub.captureLog('info', `[DigestGenerator] Email sent to ${recipient.email}`);
     });
 
     await Promise.all(emailPromises);

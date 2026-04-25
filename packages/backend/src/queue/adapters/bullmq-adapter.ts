@@ -67,11 +67,14 @@ export class BullMQQueueAdapter<T = unknown> implements IQueueAdapter<T>, ICronR
       attempts: options?.maxAttempts,
       priority: options?.priority,
       jobId: options?.jobKey,
+      repeat: options?.repeat,
+      removeOnComplete: options?.removeOnComplete,
+      removeOnFail: options?.removeOnFail,
     });
 
     return {
       id: bullJob.id || '',
-      data: data, // Use the original data since bullJob.data has complex type
+      data: data, 
       name: bullJob.name,
       attemptsMade: bullJob.attemptsMade,
       timestamp: bullJob.timestamp ? new Date(bullJob.timestamp) : undefined,
@@ -87,12 +90,12 @@ export class BullMQQueueAdapter<T = unknown> implements IQueueAdapter<T>, ICronR
    */
   async registerCronJobs(items: CronJobDefinition[]): Promise<void> {
     for (const item of items) {
-      await (this.queue as any).add(
-        item.task,
-        item.payload,
+      await this.add(
+        item.task, 
+        item.payload as unknown as T, 
         {
           repeat: { pattern: item.cronExpression },
-          jobId: item.identifier,
+          jobKey: item.identifier,
           removeOnComplete: true,
           removeOnFail: false,
         }

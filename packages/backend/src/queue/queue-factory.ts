@@ -243,8 +243,8 @@ class QueueSystemManager {
   /**
    * Get the cron registry for the active backend.
    */
-  getCronRegistry(): ICronRegistry {
-    const queue = this.createQueue<unknown>('digest-generation');
+  getCronRegistry(queueName: string): ICronRegistry {
+    const queue = this.createQueue<unknown>(queueName);
     return queue as unknown as ICronRegistry;
   }
 
@@ -402,8 +402,8 @@ export function getRedisConnection(): Redis | null {
 /**
  * Get the cron registry for the active backend.
  */
-export function getCronRegistry(): ICronRegistry {
-  return queueSystem.getCronRegistry();
+export function getCronRegistry(queueName: string): ICronRegistry {
+  return queueSystem.getCronRegistry(queueName);
 }
 
 export type { CronJobDefinition, ICronRegistry };

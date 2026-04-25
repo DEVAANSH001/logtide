@@ -5,7 +5,6 @@
 
 -- One digest schedule per organization (daily or weekly).
 -- delivery_day_of_week required when frequency = 'weekly' (0 = Sunday).
--- timezone stored for display only — scheduling is always computed in UTC.
 
 CREATE TABLE IF NOT EXISTS digest_configs (
   id                    UUID         NOT NULL DEFAULT gen_random_uuid(),
@@ -13,7 +12,6 @@ CREATE TABLE IF NOT EXISTS digest_configs (
   frequency             TEXT         NOT NULL,
   delivery_hour         INTEGER      NOT NULL,
   delivery_day_of_week  INTEGER,
-  timezone              TEXT         NOT NULL DEFAULT 'UTC',
   enabled               BOOLEAN      NOT NULL DEFAULT TRUE,
   created_at            TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
   updated_at            TIMESTAMPTZ  NOT NULL DEFAULT NOW(),

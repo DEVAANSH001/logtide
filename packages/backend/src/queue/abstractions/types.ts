@@ -34,6 +34,12 @@ export interface IJobOptions {
   priority?: number;
   /** Unique job key (for deduplication) */
   jobKey?: string;
+  /** Cron repeat pattern */
+  repeat?: { pattern: string };
+  /** Remove completed jobs */
+  removeOnComplete?: boolean;
+  /** Remove failed jobs */
+  removeOnFail?: boolean;
 }
 
 /**

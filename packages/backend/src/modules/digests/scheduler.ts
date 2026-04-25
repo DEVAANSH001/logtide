@@ -10,6 +10,7 @@
 
 import { db } from '../../database/connection.js';
 import { getCronRegistry } from '../../queue/queue-factory.js';
+import { hub } from '@logtide/core';
 import type { CronJobDefinition } from '../../queue/abstractions/types.js';
 
 export interface DigestJobPayload {
@@ -30,7 +31,7 @@ export class DigestScheduler {
       .execute();
 
     if (configs.length === 0) {
-      console.log('[DigestScheduler] No active digest configs found');
+      hub.captureLog('info', '[DigestScheduler] No active digest configs found');
       return;
     }
 
@@ -50,15 +51,15 @@ export class DigestScheduler {
       identifier: `digest:${config.organization_id}`,
     }));
 
-    await getCronRegistry().registerCronJobs(items);
-    console.log(`[DigestScheduler] Registered ${items.length} digest schedule(s)`);
+    await getCronRegistry('digest-generation').registerCronJobs(items);
+    hub.captureLog('info', `[DigestScheduler] Registered ${items.length} digest schedule(s)`);
   }
 
   /**
    * Build a standard 5-field cron expression from a digest config.
    *
-   * Daily:  "0 8 * * *"   — every day at delivery_hour UTC
-   * Weekly: "0 8 * * 1"   — every week on delivery_day_of_week at delivery_hour UTC
+   * Daily:  "0 8 * * *"   — every day at delivery_hour 
+   * Weekly: "0 8 * * 1"   — every week on delivery_day_of_week
    */
   private buildCronExpression(
     frequency: 'daily' | 'weekly',
