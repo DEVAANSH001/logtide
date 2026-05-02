@@ -15,6 +15,7 @@ import {
   type ParsedCronItem,
 } from 'graphile-worker';
 import type { Pool } from 'pg';
+import { hub } from '@logtide/core';
 import type {
   IQueueAdapter,
   IWorkerAdapter,
@@ -93,7 +94,7 @@ export class GraphileQueueAdapter<T = unknown> implements IQueueAdapter<T>, ICro
     );
     const manager = GraphileWorkerManager.getInstance();
     manager.setCronItems(parsed);
-    console.log(`[Graphile] Registered ${items.length} cron job(s)`);
+    hub.captureLog('info', `[Graphile] Registered ${items.length} cron job(s)`);
   }
 
   async getJobCounts(): Promise<{
@@ -201,7 +202,7 @@ export class GraphileWorkerManager {
     }
 
     if (this.cronItems.length === 0) {
-      console.log('[Graphile] No cron items registered — digest schedules will not run');
+      hub.captureLog('info', '[Graphile] No cron items registered — digest schedules will not run');
     }
 
     try {

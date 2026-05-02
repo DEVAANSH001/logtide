@@ -129,21 +129,42 @@ export class DigestGeneratorService {
     let previousPeriodCount = 0;
 
     try {
-      const currentPeriodResult = await reservoir.count({
-        organizationId,
-        from: currentPeriodStart,
-        to: now,
-        toExclusive: true,
-      });
-      currentPeriodCount = currentPeriodResult.count;
+      
+      // organization-level metrics we must count logs for all projects that
+      // belong to the organization and pass those project ids to the reservoir
+      const projects = await db
+        .selectFrom('projects')
+        .select(['id'])
+        .where('organization_id', '=', organizationId)
+        .execute();
 
-      const previousPeriodResult = await reservoir.count({
-        organizationId,
-        from: previousPeriodStart,
-        to: previousPeriodEnd,
-        toExclusive: true,
-      });
-      previousPeriodCount = previousPeriodResult.count;
+      const projectIds = projects.map((p) => p.id);
+
+      // If the organization has no projects, return zero counts explicitly
+      if (projectIds.length === 0) {
+        const trend = this.calculateTrend(0, 0);
+        return {
+          currentPeriodCount: 0,
+          previousPeriodCount: 0,
+          trend,
+        };
+      } else {
+        const currentPeriodResult = await reservoir.count({
+          projectId: projectIds,
+          from: currentPeriodStart,
+          to: now,
+          toExclusive: true,
+        });
+        currentPeriodCount = currentPeriodResult.count;
+
+        const previousPeriodResult = await reservoir.count({
+          projectId: projectIds,
+          from: previousPeriodStart,
+          to: previousPeriodEnd,
+          toExclusive: true,
+        });
+        previousPeriodCount = previousPeriodResult.count;
+      }
     } catch (error: any) {
       hub.captureLog('error', `[DigestGenerator] Log volume count failed for org ${organizationId}: ${error.message}`, { error });
     }
