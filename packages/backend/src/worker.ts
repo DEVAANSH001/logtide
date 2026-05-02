@@ -301,8 +301,6 @@ digestWorker.on('completed', (job) => {
 });
 
 digestWorker.on('failed', (job, err) => {
-  console.error(`Digest generation job ${job?.id} failed:`, err);
-
   if (isInternalLoggingEnabled()) {
     hub.captureLog('error', `Digest generation job failed: ${err.message}`, {
       error: { name: err.name, message: err.message, stack: err.stack },

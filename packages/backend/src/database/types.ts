@@ -1027,7 +1027,6 @@ export interface DigestConfigsTable {
   frequency: DigestFrequency;
   delivery_hour: number;           
   delivery_day_of_week: number | null; 
-  timezone: Generated<string>;   
   enabled: Generated<boolean>;
   created_at: Generated<Timestamp>;
   updated_at: Generated<Timestamp>;

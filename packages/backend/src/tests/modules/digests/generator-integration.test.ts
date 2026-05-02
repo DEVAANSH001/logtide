@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { DigestGeneratorService } from '../../../modules/digests/generator.js';
 import { db } from '../../../database/connection.js';
-import { sql } from 'kysely';
+import { reservoir } from '../../../database/reservoir.js';
 
 const mockSendMail = vi.fn().mockResolvedValue({ messageId: 'test-message-id' });
 vi.mock('nodemailer', () => ({
@@ -17,18 +17,12 @@ describe('DigestGeneratorService Integration', () => {
   
   beforeEach(async () => {
     vi.clearAllMocks();
-    
-    await db.deleteFrom('digest_recipients').execute();
-    await db.deleteFrom('digest_configs').execute();
-    await db.deleteFrom('logs').execute();
-    await db.deleteFrom('projects').execute();
-    await db.deleteFrom('organization_members').execute();
-    await db.deleteFrom('organizations').execute();
-    await db.deleteFrom('users').execute();
-    
     generator = new DigestGeneratorService();
   });
 
+  /**
+   * Integration test that validates the digest generation flow using the reservoir abstract engine to count logs from the database.
+   */
   it('should correctly count log volume using reservoir abstract engine on database', async () => {
     // Create a user first (required for organization owner_id)
     const user = await db
@@ -83,23 +77,30 @@ describe('DigestGeneratorService Integration', () => {
       .execute();
 
     const now = new Date();
-    const currentPeriodBucket = new Date(now.getTime() - 2 * 60 * 60 * 1000); // 2 hours ago
-    const previousPeriodBucket = new Date(now.getTime() - 26 * 60 * 60 * 1000); // 26 hours ago
 
-    // Count queries in the generator filter by organization_id.
-    await sql`ALTER TABLE logs ADD COLUMN IF NOT EXISTS organization_id UUID`.execute(db);
+    // Insert logs via reservoir.ingest() to test the production path
+    
+    const logsToIngest = [];
+    for (let i = 0; i < 150; i++) {
+        const isCurrentPeriod = i < 100;
+        const baseTime = isCurrentPeriod 
+          ? now.getTime() - (12 * 60 * 60 * 1000)  // Start 12 hours ago
+          : now.getTime() - (36 * 60 * 60 * 1000); // Start 36 hours ago
+        
+        // Spread logs over 10 hours with 6-minute intervals
+        const logTime = new Date(baseTime + (i % 100) * 6 * 60 * 1000);
+        
+        logsToIngest.push({
+            organizationId: org.id,  // Required for digest queries to find the logs
+            projectId: project.id,
+            service: 'test-service',
+            level: 'info' as const,
+            message: `test log ${i}`,
+            time: logTime
+        });
+    }
 
-    await sql`
-      INSERT INTO logs (time, project_id, organization_id, service, level, message)
-      SELECT ${currentPeriodBucket}::timestamptz, ${project.id}::uuid, ${org.id}::uuid, 'test-service', 'info', 'test log'
-      FROM generate_series(1, 100)
-    `.execute(db);
-
-    await sql`
-      INSERT INTO logs (time, project_id, organization_id, service, level, message)
-      SELECT ${previousPeriodBucket}::timestamptz, ${project.id}::uuid, ${org.id}::uuid, 'test-service', 'info', 'test log'
-      FROM generate_series(1, 50)
-    `.execute(db);
+    await reservoir.ingest(logsToIngest);
 
     await generator.generateAndSendDigest({
       organizationId: org.id,
@@ -110,7 +111,28 @@ describe('DigestGeneratorService Integration', () => {
     expect(mockSendMail).toHaveBeenCalledTimes(1);
 
     const emailCall = mockSendMail.mock.calls[0][0];
-    expect(emailCall.text).toContain('100'); // current count
-    expect(emailCall.text).toContain('+50'); // previous was 50 (150 total inserted, 100 recent, 50 older)
+    const emailText = emailCall.text;
+
+    // More robust assertions that check for exact metric lines
+    const currentLogCount = 100;
+    const previousLogCount = 50;
+    const expectedDelta = currentLogCount - previousLogCount;
+    const expectedPercentChange = ((expectedDelta / previousLogCount) * 100).toFixed(1);
+    
+    // Extract the metrics from the email to avoid fragile substring matching
+    const totalLogsMatch = emailText.match(/Total logs:\s+(\d+)/);
+    const previousPeriodMatch = emailText.match(/Previous period:\s+(\d+)/);
+    const trendMatch = emailText.match(/Trend:\s+([+-]\d+)\s+\(([+-][\d.]+)%\)/);
+    
+    expect(totalLogsMatch, 'Email should contain "Total logs" metric').toBeTruthy();
+    expect(totalLogsMatch![1]).toBe(String(currentLogCount));
+    
+    expect(previousPeriodMatch, 'Email should contain "Previous period" metric').toBeTruthy();
+    expect(previousPeriodMatch![1]).toBe(String(previousLogCount));
+    
+    expect(trendMatch, 'Email should contain "Trend" metric').toBeTruthy();
+    expect(trendMatch![1]).toBe(`+${expectedDelta}`);
+   
+    expect(trendMatch![2]).toBe(`+${expectedPercentChange}`);
   });
 });
