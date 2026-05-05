@@ -734,55 +734,87 @@ const activityOverviewFetcher: PanelDataSource<
 
     const tasks: Array<Promise<void>> = [];
 
-    if (needsLogs && isTimescale && projectIds.length > 0) {
-      const logsTable = bucket === 'hour' ? 'logs_hourly_stats' : 'logs_daily_stats';
-      tasks.push(
-        (async () => {
-          const caggRows = await db
-            .selectFrom(logsTable)
-            .select([
-              'bucket',
-              'level',
-              sql<string>`SUM(log_count)`.as('count'),
-            ])
-            .where('project_id', 'in', projectIds)
-            .where('bucket', '>=', from)
-            .where('bucket', '<=', now)
-            .groupBy(['bucket', 'level'])
-            .execute()
-            .catch(() => [] as Array<{ bucket: unknown; level: string; count: string }>);
+    if (needsLogs && projectIds.length > 0) {
+      if (isTimescale) {
+        const logsTable = bucket === 'hour' ? 'logs_hourly_stats' : 'logs_daily_stats';
+        tasks.push(
+          (async () => {
+            const caggRows = await db
+              .selectFrom(logsTable)
+              .select([
+                'bucket',
+                'level',
+                sql<string>`SUM(log_count)`.as('count'),
+              ])
+              .where('project_id', 'in', projectIds)
+              .where('bucket', '>=', from)
+              .where('bucket', '<=', now)
+              .groupBy(['bucket', 'level'])
+              .execute()
+              .catch(() => [] as Array<{ bucket: unknown; level: string; count: string }>);
 
-          const rows = caggRows.length > 0
-            ? caggRows
-            : await db
-                .selectFrom('logs')
-                .select([
-                  logsRawTrunc.as('bucket'),
-                  'level',
-                  sql<string>`COUNT(*)`.as('count'),
-                ])
-                .where('project_id', 'in', projectIds)
-                .where('time', '>=', from)
-                .where('time', '<=', now)
-                .groupBy([logsRawTrunc, 'level'])
-                .execute()
-                .catch(() => [] as Array<{ bucket: unknown; level: string; count: string }>);
+            const rows = caggRows.length > 0
+              ? caggRows
+              : await db
+                  .selectFrom('logs')
+                  .select([
+                    logsRawTrunc.as('bucket'),
+                    'level',
+                    sql<string>`COUNT(*)`.as('count'),
+                  ])
+                  .where('project_id', 'in', projectIds)
+                  .where('time', '>=', from)
+                  .where('time', '<=', now)
+                  .groupBy([logsRawTrunc, 'level'])
+                  .execute()
+                  .catch(() => [] as Array<{ bucket: unknown; level: string; count: string }>);
 
-          for (const r of rows) {
-            const key = new Date(r.bucket as unknown as string).toISOString();
-            const i = index.get(key);
-            if (i === undefined) continue;
-            const n = Number(r.count ?? 0);
-            series[i].logs += n;
-            if (r.level === 'error' || r.level === 'critical') {
-              series[i].log_errors += n;
+            for (const r of rows) {
+              const key = new Date(r.bucket as unknown as string).toISOString();
+              const i = index.get(key);
+              if (i === undefined) continue;
+              const n = Number(r.count ?? 0);
+              series[i].logs += n;
+              if (r.level === 'error' || r.level === 'critical') {
+                series[i].log_errors += n;
+              }
             }
-          }
-        })(),
-      );
+          })(),
+        );
+      } else {
+        // ClickHouse / MongoDB: continuous aggregates are TimescaleDB-only,
+        // so go through the reservoir aggregate API (same pattern used by
+        // baseline-calculator). Bucket boundaries from toStartOfHour/$dateTrunc
+        // align with buildBucketTimes (UTC), so keys collide cleanly.
+        tasks.push(
+          (async () => {
+            const aggResult = await reservoir
+              .aggregate({
+                projectId: projectIds,
+                from,
+                to: now,
+                interval: bucket === 'hour' ? '1h' : '1d',
+              })
+              .catch(() => ({ timeseries: [] as Array<{ bucket: Date; total: number; byLevel?: Record<string, number> }>, total: 0 }));
+
+            for (const b of aggResult.timeseries) {
+              const key = (b.bucket instanceof Date ? b.bucket : new Date(b.bucket)).toISOString();
+              const i = index.get(key);
+              if (i === undefined) continue;
+              series[i].logs += b.total;
+              if (b.byLevel) {
+                series[i].log_errors += (b.byLevel.error ?? 0) + (b.byLevel.critical ?? 0);
+              }
+            }
+          })(),
+        );
+      }
     }
 
     if (needsSpans && isTimescale && projectIds.length > 0) {
+      // spans series stay at zero on non-Timescale engines: the reservoir
+      // interface has no aggregateSpans() primitive, so we follow the same
+      // convention as trace_latency / trace_volume.
       const spansTable = bucket === 'hour' ? 'spans_hourly_stats' : 'spans_daily_stats';
       tasks.push(
         (async () => {

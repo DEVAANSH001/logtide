@@ -1,6 +1,7 @@
 import { db } from '../../database/index.js';
 import { pool } from '../../database/connection.js';
 import { reservoir } from '../../database/reservoir.js';
+import { projectsService } from '../projects/service.js';
 import type { TransformedSpan, AggregatedTrace } from '../otlp/trace-transformer.js';
 import type {
   SpanRecord as ReservoirSpanRecord,
@@ -139,6 +140,9 @@ export class TracesService {
         error: trace.error,
       });
     }
+
+    // Mark the project as having traces (debounced, fire-and-forget)
+    projectsService.markHasData(projectId, 'traces').catch(() => {});
 
     return result.ingested;
   }

@@ -40,6 +40,7 @@ import { sessionsRoutes } from './modules/sessions/routes.js';
 import { sourcemapsRoutes } from './modules/sourcemaps/index.js';
 import { auditLogRoutes, auditLogService } from './modules/audit-log/index.js';
 import { bootstrapService } from './modules/bootstrap/index.js';
+import { runDataAvailabilityBackfill } from './modules/projects/data-availability-backfill.js';
 import { notificationChannelsRoutes } from './modules/notification-channels/index.js';
 import internalLoggingPlugin from './plugins/internal-logging-plugin.js';
 import { initializeInternalLogging, shutdownInternalLogging } from './utils/internal-logger.js';
@@ -245,6 +246,12 @@ async function start() {
       console.log(banner);
     } catch { /* ascii art file missing, skip */ }
     console.log(`  LogTide v${packageJson.version} running on ${HOST}:${PORT}\n`);
+
+    // Fire-and-forget: one-shot backfill of project data-availability flags.
+    // Guarded by system_settings so subsequent boots return immediately.
+    runDataAvailabilityBackfill().catch((err) => {
+      console.error('[data-availability] Backfill crashed:', err);
+    });
   } catch (err) {
     (app.log as any).error(err as Error);
     await shutdownInternalLogging();

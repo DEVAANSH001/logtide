@@ -126,6 +126,9 @@ export interface ProjectsTable {
   description: string | null;
   status_page_visibility: Generated<StatusPageVisibility>;
   status_page_password_hash: string | null;
+  has_logs_at: Timestamp | null;
+  has_traces_at: Timestamp | null;
+  has_metrics_at: Timestamp | null;
   created_at: Generated<Timestamp>;
   updated_at: Generated<Timestamp>;
 }

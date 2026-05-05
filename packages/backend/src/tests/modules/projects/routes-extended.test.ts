@@ -94,14 +94,9 @@ describe('Projects Routes - Extended', () => {
         });
 
         it('shows project in logs array after logs are ingested', async () => {
-            // Insert a log for the test project
-            await db.insertInto('logs').values({
-                project_id: testProject.id,
-                service: 'api',
-                level: 'info',
-                message: 'test',
-                time: new Date(),
-            }).execute();
+            // markHasData is what the ingest path calls; simulate it directly.
+            const { projectsService } = await import('../../../modules/projects/service.js');
+            await projectsService.markHasData(testProject.id, 'logs');
 
             const res = await app.inject({
                 method: 'GET',
