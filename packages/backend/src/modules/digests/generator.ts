@@ -165,8 +165,10 @@ export class DigestGeneratorService {
         });
         previousPeriodCount = previousPeriodResult.count;
       }
-    } catch (error: any) {
-      hub.captureLog('error', `[DigestGenerator] Log volume count failed for org ${organizationId}: ${error.message}`, { error });
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      hub.captureLog('error', `[DigestGenerator] Log volume count failed for org ${organizationId}: ${message}`, { error });
+      throw error;
     }
 
     const trend = this.calculateTrend(currentPeriodCount, previousPeriodCount);

@@ -91,6 +91,9 @@ describe('DigestGeneratorService', () => {
         },
       ]);
 
+      // Mock projects query
+      mockDb.execute.mockResolvedValueOnce([{ id: 'project_1' }]);
+
       const { reservoir } = await import('../../../database/reservoir.js');
       
       (reservoir.count as any).mockResolvedValueOnce({
@@ -138,6 +141,9 @@ describe('DigestGeneratorService', () => {
           unsubscribe_token: 'token_1',
         },
       ]);
+
+      // Mock projects query
+      mockDb.execute.mockResolvedValueOnce([{ id: 'project_1' }]);
 
       const { reservoir } = await import('../../../database/reservoir.js');
       
@@ -206,6 +212,9 @@ describe('DigestGeneratorService', () => {
         },
       ]);
 
+      // Mock projects query
+      mockDb.execute.mockResolvedValueOnce([{ id: 'project_1' }]);
+
       const { reservoir } = await import('../../../database/reservoir.js');
       (reservoir.count as any).mockResolvedValueOnce({ count: 8000 });
       (reservoir.count as any).mockResolvedValueOnce({ count: 10000 });
@@ -235,6 +244,9 @@ describe('DigestGeneratorService', () => {
           unsubscribe_token: 'token_1',
         },
       ]);
+
+      // Mock projects query
+      mockDb.execute.mockResolvedValueOnce([{ id: 'project_1' }]);
 
       const { reservoir } = await import('../../../database/reservoir.js');
       (reservoir.count as any).mockResolvedValueOnce({ count: 5000 });
