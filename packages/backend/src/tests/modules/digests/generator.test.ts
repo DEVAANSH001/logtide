@@ -50,14 +50,20 @@ vi.mock('../../../config/index.js', () => ({
 describe('DigestGeneratorService', () => {
   let generator: DigestGeneratorService;
   let mockDb: any;
+  let mockReservoir: any;
 
   beforeEach(async () => {
     vi.clearAllMocks();
-    
+
     const { reservoir } = await import('../../../database/reservoir.js');
-    
+    mockReservoir = reservoir;
     const { db } = await import('../../../database/connection.js');
     mockDb = db;
+
+    mockDb.execute.mockReset();
+    mockDb.executeTakeFirst.mockReset();
+    mockReservoir.count.mockReset();
+    mockSendMail.mockReset().mockResolvedValue({ messageId: 'test-message-id' });
 
     generator = new DigestGeneratorService();
   });
@@ -182,6 +188,9 @@ describe('DigestGeneratorService', () => {
         },
       ]);
 
+      // Mock projects query
+      mockDb.execute.mockResolvedValueOnce([{ id: 'project_1' }]);
+
       const { reservoir } = await import('../../../database/reservoir.js');
       (reservoir.count as any).mockResolvedValueOnce({ count: 0 });
       (reservoir.count as any).mockResolvedValueOnce({ count: 0 });
@@ -297,6 +306,7 @@ describe('DigestGeneratorService', () => {
           unsubscribe_token: 'token_1',
         },
       ]);
+      mockDb.execute.mockResolvedValueOnce([]);
 
       await generator.generateAndSendDigest(payload);
 
@@ -339,6 +349,7 @@ describe('DigestGeneratorService', () => {
           unsubscribe_token: 'secure_token_abc123',
         },
       ]);
+      mockDb.execute.mockResolvedValueOnce([{ id: 'project_1' }]);
 
       const { reservoir } = await import('../../../database/reservoir.js');
       (reservoir.count as any).mockResolvedValueOnce({ count: 1000 });
