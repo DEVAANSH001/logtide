@@ -173,8 +173,11 @@ test.describe('Network Edge Cases', () => {
     await page.reload();
     await page.waitForLoadState('load');
 
-    // Page should work again
-    await expect(page.locator('h1')).toBeVisible({ timeout: 30000 });
+    // Page should work again. With SSR disabled the h1 is client-rendered (not in
+    // the initial shell), so wait for the SPA to boot before asserting - same
+    // selector the beforeEach uses to detect a rendered dashboard.
+    await page.waitForSelector('nav, [class*="sidebar"], h1, h2', { timeout: 30000 });
+    await expect(page.locator('h1').first()).toBeVisible({ timeout: 30000 });
   });
 });
 
