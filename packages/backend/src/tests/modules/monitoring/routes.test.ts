@@ -20,6 +20,20 @@ vi.mock('../../../modules/monitoring/checker.js', () => ({
   parseTcpTarget: vi.fn().mockReturnValue({ host: 'localhost', port: 5432 }),
 }));
 vi.mock('../../../database/reservoir.js', () => ({ reservoir: {} }));
+// Avoid real DNS in create/update target validation; throw only for sentinel hosts.
+vi.mock('../../../utils/ssrf-guard.js', async (importOriginal) => {
+  const actual: any = await importOriginal();
+  return {
+    ...actual,
+    assertHttpTargetAllowed: vi.fn(async (url: string) => {
+      if (url.includes('blocked.invalid')) throw new actual.SsrfBlockedError('Target is in a blocked range');
+    }),
+    resolveAndValidateHost: vi.fn(async (host: string) => {
+      if (host.includes('blocked')) throw new actual.SsrfBlockedError('Target is in a blocked range');
+      return ['93.184.216.34'];
+    }),
+  };
+});
 
 function authHeaders(token: string) {
   return { Authorization: `Bearer ${token}` };
@@ -153,6 +167,22 @@ describe('POST /api/v1/monitors', () => {
       },
     });
     expect(res.statusCode).toBe(403);
+  });
+
+  it('returns 400 for an HTTP target that resolves to a blocked address (SSRF)', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/v1/monitors',
+      headers: authHeaders(authToken),
+      payload: {
+        organizationId: ctx.organization.id,
+        projectId: ctx.project.id,
+        name: 'SSRF',
+        type: 'http',
+        target: 'http://blocked.invalid/health',
+      },
+    });
+    expect(res.statusCode).toBe(400);
   });
 });
 

@@ -2,11 +2,14 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { MONITOR_TYPES } from '@logtide/shared';
 import { MonitorService } from './service.js';
+import { parseTcpTarget } from './checker.js';
 import { authenticate } from '../auth/middleware.js';
 import { db } from '../../database/index.js';
 import { projectsService } from '../projects/service.js';
 import { usersService } from '../users/service.js';
 import { notificationChannelsService } from '../notification-channels/index.js';
+import { assertHttpTargetAllowed, resolveAndValidateHost, SsrfBlockedError } from '../../utils/ssrf-guard.js';
+import { config } from '../../config/index.js';
 
 export const monitorService = new MonitorService(db);
 
@@ -36,6 +39,32 @@ async function checkOrgMembership(userId: string, organizationId: string): Promi
     .where('organization_id', '=', organizationId)
     .executeTakeFirst();
   return !!member;
+}
+
+/**
+ * Validate an HTTP/TCP monitor target against the SSRF guard so a user can't
+ * store a monitor that probes internal services. Returns an error message if
+ * the target is disallowed, or null if it's fine. Heartbeat/log monitors have
+ * no outbound network target.
+ */
+async function validateMonitorTarget(
+  type: string,
+  target: string | null | undefined
+): Promise<string | null> {
+  if (!target) return null;
+  const allowPrivate = config.MONITOR_ALLOW_PRIVATE_TARGETS;
+  try {
+    if (type === 'http') {
+      await assertHttpTargetAllowed(target, allowPrivate);
+    } else if (type === 'tcp') {
+      const { host } = parseTcpTarget(target);
+      await resolveAndValidateHost(host, allowPrivate);
+    }
+    return null;
+  } catch (err) {
+    if (err instanceof SsrfBlockedError) return err.message;
+    return 'Could not validate monitor target';
+  }
 }
 
 const httpConfigSchema = z.object({
@@ -125,6 +154,10 @@ export async function monitoringRoutes(fastify: FastifyInstance) {
       return reply.status(403).send({ error: 'Project does not belong to this organization' });
     }
 
+    // Reject SSRF targets (internal/private addresses) before storing.
+    const targetError = await validateMonitorTarget(input.type, input.target);
+    if (targetError) return reply.status(400).send({ error: targetError });
+
     const monitor = await monitorService.createMonitor(input);
     return reply.status(201).send({ monitor });
   });
@@ -152,6 +185,10 @@ export async function monitoringRoutes(fastify: FastifyInstance) {
       if (existing.type === 'log_heartbeat' && !parse.data.target?.trim()) {
         return reply.status(400).send({ error: 'Log-based monitor requires a service name' });
       }
+
+      // Reject SSRF targets (internal/private addresses) before storing.
+      const targetError = await validateMonitorTarget(existing.type, parse.data.target);
+      if (targetError) return reply.status(400).send({ error: targetError });
     }
 
     const monitor = await monitorService.updateMonitor(id, organizationId, parse.data);
